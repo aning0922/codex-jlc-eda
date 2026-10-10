@@ -1,0 +1,21 @@
+{
+  "name": "jlc-eda",
+  "version": "0.11.0-alpha.3",
+  "description": "Local JLCEDA Pro plugin with isolated schematic/PCB workflows, verified passive ECO, full disk verification and local manufacturing delivery.",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "嘉立创 EDA 助手",
+    "shortDescription": "小板原理图、阻容增量与本地制造交付",
+    "longDescription": "通过真实库与原生工作副本完成小板绘制、同步、局部孔线/钢网及常规两脚阻容新增、兼容换料和有来源的改接；核对完整保存、独立磁盘与制造文件。",
+    "category": "Developer tools",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "检查嘉立创 EDA 环境，并读取我指定的工程"
+    ]
+  }
+}

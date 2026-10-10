@@ -1,0 +1,26 @@
+{
+  "schema": "human-design-requirements-v1",
+  "status": "specification-only-not-a-tool-input",
+  "name": "Low-voltage RC signal filter",
+  "voltageRangeV": [0, 3.3],
+  "board": {"layers": 2, "targetSizeMm": [30, 20]},
+  "conditions": {"sourceImpedanceMaxOhm": 100, "loadImpedanceMinOhm": 1000000},
+  "components": [
+    {"ref":"J1","kind":"connector","pins":2,"role":"IN/GND"},
+    {"ref":"J2","kind":"connector","pins":2,"role":"OUT/GND"},
+    {"ref":"R1","kind":"R","value":"1kOhm","packagePreference":"0603","tolerance":"1%"},
+    {"ref":"C1","kind":"C","value":"10nF","packagePreference":"0603","type":"nonpolar MLCC","ratingMinV":16},
+    {"ref":"R2","kind":"R","value":"100kOhm","packagePreference":"0603","tolerance":"1%"},
+    {"ref":"TP1","kind":"single-pin SMT test point","role":"IN"},
+    {"ref":"TP2","kind":"single-pin SMT test point","role":"OUT"},
+    {"ref":"TP3","kind":"single-pin SMT test point","role":"GND"}
+  ],
+  "nets": {
+    "IN": ["J1.1","R1.1","TP1.1"],
+    "OUT": ["R1.2","C1.1","R2.1","J2.1","TP2.1"],
+    "GND": ["J1.2","J2.2","C1.2","R2.2","TP3.1"]
+  },
+  "plannedModification": {"ref":"C1","from":"10nF","to":"100nF","method":"real compatible part replacement; same symbol/footprint geometry; nets unchanged"},
+  "expected": {"components":8,"pins":13,"nets":3},
+  "partSelection": "Verify actual supplier IDs, complete models and actual pin numbering in the next live session. No fabricated library identities."
+}

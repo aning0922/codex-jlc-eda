@@ -1,0 +1,20 @@
+{
+  "name": "jlc-eda-alpha",
+  "interface": {
+    "displayName": "JLC EDA Alpha"
+  },
+  "plugins": [
+    {
+      "name": "jlc-eda",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer tools"
+    }
+  ]
+}

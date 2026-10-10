@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+.build/
+src/board-geometry.mjs
+.DS_Store
+*.log
+.env
+.env.*
+artifacts/
+*.eprj2
+*.epro
+work-project.json

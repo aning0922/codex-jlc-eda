@@ -1,0 +1,20 @@
+import{nativeModelRecords}from'./file-model-evidence.mjs';import{fingerprint}from'./drawing.mjs';
+// The Device Manager preview stores these exact non-geometric display filters
+// in the project footprint. Never normalize a copper/model/rule record.
+export function managerViewChanges(beforeData,afterData,footprintIds){const before=nativeModelRecords(beforeData),after=nativeModelRecords(afterData),changes=[];for(const uuid of footprintIds){const a=before.get(uuid),b=after.get(uuid);if(!a||!b)continue;for(const r of b.rows.filter(r=>r.type==='PRIMITIVE')){const old=a.rows.find(o=>o.type===r.type&&o.id===r.id);if(old&&fingerprint(old.body)===fingerprint(r.body))continue;const all=r.id==='["PRIMITIVE","ALL"]'&&old&&fingerprint(old.body)===fingerprint({layerId:0,display:true,color:null})&&fingerprint(r.body)===fingerprint({layerId:56,display:false,color:null}),property=r.id==='["PRIMITIVE","PROPERTY"]'&&!old&&fingerprint(r.body)===fingerprint({layerId:0,display:false,color:null});if(all||property)changes.push({uuid,type:r.type,id:r.id,before:old?.body??null,after:r.body,reason:'Observed native Device Manager preview display filter only; all geometric and dependency records remain exact.'});}}return changes;}
+
+// A subsequent native Device Manager preview can restore a previously proved
+// filter to its exact original body, including removal of its exact added row.
+export function managerViewRestorations(beforeData,afterData,priorChanges){const before=nativeModelRecords(beforeData),after=nativeModelRecords(afterData),changes=[];for(const p of priorChanges){if(p.type!=='PRIMITIVE')continue;const old=before.get(p.uuid)?.rows.find(r=>r.type===p.type&&r.id===p.id),now=after.get(p.uuid)?.rows.find(r=>r.type===p.type&&r.id===p.id);if(!old||fingerprint(old.body)!==fingerprint(p.after))continue;if(p.before===null?!now:now&&fingerprint(now.body)===fingerprint(p.before))changes.push({...p,before:p.after,after:p.before,reason:'Observed subsequent native Device Manager restores its previously proved display filter exactly; no geometry normalized.'});}return changes;}
+
+// Native fresh-document loading restores the two proved preview filters. This
+// fingerprint canonicalizes only their exact original/observed display bodies;
+// geometry and every other active record remain part of the comparison.
+export function passivePresentationFingerprint(data,knownChanges){
+ const map=nativeModelRecords(data),docs=[],normalized=[],issues=[];
+ for(const [uuid,doc]of map){const rows=doc.rows.map(r=>({...r}));for(const p of knownChanges.filter(p=>p.uuid===uuid)){
+  const valid=p.type==='PRIMITIVE'&&(p.id==='["PRIMITIVE","ALL"]'&&fingerprint(p.before)===fingerprint({layerId:0,display:true,color:null})&&fingerprint(p.after)===fingerprint({layerId:56,display:false,color:null})||p.id==='["PRIMITIVE","PROPERTY"]'&&p.before===null&&fingerprint(p.after)===fingerprint({layerId:0,display:false,color:null}));if(!valid){issues.push({code:'PASSIVE_PREVIEW_NORMALIZATION_UNPROVEN',uuid,id:p.id});continue;}
+  const index=rows.findIndex(r=>r.type===p.type&&r.id===p.id),r=rows[index];if(!r&&p.before===null)continue;if(!r||fingerprint(r.body)!==fingerprint(p.before)&&fingerprint(r.body)!==fingerprint(p.after)){issues.push({code:'PASSIVE_PREVIEW_VARIANT_UNSUPPORTED',uuid,id:p.id});continue;}if(fingerprint(r.body)===fingerprint(p.after)){normalized.push({uuid,type:p.type,id:p.id,actual:r.body,canonical:p.before});if(p.before===null)rows.splice(index,1);else rows[index]={...r,body:p.before};}
+ }const records=rows.map(({type,id,body})=>({type,id,body})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));docs.push({uuid,docType:doc.docType,records});}
+ docs.sort((a,b)=>(a.docType+'/'+a.uuid).localeCompare(b.docType+'/'+b.uuid));return{status:issues.length?'mismatch':'matched',issues,sha256:fingerprint(docs),normalized,coverage:'Full active native records, with only the exact two previously adopted Device Manager preview filters canonicalized to original bodies; raw archive SHA and deletion/geometry proofs reported separately.'};
+}

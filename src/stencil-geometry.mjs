@@ -1,0 +1,11 @@
+import{signedDistance,distanceSegment}from'./manufacturing-geometry.mjs';
+export const polygonArea=p=>Math.abs(p.reduce((a,x,i)=>{const y=p[(i+1)%p.length];return a+x.x*y.y-y.x*x.y;},0))/2;
+const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+const intersects=(a,b,c,d)=>{const x=cross(a,b,c),y=cross(a,b,d),u=cross(c,d,a),v=cross(c,d,b);if(x*y<0&&u*v<0)return true;return Math.min(distanceSegment(a,c,d),distanceSegment(b,c,d),distanceSegment(c,a,b),distanceSegment(d,a,b))<1e-10;};
+export function validateWindows(windows,{width,height,vias=[]}){
+ const polygons=windows.map(ps=>ps.map(([x,y])=>({x,y}))),issues=[];let area=0;
+ for(let n=0;n<polygons.length;n++){const p=polygons[n];if(p.length<3||p.some(q=>!Number.isFinite(q.x)||!Number.isFinite(q.y)||Math.abs(q.x)>=width/2||Math.abs(q.y)>=height/2))issues.push('STENCIL_OUTSIDE_PAD_OR_NONFINITE');if(polygonArea(p)<1e-8)issues.push('STENCIL_ZERO_AREA');for(let i=0;i<p.length;i++){if(distanceSegment(p[i],p[(i+1)%p.length],p[(i+1)%p.length])<1e-10)issues.push('STENCIL_DUPLICATE_VERTEX');for(let j=i+1;j<p.length;j++)if(j!==i+1&&!(i===0&&j===p.length-1)&&intersects(p[i],p[(i+1)%p.length],p[j],p[(j+1)%p.length]))issues.push('STENCIL_SELF_INTERSECTION');}area+=polygonArea(p);for(const v of vias)if(signedDistance({kind:'polygon',points:p},v)-v.hole/2<.10-1e-8)issues.push('STENCIL_HOLE_CLEARANCE');
+  for(let j=0;j<n;j++){const q=polygons[j];if(p.some(x=>signedDistance({kind:'polygon',points:q},x)<=1e-10)||q.some(x=>signedDistance({kind:'polygon',points:p},x)<=1e-10)||p.some((x,i)=>q.some((y,k)=>intersects(x,p[(i+1)%p.length],y,q[(k+1)%q.length]))))issues.push('STENCIL_WINDOWS_OVERLAP');}}
+ const coverage=area/(width*height);if(coverage<.5||coverage>.8)issues.push('STENCIL_COVERAGE_OUTSIDE_DECLARED_RANGE');return {matched:!issues.length,issues:[...new Set(issues)],areaMm2:area,coverage,polygons};
+}
+export function samePolygon(a,b,tolerance=.00001){const clean=p=>{const q=p.map(x=>({...x}));if(q.length>1&&Math.hypot(q[0].x-q.at(-1).x,q[0].y-q.at(-1).y)<tolerance)q.pop();return q;};a=clean(a);b=clean(b);if(a.length!==b.length)return false;for(let shift=0;shift<b.length;shift++)for(const direction of [1,-1])if(a.every((p,i)=>{const q=b[(shift+direction*i+b.length*2)%b.length];return Math.hypot(p.x-q.x,p.y-q.y)<=tolerance;}))return true;return false;}

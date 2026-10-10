@@ -1,0 +1,27 @@
+{
+  "suggestedName": "codex-jlc-eda",
+  "owner": "aning0922",
+  "ownerStatus": "confirmed repository owner",
+  "descriptionZh": "面向嘉立创 EDA 专业版的本地 Codex MCP/Skill 开发预览：真实模型、隔离工作副本与保存核验。",
+  "descriptionEn": "Local Codex MCP/Skill developer preview for JLCEDA Pro: real models, isolated work copies and verified saves.",
+  "topics": [
+    "codex",
+    "mcp",
+    "jlc-eda",
+    "eda",
+    "pcb",
+    "electronics",
+    "macos",
+    "developer-preview"
+  ],
+  "website": null,
+  "releaseTag": "v0.11.0-alpha.3",
+  "releaseTitleZh": "0.11.0-alpha.3 — 依赖修复开发预览",
+  "releaseTitleEn": "0.11.0-alpha.3 — Dependency-patched developer preview",
+  "prerelease": true,
+  "publishStatus": "Alpha developer preview; release and Actions pages provide remote status",
+  "repositoryUrl": "https://github.com/aning0922/codex-jlc-eda",
+  "issuesUrl": "https://github.com/aning0922/codex-jlc-eda/issues",
+  "privateReportingUrl": "https://github.com/aning0922/codex-jlc-eda/security/advisories/new",
+  "actionsUrl": "https://github.com/aning0922/codex-jlc-eda/actions"
+}

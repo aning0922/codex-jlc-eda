@@ -1,0 +1,130 @@
+{
+  "baseline": "0.10.0-p4-e",
+  "tests": [
+    {
+      "sourceFile": "adapter.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "drawing.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "eco.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "facts.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "incremental-closed-fixture.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "incremental-closed-reuse.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "incremental.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "manufacturing.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "p3-r1.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p3-r2.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p3-r3.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p3.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r1.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r3-1-check.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r3-serialization.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r3-workflow.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r3.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r4-file-stage.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r4-format.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r4-stage-projection.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r4-stage.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-r5.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "p4-a-schema.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "p4-a-vias.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "passives.test.mjs",
+      "disposition": "private fixture group; models excluded; explicit environment required"
+    },
+    {
+      "sourceFile": "pcb.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "r1-fixtures.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    },
+    {
+      "sourceFile": "resources.test.mjs",
+      "disposition": "retained offline; private-dependent cases split where applicable"
+    },
+    {
+      "sourceFile": "revision.test.mjs",
+      "disposition": "excluded from public tests: depends on historical artifacts or their helper; original remains local"
+    }
+  ],
+  "excludedData": [
+    "tests/fixtures/passive-real.json",
+    "all historical native project/archive/journal artifacts"
+  ],
+  "newTests": [
+    "geometry-extraction.test.mjs",
+    "board-geometry.test.ts",
+    "scripts/verify-package.mjs"
+  ]
+}

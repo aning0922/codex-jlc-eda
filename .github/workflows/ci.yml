@@ -1,0 +1,32 @@
+name: Offline release checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        node: ['20', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Verify package root
+        run: node -e 'if(require("./package.json").name!=="codex-jlc-eda") process.exit(1)'
+      - run: npm --prefix "$GITHUB_WORKSPACE" ci --ignore-scripts --no-audit --no-fund
+      - run: npm --prefix "$GITHUB_WORKSPACE" test
+      - run: npm --prefix "$GITHUB_WORKSPACE" run test:protocol
+      - run: npm --prefix "$GITHUB_WORKSPACE" run package
+      - name: Unpack isolated runtime and verify public MCP
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/jlc-runtime"
+          unzip -q "release/$(node -p 'require("./package.json").version')/"*-runtime.zip -d "$RUNNER_TEMP/jlc-runtime"
+          node scripts/verify-package.mjs "$RUNNER_TEMP/jlc-runtime" --runtime
+      - name: Scan public source allowlist
+        run: node scripts/audit-release.mjs
+      - name: Check bilingual docs and local links
+        run: node scripts/check-docs.mjs

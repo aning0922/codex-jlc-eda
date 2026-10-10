@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" role="img" aria-labelledby="title desc">
+<title id="title">Requirements to verified local files</title>
+<desc id="desc">Original conceptual workflow, not a PCB screenshot: requirements, real models, isolated design, then verification and saving.</desc>
+<rect x="1" y="1" width="898" height="298" rx="20" fill="#101c2c" stroke="#40546d" stroke-width="2"/>
+<g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+<text x="32" y="52" fill="#6ee7cd" font-size="28" font-weight="700" letter-spacing="2">INTENT → VERIFIED LOCAL FILES</text>
+<g fill="none" stroke="#6ee7cd" stroke-width="2"><path d="M402 123H498M683 162V176H217V190M402 229H498"/><path d="M486 116L498 123L486 130M210 182L217 190L224 182M486 222L498 229L486 236"/></g>
+<g fill="#1d3046" stroke="#526d88"><rect x="32" y="84" width="370" height="78" rx="10"/><rect x="498" y="84" width="370" height="78" rx="10"/><rect x="32" y="190" width="370" height="78" rx="10"/><rect x="498" y="190" width="370" height="78" rx="10"/></g>
+<g fill="#ecf3fa" font-size="32" font-weight="600" text-anchor="middle"><text x="217" y="134">01 · Requirements</text><text x="683" y="134">02 · Real models</text><text x="217" y="240">03 · Isolated design</text><text x="683" y="240">04 · Verify &amp; save</text></g>
+</g></svg>

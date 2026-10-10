@@ -1,0 +1,5605 @@
+[
+  {
+    "name": "jlc_eda_doctor",
+    "description": "检查嘉立创官方 CLI、版本和连接状态。读写能力与连接分别报告；界面自动化由宿主提供，不假定存在。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_sessions",
+    "description": "列出官方 CLI 会话。不要把第一个会话默认为用户目标；普通编辑器窗口可能尚未注册。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_open_project",
+    "description": "为指定已有工程创建隔离副本并打开检查，返回原件与副本路径、会话和文档身份。本版不打开原件；编辑器可能在副本写历史。同一来源未变时复用本服务已有活跃副本。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_inspect_project",
+    "description": "读取已选会话中的工程身份与文档目录。已知预期工程 UUID 时必须提供以核对目标；首次可仅发现身份，不修改编辑器。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_read_document",
+    "description": "读取指定原理图页或 PCB 的实例、子部件、镜像、位置和可选引脚/焊盘几何。可能激活标签页；逻辑网表另用 read_connectivity。图元边界不是已核验的机械尺寸。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "documentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "schematic",
+            "pcb"
+          ]
+        },
+        "includePins": {
+          "type": "boolean",
+          "default": false
+        },
+        "includeGeometry": {
+          "type": "boolean",
+          "default": false
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "documentUuid",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_search_devices",
+    "description": "通过当前工程的官方器件库搜索候选。query 关键词和 properties 属性条件二选一；返回真实库身份及参数来源，不验证实时库存、价格或电气适用性。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "libraryUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "properties": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "symbolName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "footprintName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "supplierFootprint": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "supplierId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "partNumber": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "partCode": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25,
+          "default": 10
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 1
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_read_device",
+    "description": "按搜索或实例返回的真实器件与库 UUID 读取详细参数、符号/封装关联、子部件和数据表链接。链接存在不代表已核对数据表。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "deviceUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "libraryUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "deviceUuid",
+        "libraryUuid"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_read_library_model",
+    "description": "打开或激活指定符号/封装库文档并读取原生端子几何、焊盘形状、原点和源指纹。官方 API 无法打开时返回 needs_ui，不制造模型数据。端子边界不是机械外形。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "modelUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "libraryUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "symbol",
+            "footprint"
+          ]
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "modelUuid",
+        "libraryUuid",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_read_connectivity",
+    "description": "读取官方原理图逻辑网表及符号引脚；可与同板 PCB 焊盘的网络归属核对，按唯一 ID 合并多单元符号。comparison.status 才是核对结论；匹配不代表已布通、DRC 或功能通过。只支持单个原理图树，最多 8 页，每页 200 个实例。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_close_session",
+    "description": "默认真实销毁本服务创建的临时读取上下文及窗口，保留文件；destroy=false 仅 detach（隐藏上下文原生仍销毁）。可写工作窗口必须用 finish_work_project 保存、独立重读并比较完整原生设计后关闭。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "destroy": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_create_work_project",
+    "description": "从原生空白模板创建独立任务工程；拒绝已有输出与非空模板。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "outputDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "blankTemplatePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "outputDirectory",
+        "blankTemplatePath",
+        "requestId"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_draw_schematic",
+    "description": "在明确绑定的任务工程按结构化器件与全引脚连接表绘制，记录逐步写入，未知结果不重放。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "place",
+            "complete"
+          ],
+          "default": "complete"
+        },
+        "showTitleBlock": {
+          "type": "boolean",
+          "default": false
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "workDirectory",
+        "requestId",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_verify_schematic",
+    "description": "逐项核对元件、属性、方向、全部 pin→net 与明确 NC；逻辑通过不等于电气或 ERC 通过。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_save_work_project",
+    "description": "仅保存绑定的任务工程，返回 unknown/PERSISTENCE_NOT_VERIFIED，须独立磁盘重读后才确认持久化。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "workDirectory",
+        "requestId"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_reopen_work_project",
+    "description": "从任务原生磁盘文件建立隔离的新读取会话，核对同一输入并报告持久化结果。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "workDirectory",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_preview_schematic",
+    "description": "导出绑定任务原理图的原生 SVG/PNG 预览。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "svg",
+            "png"
+          ],
+          "default": "svg"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "workDirectory"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_resume_work_project",
+    "description": "从已保存并有布局检查点的正式任务建立明确续作副本，保留完整源 journal、旧未知动作及来源哈希；发现活跃目标或确认关闭后正式打开并核对原生身份、Board、模型、布局和铜线，不复用已关闭 sid。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sourceWorkDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "outputDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "resume",
+            "refresh_saved",
+            "recover_refreshed"
+          ],
+          "default": "resume"
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        },
+        "repairIntent": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "local_repair"
+            },
+            "sourceFileSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "sourceJournalSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "stopRequestId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            },
+            "fileRequestId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1,
+              "maxItems": 12
+            },
+            "purpose": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "kind",
+            "sourceFileSha256",
+            "sourceJournalSha256",
+            "stopRequestId",
+            "fileRequestId",
+            "nets",
+            "purpose"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sourceWorkDirectory",
+        "outputDirectory",
+        "requestId",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_derive_work_project",
+    "description": "从来源原生工程明确派生新的任务工作副本，核对原理图输入、真实封装后绑定。empty 为默认；synchronized_unrouted 必须给原生源及完整同步检查点，拒绝其他 PCB 内容，不改来源。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sourcePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "outputDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        },
+        "sourcePcbState": {
+          "type": "string",
+          "enum": [
+            "empty",
+            "synchronized_unrouted"
+          ],
+          "default": "empty"
+        },
+        "sourceCheckpointPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "open",
+            "recover"
+          ],
+          "default": "open"
+        }
+      },
+      "required": [
+        "sourcePath",
+        "outputDirectory",
+        "requestId",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_sync_pcb",
+    "description": "在绑定的无布线任务 PCB 中调用官方原理图树导入，核对全部元件、真实封装与 pin→pad 网络。复核未应用时返回 needs_ui 并保持 PCB。重复请求只读回，未知导入不自动重放；verify 用于界面完成后核查。retry_unapplied_review 仅在首次复核已关闭且完整零影响读回时明确恢复一次，超时或部分应用拒绝。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "apply",
+            "verify",
+            "retry_unapplied_review"
+          ],
+          "default": "apply"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "requestId",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_verify_pcb",
+    "description": "按真实 Board 关联、唯一 ID、器件/封装来源及模型全部焊盘核对 PCB。匹配不代表布局、铜线连通、ERC/DRC 或电气通过。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_reopen_pcb",
+    "description": "每次创建新磁盘副本和新读取上下文，全量重核原理图/PCB 及原有位置；只有 persistenceVerified=true 才确认保存。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_preview_pcb",
+    "description": "在绑定 PCB 导出当前原生渲染图；只改变选择/缩放，不布局或布线。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_finish_work_project",
+    "description": "收尾明确绑定的工作工程：未决写入保留；两端保存、现场核对、新磁盘上下文及完整原生设计比较通过后，真实关闭任务窗口并保留产物。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "workDirectory",
+        "requestId",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_read_pcb_routing",
+    "description": "读取绑定 PCB 的真实铜线/过孔/板框、规则和本机 API 声明。函数存在不代表路由运行成功。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_layout_pcb",
+    "description": "候选布局入口：以明确单位、板框和全实例约束生成计划，官方移动与板框写入后读回；保留同步历史并另建布局检查点。总体验收仍由独立复核决定。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "layout": {
+          "type": "object",
+          "properties": {
+            "unit": {
+              "type": "string",
+              "enum": [
+                "mm",
+                "mil"
+              ]
+            },
+            "board": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": -100000,
+                  "maximum": 100000
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": -100000,
+                  "maximum": 100000
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000
+                },
+                "layers": {
+                  "type": "number",
+                  "const": 2
+                },
+                "outlineWidth": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height",
+                "layers",
+                "outlineWidth"
+              ],
+              "additionalProperties": false
+            },
+            "edgeClearance": {
+              "type": "number",
+              "minimum": 0
+            },
+            "componentClearance": {
+              "type": "number",
+              "minimum": 0
+            },
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "uniqueId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": -100000,
+                    "maximum": 100000
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": -100000,
+                    "maximum": 100000
+                  },
+                  "rotation": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 359.999
+                  },
+                  "layer": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "fixed": {
+                    "type": "boolean"
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "uniqueId",
+                  "x",
+                  "y",
+                  "rotation",
+                  "layer",
+                  "fixed",
+                  "group"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "distanceConstraints": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "object",
+                    "properties": {
+                      "uniqueId": {
+                        "type": "string"
+                      },
+                      "pin": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "uniqueId",
+                      "pin"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "to": {
+                    "type": "object",
+                    "properties": {
+                      "uniqueId": {
+                        "type": "string"
+                      },
+                      "pin": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "uniqueId",
+                      "pin"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maximum": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100000
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "maximum",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "unit",
+            "board",
+            "edgeClearance",
+            "componentClearance",
+            "components"
+          ],
+          "additionalProperties": false
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "plan",
+            "apply",
+            "verify",
+            "retry_rejected"
+          ],
+          "default": "plan"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "requestId",
+        "layout"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_configure_pcb_rules",
+    "description": "候选规则入口：只更新当前任务 PCB 的间距/线宽/过孔数字，保留所有检查项及全局设置，并读回核对。总体验收仍由独立复核决定。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "unit": {
+              "type": "string",
+              "const": "mm"
+            },
+            "copperClearance": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "boardClearance": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "track": {
+              "type": "object",
+              "properties": {
+                "minimum": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "default": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "maximum": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "minimum",
+                "default",
+                "maximum"
+              ],
+              "additionalProperties": false
+            },
+            "via": {
+              "type": "object",
+              "properties": {
+                "diameter": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "hole": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "diameter",
+                "hole"
+              ],
+              "additionalProperties": false
+            },
+            "clearanceOverrides": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "objects": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "minimum": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "objects",
+                  "minimum"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 100,
+              "default": []
+            },
+            "manufacturingReference": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "unit",
+            "copperClearance",
+            "boardClearance",
+            "track",
+            "via",
+            "manufacturingReference"
+          ],
+          "additionalProperties": false
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "apply",
+            "verify",
+            "prepare_ui",
+            "verify_ui",
+            "auto_recover",
+            "verify_auto",
+            "cleanup"
+          ],
+          "default": "apply"
+        },
+        "uiProfileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "requestId",
+        "rules"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_route_pcb",
+    "description": "候选原生路由入口：真实焊盘关键线或受限网络原生引擎；保留已有铜线、限制图层和等待，未知结果不重放。prepare_ui 不运行引擎；verify 核对实际应用。总体验收仍由独立复核决定。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "critical",
+            "native",
+            "prepare_ui",
+            "verify",
+            "retry_rejected",
+            "prepare_restore_undo"
+          ]
+        },
+        "guiParameterPolicy": {
+          "type": "string",
+          "enum": [
+            "require_all",
+            "allow_unverified"
+          ],
+          "default": "require_all"
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "mm",
+            "mil"
+          ],
+          "default": "mm"
+        },
+        "critical": {
+          "type": "object",
+          "properties": {
+            "net": {
+              "type": "string",
+              "minLength": 1
+            },
+            "from": {
+              "type": "object",
+              "properties": {
+                "uniqueId": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                },
+                "pin": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "uniqueId",
+                "pin"
+              ],
+              "additionalProperties": false
+            },
+            "to": {
+              "type": "object",
+              "properties": {
+                "uniqueId": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                },
+                "pin": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "uniqueId",
+                "pin"
+              ],
+              "additionalProperties": false
+            },
+            "waypoints": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "maxItems": 30,
+              "default": []
+            },
+            "layer": {
+              "type": "number",
+              "enum": [
+                1,
+                2
+              ]
+            },
+            "width": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "net",
+            "from",
+            "to",
+            "layer",
+            "width"
+          ],
+          "additionalProperties": false
+        },
+        "routing": {
+          "type": "object",
+          "properties": {
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "ignoreNets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "layers": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 2
+            },
+            "existingPrimitiveMode": {
+              "type": "string",
+              "const": "keep"
+            },
+            "cornerStyle": {
+              "type": "number",
+              "enum": [
+                0,
+                1
+              ]
+            },
+            "optimization": {
+              "type": "number",
+              "enum": [
+                0,
+                1
+              ]
+            },
+            "waitMs": {
+              "type": "integer",
+              "minimum": 30000,
+              "maximum": 180000
+            }
+          },
+          "required": [
+            "nets",
+            "layers",
+            "existingPrimitiveMode",
+            "cornerStyle",
+            "optimization",
+            "waitMs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "requestId",
+        "phase"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_check_pcb",
+    "description": "候选 PCB 检查入口：完整身份、布局、实际铜线图和新执行原生严格 DRC 分别报告。boardReady 要求全部通过。总体验收仍由独立复核决定。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_stop_work_project",
+    "description": "native_timeout 停止唯一未决原生超时路由；rolled_back_ui 保全成功观察后失效并完全回到运行前的 GUI 阶段。两端保存、原生全档案、新磁盘、原内容/归属保持核对后关闭；原成功路由基线和失败记录保留，operationSucceeded/designReady=false。关闭未知只读协调，不重发。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "routeRequestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "native_timeout",
+            "rolled_back_ui",
+            "file_partial"
+          ],
+          "default": "native_timeout"
+        },
+        "circuit": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "designator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "deviceUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "libraryUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "subPartName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "pose": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      },
+                      "mirror": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 400
+                    },
+                    "default": {}
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "manufacturerPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "footprintUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "designator",
+                  "deviceUuid",
+                  "libraryUuid",
+                  "pose",
+                  "supplierId",
+                  "manufacturerPart",
+                  "footprintUuid"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "nets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                        },
+                        "pin": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "stubLength": {
+                          "type": "number",
+                          "minimum": 10,
+                          "maximum": 80,
+                          "default": 25
+                        }
+                      },
+                      "required": [
+                        "ref",
+                        "pin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "name",
+                  "endpoints"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "nc": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 80,
+                    "default": 25
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10,
+              "default": []
+            }
+          },
+          "required": [
+            "components",
+            "nets"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "requestId",
+        "routeRequestId",
+        "circuit"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_export_pcb_dsn",
+    "description": "正式绑定PCB的官方DSN单次导出，记录文件来源、完整前后档案和原生图元。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "requestId"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_import_pcb_ses",
+    "description": "同一DSN来源的受限SES计划/单次导入/只读验证；仅省略唯一对应既有protect过孔，独立报告原ID和严格共线覆盖。必须DRC、连通、切页和保存核验。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "exportRequestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "plan",
+            "apply",
+            "verify"
+          ]
+        },
+        "sesPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sesSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "preservationPolicy": {
+          "type": "string",
+          "const": "strict_collinear_coverage"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "requestId",
+        "exportRequestId",
+        "phase",
+        "sesPath",
+        "sesSha256",
+        "preservationPolicy"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_export_manufacturing",
+    "description": "从指定工程路径自动发现单板与文档，在新隔离读取上下文导出本地Gerber/BOM/贴片坐标和预览，解析实际文件并给出中文制造检查。源不改写、导出未知不重放；verify仅复核完整已捕获文件。文件生成与制造资格分别报告。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sourcePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "outputDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "boardName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "generate",
+            "verify"
+          ],
+          "default": "generate"
+        },
+        "assembly": {
+          "type": "string",
+          "enum": [
+            "reflow",
+            "hand"
+          ],
+          "default": "reflow"
+        },
+        "viaTreatment": {
+          "type": "string",
+          "enum": [
+            "unspecified",
+            "tented",
+            "filled_capped"
+          ],
+          "default": "unspecified"
+        }
+      },
+      "required": [
+        "sourcePath",
+        "outputDirectory",
+        "requestId"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_incremental_pcb",
+    "description": "从已有完成PCB正式派生新的增量工作副本，自动发现实际关联；局部孔/线/位号/工程内钢网封装的结构化计划、单次执行、非目标保持、严格DRC/铜连通、完整保存重开与关闭。源工程和原journal保持，不恢复已finish源或重放未知。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sourcePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "outputDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sourceCheckpointPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "derive",
+            "plan",
+            "apply",
+            "verify",
+            "finish",
+            "recover",
+            "prepare_model",
+            "inspect_model",
+            "adopt_model",
+            "repair_model_projection"
+          ]
+        },
+        "changes": {
+          "type": "object",
+          "properties": {
+            "viaMoves": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "net": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "diameterMm": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "net",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 12,
+              "default": []
+            },
+            "lineEdits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "net": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "layer": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "replacement": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "maxItems": 30
+                  }
+                },
+                "required": [
+                  "net",
+                  "layer",
+                  "from",
+                  "to",
+                  "replacement"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 30,
+              "default": []
+            },
+            "addVias": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "net": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "at": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "holeMm": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "diameterMm": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "net",
+                  "at",
+                  "holeMm",
+                  "diameterMm"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 12,
+              "default": []
+            },
+            "addLines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "net": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "layer": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "widthMm": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "minItems": 2,
+                    "maxItems": 30
+                  }
+                },
+                "required": [
+                  "net",
+                  "layer",
+                  "widthMm",
+                  "points"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 30,
+              "default": []
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "heightMm": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "at": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "required": [
+                  "ref",
+                  "heightMm"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 30,
+              "default": []
+            },
+            "stencils": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "padNumber": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "modelPolicy": {
+                    "type": "string",
+                    "const": "selected_instance",
+                    "default": "selected_instance"
+                  },
+                  "windows": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 2,
+                        "maxItems": 2
+                      },
+                      "minItems": 3,
+                      "maxItems": 30
+                    },
+                    "minItems": 2,
+                    "maxItems": 16
+                  },
+                  "rationale": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "ref",
+                  "padNumber",
+                  "name",
+                  "windows",
+                  "rationale"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 1,
+              "default": []
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sourcePath",
+        "outputDirectory",
+        "requestId",
+        "phase"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_schematic_eco",
+    "description": "从完成工程正式派生单页已有PCB的受限原理图增量任务，默认单脚SMT或passives模式常规两脚R/C新增、真实兼容换料与有创建来源的一脚局部改接；原生器件管理器/导入复核、局部连接、完整非目标与工程内封装保持及保存重开。来源保持、参数冲突拒绝、未知动作不重放。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sourcePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sourceCheckpointPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "outputDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "single_point",
+            "passives"
+          ],
+          "default": "single_point"
+        },
+        "passiveChanges": {
+          "type": "object",
+          "properties": {
+            "additions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "designator": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "R",
+                      "C"
+                    ]
+                  },
+                  "schematic": {
+                    "type": "object",
+                    "properties": {
+                      "atMm": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 2,
+                        "maxItems": 2
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      }
+                    },
+                    "required": [
+                      "atMm"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "pcb": {
+                    "type": "object",
+                    "properties": {
+                      "atMm": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 2,
+                        "maxItems": 2
+                      },
+                      "rotation": {
+                        "type": "number",
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ],
+                        "default": 0
+                      }
+                    },
+                    "required": [
+                      "atMm"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "pins": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "number": {
+                          "type": "string",
+                          "enum": [
+                            "1",
+                            "2"
+                          ]
+                        },
+                        "net": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "required": [
+                        "number",
+                        "net"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "connections": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "pin": {
+                          "type": "string",
+                          "enum": [
+                            "1",
+                            "2"
+                          ]
+                        },
+                        "net": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "layer": {
+                          "type": "number",
+                          "enum": [
+                            1,
+                            2
+                          ]
+                        },
+                        "widthMm": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                          },
+                          "minItems": 2,
+                          "maxItems": 30
+                        },
+                        "extraPaths": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "layer": {
+                                "type": "number",
+                                "enum": [
+                                  1,
+                                  2
+                                ]
+                              },
+                              "widthMm": {
+                                "type": "number",
+                                "exclusiveMinimum": 0
+                              },
+                              "points": {
+                                "type": "array",
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 2
+                                },
+                                "minItems": 2,
+                                "maxItems": 30
+                              }
+                            },
+                            "required": [
+                              "layer",
+                              "widthMm",
+                              "points"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 3,
+                          "default": []
+                        },
+                        "vias": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "atMm": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              "holeMm": {
+                                "type": "number",
+                                "exclusiveMinimum": 0
+                              },
+                              "diameterMm": {
+                                "type": "number",
+                                "exclusiveMinimum": 0
+                              }
+                            },
+                            "required": [
+                              "atMm",
+                              "holeMm",
+                              "diameterMm"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 2,
+                          "default": []
+                        }
+                      },
+                      "required": [
+                        "pin",
+                        "net",
+                        "layer",
+                        "widthMm",
+                        "points"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "labelAtMm": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "required": [
+                  "designator",
+                  "supplierId",
+                  "kind",
+                  "schematic",
+                  "pcb",
+                  "pins",
+                  "connections",
+                  "labelAtMm"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 2,
+              "default": []
+            },
+            "modifications": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "designator": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                  },
+                  "supplierId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "R",
+                      "C"
+                    ]
+                  },
+                  "reconnect": {
+                    "type": "object",
+                    "properties": {
+                      "pin": {
+                        "type": "string",
+                        "enum": [
+                          "1",
+                          "2"
+                        ]
+                      },
+                      "oldNet": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "newNet": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "removeBranches": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "net": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "layer": {
+                              "type": "number",
+                              "enum": [
+                                1,
+                                2
+                              ]
+                            },
+                            "widthMm": {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            },
+                            "points": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              "minItems": 2,
+                              "maxItems": 30
+                            }
+                          },
+                          "required": [
+                            "net",
+                            "layer",
+                            "widthMm",
+                            "points"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "minItems": 1,
+                        "maxItems": 3
+                      },
+                      "connection": {
+                        "type": "object",
+                        "properties": {
+                          "pin": {
+                            "type": "string",
+                            "enum": [
+                              "1",
+                              "2"
+                            ]
+                          },
+                          "net": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "layer": {
+                            "type": "number",
+                            "enum": [
+                              1,
+                              2
+                            ]
+                          },
+                          "widthMm": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "points": {
+                            "type": "array",
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "number"
+                              },
+                              "minItems": 2,
+                              "maxItems": 2
+                            },
+                            "minItems": 2,
+                            "maxItems": 30
+                          },
+                          "extraPaths": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "layer": {
+                                  "type": "number",
+                                  "enum": [
+                                    1,
+                                    2
+                                  ]
+                                },
+                                "widthMm": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 30
+                                }
+                              },
+                              "required": [
+                                "layer",
+                                "widthMm",
+                                "points"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "maxItems": 3,
+                            "default": []
+                          },
+                          "vias": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "atMm": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 2
+                                },
+                                "holeMm": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                },
+                                "diameterMm": {
+                                  "type": "number",
+                                  "exclusiveMinimum": 0
+                                }
+                              },
+                              "required": [
+                                "atMm",
+                                "holeMm",
+                                "diameterMm"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "maxItems": 2,
+                            "default": []
+                          }
+                        },
+                        "required": [
+                          "pin",
+                          "net",
+                          "layer",
+                          "widthMm",
+                          "points"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "pin",
+                      "oldNet",
+                      "newNet",
+                      "removeBranches",
+                      "connection"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "designator",
+                  "supplierId",
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 2,
+              "default": []
+            }
+          },
+          "additionalProperties": false
+        },
+        "targetDesignator": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "candidateSupplierIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "derive",
+            "parts",
+            "read",
+            "plan",
+            "schematic",
+            "sync",
+            "verify_sync",
+            "complete",
+            "verify",
+            "finish",
+            "recover",
+            "preview",
+            "prepare_replace",
+            "adopt_replace"
+          ]
+        },
+        "candidateSupplierId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "addition": {
+          "type": "object",
+          "properties": {
+            "designator": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            },
+            "supplierId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "net": {
+              "type": "string",
+              "minLength": 1
+            },
+            "schematic": {
+              "type": "object",
+              "properties": {
+                "atMm": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "rotation": {
+                  "type": "number",
+                  "enum": [
+                    0,
+                    90,
+                    180,
+                    270
+                  ],
+                  "default": 0
+                }
+              },
+              "required": [
+                "atMm"
+              ],
+              "additionalProperties": false
+            },
+            "pcb": {
+              "type": "object",
+              "properties": {
+                "atMm": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "rotation": {
+                  "type": "number",
+                  "enum": [
+                    0,
+                    90,
+                    180,
+                    270
+                  ],
+                  "default": 0
+                }
+              },
+              "required": [
+                "atMm"
+              ],
+              "additionalProperties": false
+            },
+            "connection": {
+              "type": "object",
+              "properties": {
+                "layer": {
+                  "type": "number",
+                  "enum": [
+                    1,
+                    2
+                  ]
+                },
+                "widthMm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "minItems": 2,
+                  "maxItems": 15
+                }
+              },
+              "required": [
+                "layer",
+                "widthMm",
+                "points"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "designator",
+            "supplierId",
+            "net",
+            "schematic",
+            "pcb",
+            "connection"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sourcePath",
+        "sourceCheckpointPath",
+        "outputDirectory",
+        "requestId",
+        "phase"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "jlc_eda_repair_pcb",
+    "description": "来源完整的已知部分阶段局部补线：显式路径与通孔，plan/apply/verify、当前障碍规则预检、原内容完整保存；每请求写一次，未知不重放。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "expectedProjectUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicPageUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "schematicUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "pcbDocumentUuid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "workDirectory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "plan",
+            "apply",
+            "verify",
+            "verify_returned"
+          ]
+        },
+        "net": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "type": "object",
+          "properties": {
+            "uniqueId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            },
+            "pin": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "uniqueId",
+            "pin"
+          ],
+          "additionalProperties": false
+        },
+        "to": {
+          "type": "object",
+          "properties": {
+            "uniqueId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            },
+            "pin": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "uniqueId",
+            "pin"
+          ],
+          "additionalProperties": false
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "mm",
+            "mil"
+          ],
+          "default": "mm"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "layer": {
+                "type": "number",
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "minItems": 2,
+                "maxItems": 30
+              }
+            },
+            "required": [
+              "layer",
+              "width",
+              "points"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "vias": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "holeDiameter": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "diameter": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "at",
+              "holeDiameter",
+              "diameter"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 12,
+          "default": []
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedProjectUuid",
+        "schematicPageUuid",
+        "schematicUuid",
+        "pcbDocumentUuid",
+        "workDirectory",
+        "requestId",
+        "phase",
+        "net",
+        "from",
+        "to",
+        "paths",
+        "purpose"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  }
+]

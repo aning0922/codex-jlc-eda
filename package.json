@@ -1,0 +1,32 @@
+{
+  "name": "codex-jlc-eda",
+  "version": "0.11.0-alpha.3",
+  "private": true,
+  "type": "module",
+  "description": "Local JLCEDA Pro workflows for isolated schematic/PCB work, verified passive ECO and manufacturing delivery.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/test.mjs offline",
+    "start": "node dist/server.mjs",
+    "doctor": "node dist/cli.mjs doctor",
+    "pretest": "node scripts/build.mjs",
+    "test:fixtures": "node scripts/test.mjs fixtures",
+    "test:protocol": "node scripts/verify-package.mjs .",
+    "package": "node scripts/package.mjs",
+    "check": "node scripts/build.mjs && node scripts/test.mjs offline && node scripts/verify-package.mjs . && node scripts/package.mjs",
+    "prepackage": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "esbuild": "0.28.2",
+    "fflate": "0.8.3",
+    "gerber-parser": "4.2.7",
+    "gerber-to-svg": "4.2.8",
+    "zod": "3.25.76",
+    "zod-to-json-schema": "3.25.2"
+  },
+  "license": "MIT"
+}
