@@ -1,10 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" role="img" aria-labelledby="title desc">
-<title id="title">Requirements to verified local files</title>
-<desc id="desc">Original conceptual workflow, not a PCB screenshot: requirements, real models, isolated design, then verification and saving.</desc>
-<rect x="1" y="1" width="898" height="298" rx="20" fill="#101c2c" stroke="#40546d" stroke-width="2"/>
-<g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
-<text x="32" y="52" fill="#6ee7cd" font-size="28" font-weight="700" letter-spacing="2">INTENT → VERIFIED LOCAL FILES</text>
-<g fill="none" stroke="#6ee7cd" stroke-width="2"><path d="M402 123H498M683 162V176H217V190M402 229H498"/><path d="M486 116L498 123L486 130M210 182L217 190L224 182M486 222L498 229L486 236"/></g>
-<g fill="#1d3046" stroke="#526d88"><rect x="32" y="84" width="370" height="78" rx="10"/><rect x="498" y="84" width="370" height="78" rx="10"/><rect x="32" y="190" width="370" height="78" rx="10"/><rect x="498" y="190" width="370" height="78" rx="10"/></g>
-<g fill="#ecf3fa" font-size="32" font-weight="600" text-anchor="middle"><text x="217" y="134">01 · Requirements</text><text x="683" y="134">02 · Real models</text><text x="217" y="240">03 · Isolated design</text><text x="683" y="240">04 · Verify &amp; save</text></g>
-</g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-labelledby="title desc">
+  <title id="title">Codex JLC EDA — From intent to verified design</title>
+  <desc id="desc">An original conceptual illustration, not a PCB screenshot. A signal passes through a resistor and a shunt capacitor. Four stages describe requirements, real models, isolated design, and verification and saving. The software is a developer preview.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#102E33"/><stop offset="1" stop-color="#071A21"/></linearGradient>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#447276" opacity=".28"/></pattern>
+  </defs>
+  <rect width="1200" height="460" rx="24" fill="url(#bg)"/>
+  <rect x="620" y="24" width="556" height="290" rx="18" fill="url(#grid)"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif">
+    <rect x="44" y="40" width="184" height="28" rx="14" fill="#25474A"/>
+    <text x="136" y="59" text-anchor="middle" fill="#9EE5CF" font-size="11" font-weight="700" letter-spacing="1.8">LOCAL MCP / SKILL</text>
+    <text x="44" y="130" fill="#F4F1E9" font-size="52" font-weight="700" letter-spacing="-1.5">Codex JLC EDA</text>
+    <text x="47" y="174" fill="#A9CBC6" font-size="23">From intent to verified design.</text>
+    <text x="47" y="216" fill="#8AA8A9" font-size="15">Real models. Native workflows. Evidence at every step.</text>
+    <text x="47" y="275" fill="#D6AC7A" font-size="12" letter-spacing="1.8">SCHEMATIC / PCB / LOCAL DELIVERY</text>
+    <g stroke="#84D8BC" stroke-width="3" fill="none" stroke-linejoin="round">
+      <path d="M690 134H759M831 134H1080M936 134V199M915 199H957M915 211H957M936 211V253M917 253H955M924 262H948M931 271H941"/>
+      <rect x="759" y="120" width="72" height="28" rx="3"/>
+      <circle cx="690" cy="134" r="7" fill="#102B30"/>
+      <circle cx="1080" cy="134" r="7" fill="#102B30"/>
+      <circle cx="936" cy="134" r="4" fill="#84D8BC"/>
+    </g>
+    <g fill="#AAC8C4" font-size="13" text-anchor="middle">
+      <text x="690" y="105">IN</text><text x="795" y="105">R</text><text x="1080" y="105">OUT</text><text x="980" y="211">C</text>
+    </g>
+    <text x="882" y="306" fill="#7A999A" font-size="11" text-anchor="middle" letter-spacing="1.5">CONCEPT ILLUSTRATION · NOT A PCB CAPTURE</text>
+    <path d="M44 330H1156" stroke="#355356"/>
+    <g font-size="16" font-weight="600" fill="#E2EBE5">
+      <text x="44" y="374"><tspan fill="#83D6BA">01</tspan><tspan dx="12">Requirements</tspan></text>
+      <text x="332" y="374"><tspan fill="#83D6BA">02</tspan><tspan dx="12">Real models</tspan></text>
+      <text x="620" y="374"><tspan fill="#83D6BA">03</tspan><tspan dx="12">Isolated design</tspan></text>
+      <text x="908" y="374"><tspan fill="#83D6BA">04</tspan><tspan dx="12">Verify &amp; save</tspan></text>
+    </g>
+    <g font-size="12" fill="#8EA9A8"><text x="44" y="401">Circuit, scope and constraints</text><text x="332" y="401">Identity, pins and geometry</text><text x="620" y="401">Schematic, placement and copper</text><text x="908" y="401">Checks, readback and local files</text></g>
+    <g fill="#527873" font-size="22"><text x="286" y="375">→</text><text x="574" y="375">→</text><text x="862" y="375">→</text></g>
+  </g>
+</svg>

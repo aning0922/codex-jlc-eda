@@ -20,8 +20,10 @@ export const circuitSchema=z.object({components:z.array(componentSchema).min(1).
 });
 const target={sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,workDirectory:z.string().min(1).max(4096)};
 export const drawingSchemas={
-  jlc_eda_create_work_project:z.object({outputDirectory:z.string().min(1).max(4096),blankTemplatePath:z.string().min(1).max(4096),requestId:id}).strict(),
-  jlc_eda_draw_schematic:z.object({...target,requestId:id,phase:z.enum(['place','complete']).default('complete'),showTitleBlock:z.boolean().default(false),circuit:circuitSchema}).strict(),
+  jlc_eda_create_work_project:z.object({outputDirectory:z.string().min(1).max(4096),blankTemplatePath:z.string().min(1).max(4096).optional(),requestId:id,
+    projectImport:z.object({sourcePath:z.string().min(1).max(4096),sessionId:id,expectedProjectUuid:id}).strict().optional()
+  }).strict().refine(p=>!!p.blankTemplatePath!==!!p.projectImport,'Choose a blank template or an isolated local project import.'),
+  jlc_eda_draw_schematic:z.object({...target,requestId:id,phase:z.enum(['place','complete','tidy']).default('complete'),showTitleBlock:z.boolean().default(false),circuit:circuitSchema}).strict(),
   jlc_eda_verify_schematic:z.object({sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,circuit:circuitSchema}).strict(),
   jlc_eda_save_work_project:z.object({...target,requestId:id,pcbDocumentUuid:id.optional(),schematicUuid:id.optional()}).strict().refine(p=>!!p.pcbDocumentUuid===!!p.schematicUuid,'PCB save requires both pcbDocumentUuid and schematicUuid.'),
   jlc_eda_reopen_work_project:z.object({...target,circuit:circuitSchema}).strict(),
@@ -46,7 +48,11 @@ export function compareCircuit(circuit,netlist,doc){
     for(const s of found){
       if(s.deviceSource?.uuid!==expected.deviceUuid||s.deviceSource?.libraryUuid!==expected.libraryUuid)mismatches.push({code:'DEVICE_REFERENCE_MISMATCH',ref:expected.ref,actual:s.deviceSource??s.device});
       for(const key of ['x','y','rotation','mirror'])if(s[key]!== (key==='rotation'?(360-expected.pose.rotation)%360:expected.pose[key]))mismatches.push({code:'POSE_MISMATCH',ref:expected.ref,key,actual:s[key],expected:expected.pose[key]});
-      for(const [key,want] of Object.entries(expected.properties))if(s.properties?.[key]!==want)mismatches.push({code:'PROPERTY_MISMATCH',ref:expected.ref,key,actual:s.properties?.[key],expected:want});
+      // Native Name is promoted out of OtherProperty into its dedicated state field.
+      for(const [key,want] of Object.entries(expected.properties)){
+        const actual=key==='Name'?s.name:s.properties?.[key];
+        if(actual!==want)mismatches.push({code:'PROPERTY_MISMATCH',ref:expected.ref,key,actual,expected:want});
+      }
     }
   }
   for(const c of netlist.components)if(!circuit.components.some(e=>e.designator===c.designator))mismatches.push({code:'EXTRA_COMPONENT',designator:c.designator});
@@ -82,6 +88,30 @@ async function nativeDraw(p){
   const changed=()=>({status:'unknown',code:'TARGET_CHANGED_DURING_ACTION'});
   if(project?.uuid!==p.expectedProjectUuid||doc?.uuid!==p.schematicPageUuid||doc?.parentProjectUuid!==p.expectedProjectUuid||doc?.documentType!==1)return {status:'failed',code:'TARGET_MISMATCH'};
   const state=(x,k)=>typeof x?.[k]==='function'?x[k]():null;
+  if(p.operation==='tidy'){
+    // Only the completed draw journal supplies wire identities and original notes.
+    // Resolve the entire bounded plan before any presentation-only mutation.
+    const plan=[];
+    for(const w of p.wires){
+      const attrs=(await eda.sch_PrimitiveAttribute.getAll(w.wireId)).filter(a=>a.getState_Key()==='Name');
+      if(attrs.length!==1||attrs[0].getState_Value()!==w.net)return {status:'failed',code:'TIDY_WIRE_SOURCE_MISMATCH'};
+      if([90,270].includes(w.pin.rotation))plan.push({kind:'attribute',id:attrs[0].getState_PrimitiveId(),property:{x:w.pin.x+12,y:(w.pin.y+w.end.y)/2,rotation:0,alignMode:2}});
+    }
+    const texts=await eda.sch_PrimitiveText.getAll();
+    for(const n of p.notes){
+      const found=texts.filter(t=>t.getState_Content()===n.text&&t.getState_X()===n.x&&t.getState_Y()===n.y);
+      if(found.length!==1)return {status:'failed',code:'TIDY_NOTE_SOURCE_MISMATCH'};
+      plan.push({kind:'text',id:found[0].getState_PrimitiveId(),property:{x:n.toX,y:n.toY}});
+    }
+    for(const e of plan){
+      if(!await sameTarget())return changed();
+      const api=e.kind==='text'?eda.sch_PrimitiveText:eda.sch_PrimitiveAttribute;
+      const updated=await api.modify(e.id,e.property);if(!updated)return {status:'unknown',code:'TIDY_MODIFY_UNCONFIRMED'};
+      const read=await api.get(e.id);
+      for(const [key,value] of Object.entries(e.property))if(state(read,'getState_'+key[0].toUpperCase()+key.slice(1))!==value)return {status:'unknown',code:'TIDY_READBACK_MISMATCH'};
+    }
+    return {status:'ok',plan};
+  }
   if(p.operation==='title_block'){const r=await eda.dmt_Schematic.modifySchematicPageTitleBlock(p.showTitleBlock);return {status:r?'ok':'unknown'};}
   if(p.operation==='place'){
     const e=p.component,all=await eda.sch_PrimitiveComponent.getAll();

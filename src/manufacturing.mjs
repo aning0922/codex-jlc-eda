@@ -8,7 +8,8 @@ import {archiveDesignFingerprint} from './resources.mjs';
 import {losslessView} from './file-checkpoint.mjs';
 import {readOwnedRouting} from './p3.mjs';
 import {analyzeDelivery,deliveryManifest} from './manufacturing-files.mjs';
-export const manufacturingSchemas={jlc_eda_export_manufacturing:z.object({sourcePath:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),boardName:z.string().min(1).max(160).optional(),phase:z.enum(['generate','verify']).default('generate'),assembly:z.enum(['reflow','hand']).default('reflow'),viaTreatment:z.enum(['unspecified','tented','filled_capped']).default('unspecified')}).strict()};
+import {refreshManufacturingPreviews} from './manufacturing-previews.mjs';
+export const manufacturingSchemas={jlc_eda_export_manufacturing:z.object({sourcePath:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),boardName:z.string().min(1).max(160).optional(),phase:z.enum(['generate','verify','refresh_previews']).default('generate'),assembly:z.enum(['reflow','hand']).default('reflow'),viaTreatment:z.enum(['unspecified','tented','filled_capped']).default('unspecified')}).strict()};
 const sha=b=>createHash('sha256').update(b).digest('hex');
 const fail=(code,status='failed')=>{throw Object.assign(Error(code),{code,status});};
 const json=async(f,v)=>writeFile(f,JSON.stringify(v,null,2)+'\n');
@@ -49,6 +50,7 @@ export const manufacturingWorkflow={async jlc_eda_export_manufacturing(p){
  if(root===path.dirname(sourcePath)||sourcePath.startsWith(root+path.sep))fail('MANUFACTURE_OUTPUT_SOURCE_OVERLAP');
  const key=sha(JSON.stringify({sourcePath,sourceSha256,root,requestId:p.requestId,boardName:p.boardName??null,assembly:p.assembly,viaTreatment:p.viaTreatment}));
  if(p.phase==='verify')return verifyDelivery(root,sourcePath,key);
+ if(p.phase==='refresh_previews'){const original=await verifyDelivery(root,sourcePath,key);return {...await refreshManufacturingPreviews(root),deliveryGenerated:original.deliveryGenerated,manufacturingReady:original.manufacturingReady,manufacturingStatus:original.manufacturingStatus,originalReportPath:original.reportPath};}
  await mkdir(root,{recursive:true});const entries=await readdir(root);
  if(entries.length){if(!entries.includes('delivery.json'))fail('MANUFACTURE_OUTPUT_NOT_EMPTY');return verifyDelivery(root,sourcePath,key);}
  let fresh,j={requestKey:key,requestId:p.requestId,sourcePath,sourceSha256,assembly:p.assembly,viaTreatment:p.viaTreatment,state:'capturing',captureComplete:false,exports:{},createdAt:new Date().toISOString()},error;

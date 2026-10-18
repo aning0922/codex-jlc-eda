@@ -13,12 +13,13 @@ import {factsScript} from './native-facts.mjs';
 import {bound,load,persist} from './workflow.mjs';
 import {withFreshRead,resourceIdentityScript,resourceAnchorPath} from './resources.mjs';
 import {ensureTaskContext} from './task-session.mjs';
+import {forcePreflight,compareForceImport} from './force-sync.mjs';
 const id=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const readTarget={sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,schematicUuid:id,pcbDocumentUuid:id};
 const workTarget={...readTarget,workDirectory:z.string().min(1).max(4096)};
 export const pcbSchemas={
  jlc_eda_derive_work_project:z.object({sourcePath:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:id,circuit:circuitSchema,sourcePcbState:z.enum(['empty','synchronized_unrouted']).default('empty'),sourceCheckpointPath:z.string().min(1).max(4096).optional(),phase:z.enum(['open','recover']).default('open')}).strict(),
- jlc_eda_sync_pcb:z.object({...workTarget,requestId:id,circuit:circuitSchema,phase:z.enum(['apply','verify','retry_unapplied_review']).default('apply')}).strict(),
+ jlc_eda_sync_pcb:z.object({...workTarget,requestId:id,circuit:circuitSchema,phase:z.enum(['apply','verify','retry_unapplied_review']).default('apply'),importMode:z.enum(['review','force_initial_empty']).default('review')}).strict(),
  jlc_eda_verify_pcb:z.object({...readTarget,circuit:circuitSchema}).strict(),
  jlc_eda_reopen_pcb:z.object({...workTarget,circuit:circuitSchema}).strict(),
  jlc_eda_preview_pcb:z.object(workTarget).strict()
@@ -64,9 +65,17 @@ async function nativePcb(p){
  }
  if(p.operation==='import'){
   if(typeof eda.pcb_Document.importChanges!=='function')return {status:'unsupported',code:'PCB_IMPORT_API_UNAVAILABLE'};
-  const nativeResult=await eda.pcb_Document.importChanges(p.schematicUuid);
+  if(p.importMode==='force_initial_empty'){
+   if((await eda.pcb_PrimitiveComponent.getAll()).length)return {status:'failed',code:'PCB_FORCE_TARGET_NO_LONGER_EMPTY'};
+   for(const kind of ['Line','Arc','Via','Polyline','Pad','Pour','Poured','Fill','Region','Object','Image','Dimension','String']){
+    const api=eda['pcb_Primitive'+kind];if(typeof api?.getAll!=='function'||(await api.getAll()).length)
+     return {status:'failed',code:'PCB_FORCE_INVENTORY_CHANGED',kind};
+   }
+  }
+  const nativeResult=p.importMode==='force_initial_empty'
+   ?await eda.pcb_Document.importChanges(p.schematicUuid,true):await eda.pcb_Document.importChanges(p.schematicUuid);
   if(!await matches())return {status:'unknown',code:'PCB_TARGET_CHANGED_DURING_IMPORT',nativeResult};
-  return {status:'unknown',code:'PCB_IMPORT_REQUIRES_READBACK',nativeResult,sourceApi:'eda.pcb_Document.importChanges',argumentSchematicUuid:p.schematicUuid};
+  return {status:'unknown',code:'PCB_IMPORT_REQUIRES_READBACK',nativeResult,sourceApi:'eda.pcb_Document.importChanges',argumentSchematicUuid:p.schematicUuid,force:p.importMode==='force_initial_empty'};
  }
  if(p.operation==='archive'){
   const f=await eda.sys_FileManager.getDocumentFile('models');if(!f||f.size>2*1024*1024)return {status:'unknown',code:'PCB_MODELS_UNAVAILABLE'};
@@ -80,10 +89,10 @@ async function nativePcb(p){
  if(p.operation==='preview'){
   const doc=await eda.dmt_SelectControl.getCurrentDocumentInfo();
   await eda.pcb_SelectControl.clearSelected();
-  const all=await eda.pcb_PrimitiveComponent.getAll();
-  await eda.pcb_SelectControl.doSelectPrimitives(all.map(c=>c.getState_PrimitiveId()));
-  await eda.dmt_EditorControl.zoomToSelectedPrimitives();
-  await eda.pcb_SelectControl.clearSelected();
+  const outlines=[...await eda.pcb_PrimitivePolyline.getAll(),...await eda.pcb_PrimitiveLine.getAll()].filter(x=>x.getState_Layer()===11);
+  // Avoid a stale selection overlay in the renderer while fitting the board.
+  if(outlines.length)await eda.pcb_Document.zoomToBoardOutline();
+  else await eda.dmt_EditorControl.zoomToAllPrimitives(doc.tabId);
   const f=await eda.dmt_EditorControl.getCurrentRenderedAreaImage(doc.tabId);
   if(!f)return {status:'needs_ui',code:'PCB_PREVIEW_UNAVAILABLE'};
   let s='';for(const b of new Uint8Array(await f.arrayBuffer()))s+=String.fromCharCode(b);
@@ -205,6 +214,52 @@ async function preflight(a,p){
  const inputFingerprint=fingerprint({netlist:verification.netlist.components,schematic:doc.components,footprints:[...models.values()]});
  return {status:'ok',inputFingerprint,verification,models:[...models.values()]};
 }
+async function captureForceBefore(a,p){
+ const pre=await preflight(a,p);if(pre.status!=='ok')fail('PCB_FORCE_SCHEMATIC_PREFLIGHT_FAILED');
+ const schematic=await a.invoke(p.sessionId,drawingScript({...p,operation:'archive'}));
+ const inv=await inventory(a,p),doc=await a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
+ const pcb=await a.invoke(p.sessionId,pcbScript({...p,operation:'archive'}));
+ if(schematic.status!=='ok'||pcb.status!=='ok')fail('PCB_FORCE_ARCHIVE_UNAVAILABLE');
+ return {pre,doc,evidence:forcePreflight({pcbData:pcb.data,schematicData:schematic.data,pcbDocumentUuid:p.pcbDocumentUuid,verification:pre.verification,inventory:inv,pcbDocument:doc})};
+}
+async function verifyForce(a,p,ctx,action){
+ // Bounded observations only. A partial/unknown import never authorizes replay.
+ let verification;
+ for(let i=0;i<3;i++){
+  verification=await a.jlc_eda_verify_pcb(p);
+  if(verification.status==='ok'&&verification.comparison?.status==='matched')break;
+  if(i<2)await new Promise(resolve=>setTimeout(resolve,300));
+ }
+ await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.schematicPageUuid,kind:'schematic'}));
+ const sch=await a.invoke(p.sessionId,drawingScript({...p,operation:'archive'}));
+ await focused(a,p);const pcb=await a.invoke(p.sessionId,pcbScript({...p,operation:'archive'}));
+ const preservation=sch.status==='ok'&&pcb.status==='ok'?compareForceImport(action.forceEvidence,{pcbData:pcb.data,schematicData:sch.data,verification}):{status:'unknown',issues:[{code:'PCB_FORCE_ARCHIVE_UNAVAILABLE'}]};
+ const positions=action.after&&verification.pcbDocument?positionDiff(action.after,pcbSnapshot(verification.pcbDocument)):[];
+ const ready=verification.status==='ok'&&verification.comparison?.status==='matched'&&preservation.status==='matched'&&!positions.length;
+ const result={...verification,status:ready?'ok':'unknown',code:ready?undefined:'PCB_FORCE_READBACK_UNVERIFIED',preservation,
+  positionChanges:positions,nativeImport:action.nativeImport??null,nativeImportReplayed:false,importMode:'force_initial_empty',
+  nextAction:ready?undefined:'Read back this same request; never replay an unknown force import.'};
+ action.state=ready?'completed':'unknown';
+ if(ready){action.after=pcbSnapshot(verification.pcbDocument);ctx.r.pcbSyncBaseline={inputFingerprint:action.inputFingerprint,after:action.after};}
+ action.result=result;await persist(ctx.dir,ctx.r);return result;
+}
+async function forceSync(a,p,ctx,requestHash,old){
+ if(p.phase==='retry_unapplied_review')fail('PCB_FORCE_REPLAY_FORBIDDEN');
+ if(old)return verifyForce(a,p,ctx,old);
+ if(p.phase==='verify')fail('PCB_NO_RECORDED_IMPORT');
+ if(ctx.r.pcbSyncBaseline||Object.values(ctx.r.actions??{}).some(x=>x.state!=='completed')
+  ||Object.values(ctx.r.pcbActions??{}).some(x=>x.state!=='completed'))fail('PCB_FORCE_INITIAL_SCOPE_REQUIRED');
+ const before=await captureForceBefore(a,p),latest=await captureForceBefore(a,p);
+ if(before.evidence.fingerprint!==latest.evidence.fingerprint||before.pre.inputFingerprint!==latest.pre.inputFingerprint)
+  fail('PCB_FORCE_SOURCE_CHANGED_BEFORE_IMPORT');
+ Object.assign(ctx.r,{pcbDocumentUuid:p.pcbDocumentUuid,schematicUuid:p.schematicUuid,boardName:ctx.link.boardName});
+ const action={hash:requestHash,state:'pending',startedAt:new Date().toISOString(),importMode:'force_initial_empty',
+  inputFingerprint:latest.pre.inputFingerprint,before:pcbSnapshot(latest.doc),forceEvidence:latest.evidence};
+ ctx.r.pcbSyncActions[p.requestId]=action;await persist(ctx.dir,ctx.r);
+ try{await focused(a,p);action.nativeImport=await a.invoke(p.sessionId,pcbScript({...p,operation:'import'}));action.state='unknown';await persist(ctx.dir,ctx.r);}
+ catch(e){action.state='unknown';action.error={code:e.code,message:e.message};await persist(ctx.dir,ctx.r);throw e;}
+ return verifyForce(a,p,ctx,action);
+}
 export const pcbWorkflow={
  async jlc_eda_derive_work_project(p){
   if(!path.isAbsolute(p.outputDirectory)||!path.isAbsolute(p.sourcePath))fail('ABSOLUTE_PATH_REQUIRED');
@@ -292,7 +347,7 @@ export const pcbWorkflow={
   const inv=await inventory(this,p);if(inv.status!=='ok')return incomplete(inv);
   const lastPcb=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});if(lastPcb.status!=='ok')return incomplete(lastPcb);
   const focus=await this.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.schematicPageUuid,kind:'schematic'}));if(focus.status!=='ok')return incomplete(focus);
-  const raw=await this.invoke(p.sessionId,factsScript({...p,documentUuid:p.schematicPageUuid,operation:'netlist'}));if(raw.status!=='ok')return incomplete(raw);
+  const raw=await this.invokeLossless(p.sessionId,factsScript({...p,documentUuid:p.schematicPageUuid,operation:'netlist'}));if(raw.status!=='ok')return incomplete(raw);
   const finalNetlist=parseNetlist(raw.source,p.expectedProjectUuid),lastProject=await this.jlc_eda_inspect_project(p),lastLink=association(lastProject,p);
   if(lastLink.status!=='ok'||fingerprint(lastLink)!==fingerprint(link))comparison.issues.push({code:'PCB_ASSOCIATION_CHANGED_DURING_VERIFICATION',lastLink});
   if(finalNetlist.sourceSha256!==sch.netlist.sourceSha256)comparison.issues.push({code:'NETLIST_CHANGED_DURING_PCB_VERIFICATION'});
@@ -304,10 +359,12 @@ export const pcbWorkflow={
  },
  async jlc_eda_sync_pcb(p){
   const ctx=await pcbBound(this,p),{r,dir}=ctx; r.pcbSyncActions??={};
-  const requestHash=fingerprint({circuit:p.circuit,schematicUuid:p.schematicUuid,schematicPageUuid:p.schematicPageUuid,pcbDocumentUuid:p.pcbDocumentUuid});
+  const requestHash=fingerprint({circuit:p.circuit,schematicUuid:p.schematicUuid,schematicPageUuid:p.schematicPageUuid,pcbDocumentUuid:p.pcbDocumentUuid,
+   ...(p.importMode==='force_initial_empty'?{importMode:p.importMode}:{})});
   const old=r.pcbSyncActions[p.requestId];if(old&&old.hash!==requestHash)fail('REQUEST_CONFLICT');
   const unresolved=Object.entries(r.pcbSyncActions).find(([key,x])=>key!==p.requestId&&x.state!=='completed');
   if(unresolved)fail('PCB_PRIOR_IMPORT_UNRESOLVED','Read back the original request; a new request cannot bypass pending/unknown state.','unknown');
+  if(p.importMode==='force_initial_empty')return forceSync(this,p,ctx,requestHash,old);
   if(p.phase==='retry_unapplied_review'){
    // Explicit, bounded recovery only for a returned review dialog with a proven
    // zero-effect first import. Never replay a timed-out or partially applied write.

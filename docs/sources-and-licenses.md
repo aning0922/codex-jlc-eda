@@ -4,10 +4,10 @@
 
 | 内容 | 来源与处理 |
 |---|---|
-| `src/*.mjs`、Skill、原有测试代码 | 从既有 0.10.0-p4-e 项目实现按白名单抽取；自有实现采用根目录 MIT 许可。几何两处 import、版本和发布工程配置为本轮改动。 |
+| `src/*.mjs`、Skill、原有测试代码 | 从既有 0.10.0-p4-e 项目实现按白名单抽取；自有实现采用根目录 MIT 许可。后续 A6–A10 包含模型源码读取、受控同步、布局/路由核验、兼容换料和实验性说明编辑；当前范围见 [开发进展](development-status.md)。 |
 | `src/board-geometry.ts` | 从原项目的同名 TypeScript 几何模块逐字提取，无外部 import。构建用 esbuild 去除类型，生成被忽略的同目录 `.mjs`；算法保持。对应 13 项原数学测试一起保留。 |
-| `tests/fixtures/public-tools.json` | 从冻结 0.10.0-p4-e 编译公共 MCP 的 tools/list 抽取，本项目的 35 工具描述及 JSON Schema。没有工程、模型、账户或会话记录。 |
-| 其他离线 fixture | 测试代码内手写的短 JSON、数学坐标、字符串和原生格式片段；是解析/拒绝行为的合成输入，不是实际保存证据。新增几何用例由本项目编写。 |
+| `tests/fixtures/public-tools.json` | 从本项目编译公共 MCP 的 tools/list 提取，记录当前开发版的 35 工具描述及 JSON Schema；后续扩展与历史基线分别记录。没有工程、模型、账户或会话记录。 |
+| 其他离线 fixture | 测试代码及 synthetic-footprint-preview.json 内手写的短 JSON、虚构身份、数学坐标、字符串和原生格式片段；是解析/拒绝行为的合成输入，不是实际保存证据。新增几何用例由本项目编写。 |
 | 本轮构建脚本、文档与 RC 需求 | 本项目编写，MIT。RC 仅为需求、连接表和复现规格，尚无可分发原生板图或硬件成品。 |
 | 打包 npm 运行依赖 | 从锁文件固定解析，构建逐项收集实际打入 bundle 的许可证全文；见 `THIRD_PARTY_NOTICES.txt`。构建遇到缺失声明或正文即失败。各依赖保留原许可，不改授 MIT。 |
 | 构建工具及未打入包的依赖 | 见 `package-lock.json` 中来源/完整性/许可；安装后各包 LICENSE 保留在 node_modules，运行包不携带这些工具。 |

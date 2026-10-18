@@ -1,10 +1,13 @@
 # Roadmap / 路线
 
-This is a sequence of qualification steps, not a promised delivery schedule. 这些是验收顺序，不是日期承诺。
+Updated / 更新：2026-10-18。This is a qualification sequence, not a delivery schedule. 这些是后续验收顺序，不是日期承诺。
 
-1. **Now / 当前** — bilingual documentation, inspectable source/runtime assets, explicit license and security boundaries. Alpha.3 is a developer preview; actual host and RC qualification remain pending.
-2. **Before public runtime distribution / 公开运行包前** — maintain the reviewed dependency baseline and private reporting in aning0922/codex-jlc-eda; keep validation limits accurate as new results become available.
-3. **Real-editor qualification / 实机验证** — at a suitable break in other work, choose the final candidate, load it once in the actual host, then run the fresh eight-component RC example and one real C1 replacement. RC is not yet executed.
-4. **Later / 后续评估** — broader connector ECO and platform support, only with explicit model, preservation, recovery and real-editor evidence. No promise of arbitrary full-board autorouting or production-ready hardware.
+| State / 状态 | Work / 工作 |
+|---|---|
+| **Completed within scope / 限定完成** | 4.1.71 model source reading; RC schematic and initial sync; constrained placement and native routing; compatible C1 replacement, preservation and fresh disk verification. / A6–A9-R1 已取得限定实机结果。 |
+| **Current source / 当前源码** | Publish the inspectable `0.11.0-dev.a10` source and updated evidence summary; retain Alpha.3 as the existing download. / 同步源码与文档，运行包仍为 Alpha.3。 |
+| **Next / 下一步** | Diagnose focus interference and stabilize existing-window interaction and recovery; complete notes positioning, final saving and delivery consistency. / 优先修复窗口/连接体验，闭合 A10。 |
+| **Before a new runtime release / 新运行包前** | Select a candidate, qualify actual chat-host loading, complete the RC user journey, and verify packages and installation. / 实际宿主、完整使用体验及安装包验收。 |
+| **Later / 后续评估** | Broader connector changes, footprints and platforms, with explicit source, preservation and recovery evidence. / 依据证据扩展器件、封装和平台。 |
 
-Public source or a clearly scoped developer preview does not itself establish physical performance. 软件公开与硬件合格分别判断。
+See [development status](development-status.md) for the distinction between completed real-editor workflows and unfinished source. No promise of arbitrary whole-board optimization, production readiness or physical performance.

@@ -25,6 +25,25 @@ async function readFacts(p) {
       return { status: 'unknown', code: 'LIBRARY_TARGET_MISMATCH' };
     return { status: 'ok', device, source: 'eda.lib_Device.get; native library metadata' };
   }
+  if (p.operation === 'model_source') {
+    const api = p.kind === 'footprint' ? eda.lib_Footprint : eda.lib_Symbol;
+    if (typeof api?.getDocumentSource !== 'function')
+      return { status: 'unsupported', code: 'MODEL_SOURCE_API_UNAVAILABLE' };
+    const metadata = await api.get(p.modelUuid, p.libraryUuid);
+    if (metadata?.uuid !== p.modelUuid || metadata?.libraryUuid !== p.libraryUuid)
+      return { status: 'unknown', code: 'LIBRARY_TARGET_MISMATCH' };
+    const projectLibraryUuid = await eda.lib_LibrariesList.getProjectLibraryUuid();
+    const source = await api.getDocumentSource(p.modelUuid, p.libraryUuid);
+    if (!await sameProject()) return changed();
+    if (typeof source !== 'string' || !source.length || source.length > 2 * 1024 * 1024)
+      return { status: 'unknown', code: 'MODEL_SOURCE_UNAVAILABLE_OR_TOO_LARGE' };
+    if (!projectLibraryUuid) return { status: 'unknown', code: 'MODEL_LIBRARY_SCOPE_UNPROVEN' };
+    return { status: 'ok', kind: p.kind, modelUuid: p.modelUuid, libraryUuid: p.libraryUuid,
+      metadata, source, projectUuid: p.expectedProjectUuid,
+      sourceApi: p.kind === 'footprint' ? 'eda.lib_Footprint.getDocumentSource' : 'eda.lib_Symbol.getDocumentSource',
+      sourceScope: p.libraryUuid === projectLibraryUuid ? 'current_project_library' : 'requested_external_library',
+      persistenceVerified: false, focusAction: 'none; direct library source' };
+  }
   if (p.operation === 'model_focus' || p.operation === 'model_read') {
     const isPcb = p.kind === 'footprint', type = isPcb ? 4 : 2;
     const matches = async () => {

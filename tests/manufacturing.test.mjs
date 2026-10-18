@@ -6,3 +6,23 @@ test('nonempty output and output/source overlap rejected before editor activity'
 import {camGeometry,signedDistance,evaluateVias,sourceCatalog} from '../src/manufacturing-geometry.mjs';import {checkBom,checkPlacements,checkDrills,analyzeDelivery} from '../src/manufacturing-files.mjs';import {unzipSync} from 'fflate';
 test('CAM capsule and actual macro variables/regions preserve geometry; clear/repeat refused',()=>{const s='%FSLAX45Y45*%\n%MOMM*%\n%AMTest*1,1,$1,0,0*%\n%ADD10Test,1*%\nD10*\nX100000Y-200000D03*\nM02*';const g=camGeometry(parseCam(s));assert.equal(g.complete,true);assert.equal(signedDistance(g.shapes[0],{x:1,y:-2}),-.5);assert.equal(camGeometry(parseCam(s.replace('D10*','%LPC*%\nD10*'))).complete,false);assert.equal(signedDistance({kind:'capsule',a:{x:0,y:0},b:{x:1,y:0},r:.2},{x:1.3,y:0}),.10000000000000003);});
 test('nearby annulus differs from hole intersecting paste: outside pad is not blanket failure',()=>{const pad={kind:'rect',x:0,y:0,w:1,h:1,anchor:{x:0,y:0}},geo={shapes:[pad],complete:true};const c={pads:[{id:'p',ref:'X',number:'1',net:'V',x:0,y:0}],vias:[{id:'inside',x:.3,y:0,hole:.3,diameter:.6},{id:'near',x:.7,y:0,hole:.3,diameter:.6}]};const r=evaluateVias(c,{copper:geo,paste:geo,mask:geo});assert.equal(r[0].pasteOverlapsHole,true);assert.equal(r[1].pasteOverlapsHole,false);assert.equal(r[1].holeIntersectsCopper,false);assert.ok(r[1].annulusToMask<0);});
+import {overlaySvg} from '../src/manufacturing-files.mjs';
+import {refreshManufacturingPreviews} from '../src/manufacturing-previews.mjs';import {sha} from '../src/manufacturing-files.mjs';
+test('derived preview reuse rejects changed capture, unowned revision and modified view without an editor',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'preview-binding-')),target=root+'-previews',names=['fabrication.zip','native-before.zip','pcb-document.json','checks.json'],sourceHashes={};
+ for(const name of names){await writeFile(path.join(root,name),name);sourceHashes[name]=sha(Buffer.from(name));}
+ const capture={state:'completed',captureComplete:true,result:{deliveryGenerated:true},sourceSha256:'bound-source',manifest:names.map(name=>({path:name,sha256:sourceHashes[name]}))};
+ await writeFile(path.join(root,'delivery.json'),JSON.stringify(capture));await import('node:fs/promises').then(f=>f.mkdir(target));
+ await assert.rejects(refreshManufacturingPreviews(root),{code:'PREVIEW_REVISION_INCOMPLETE_OR_UNOWNED'});
+ const view='verified view',binding={rendererVersion:'origin-aware-v2',sourceDirectory:root,sourceSha256:'bound-source',sourceHashes};
+ await writeFile(path.join(target,'cam-overlay.svg'),view);await writeFile(path.join(target,'manifest.json'),JSON.stringify({binding,files:[{path:'cam-overlay.svg',sha256:sha(Buffer.from(view))}]}));
+ assert.equal((await refreshManufacturingPreviews(root)).nativeExportReplayed,false);
+ await writeFile(path.join(target,'cam-overlay.svg'),'changed');await assert.rejects(refreshManufacturingPreviews(root),{code:'PREVIEW_REVISION_CHANGED'});
+ await writeFile(path.join(root,'fabrication.zip'),'changed capture');await assert.rejects(refreshManufacturingPreviews(root),{code:'PREVIEW_CAPTURE_CHANGED'});
+});
+test('CAM overlay follows translated positive and negative Y board origins and includes component drills',()=>{
+ const empty={shapes:[]},catalog={vias:[],components:[],pads:[{hole:1.2,holeX:3,holeY:11.27}]};
+ const positive=overlaySvg(empty,empty,empty,catalog,{widthMm:30,heightMm:20,originMm:[0,20]});
+ assert.match(positive,/viewBox="-2 -22 34 25"/);assert.match(positive,/<rect x="0" y="-20" width="30" height="20"/);assert.match(positive,/<circle cx="3" cy="-11.27" r="0.6" fill="white"/);
+ const translated=overlaySvg(empty,empty,empty,{...catalog,pads:[]},{widthMm:30,heightMm:20,originMm:[5,-8]});assert.match(translated,/viewBox="3 6 34 25"/);assert.match(translated,/<rect x="5" y="8"/);
+});

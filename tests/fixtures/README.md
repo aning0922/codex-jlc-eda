@@ -1,7 +1,9 @@
 # 可分发 fixture
 
-`public-tools.json` 是自有 0.10.0-p4-e 公共工具目录和 schema 的冻结结果，MIT；只运行 MCP 握手和 tools/list，未连接编辑器。候选的全部 35 工具应与它一致。
+`public-tools.json` 是当前开发版的自有公共工具目录和 schema 基线，MIT；只运行 MCP 握手和 tools/list，未连接编辑器。当前全部 35 工具应与它一致；部分 schema 与说明已随 A6–A10 扩展，并非与历史 Alpha.3 逐字段一致。
 
 其他 fixture 在测试中由手写最小数据生成：几何线段/板框、CSV/CAM 文本、原生记录、临时工作目录。它们只验证软件逻辑，不证明 EDA 保存或真实器件正确。不包含第三方符号、封装或 3D。
 
 `zip64.mjs` 为项目手写的单个空文件ZIP64结构；缺失扩展字段变体用于CVE回归，合法变体防止过度拒绝。`zip64-child.mjs`仅由测试器在1500ms墙钟超时/SIGKILL保护下执行，不在主测试进程解压可能挂起的输入。没有来自真实工程的字节。
+
+`synthetic-footprint-preview.json` 是手写的最小封装记录：虚构身份、几何、来源和属性，以及兼容规则要求的 13 条精确显示/空网络配置。它覆盖配置登记、恢复、几何和网络变更拒绝，不包含真实库封装字节。原始 `native-footprint-preview.json` 为本地私有捕获，已从 Git 和发布白名单排除；原文件不改写。

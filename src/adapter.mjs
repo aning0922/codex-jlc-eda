@@ -25,9 +25,9 @@ import {fileRoutingSchemas,fileRoutingWorkflow} from './file-routing.mjs';
 import {repairSchemas,repairWorkflow} from './local-repair.mjs';
 import { scripts } from './native-scripts.mjs';
 import { factsScript } from './native-facts.mjs';
-import { normalizeDevice, parseNetlist, compareAssignments, summarizeModel } from './facts.mjs';
+import { normalizeDevice, parseNetlist, compareAssignments, summarizeModel, summarizeSourceModel } from './facts.mjs';
 
-export const VERSION = '0.11.0-alpha.3';
+export const VERSION = '0.11.0-dev.a10';
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const session = { sessionId: id };
 const target = { ...session, expectedProjectUuid: id };
@@ -196,7 +196,8 @@ export class JlcEdaAdapter {
   }
 
   async invoke(sessionId, code, timeoutMs=15000) {
-    const nativeTimeoutMs=Math.min(timeoutMs,60000);
+    if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>180000)throw new AdapterError('INVOKE_BUDGET_OUT_OF_RANGE','Native invoke budget must be an integer in [1, 180000] ms.');
+    const nativeTimeoutMs=timeoutMs;
     const result = await this.call(['invoke', '--session', sessionId, '--ext-uuid', 'eda',
       '--timeout', String(nativeTimeoutMs), '--code', 'return await ' + code + ';'], nativeTimeoutMs+3000);
     if (!result.value || typeof result.value.status !== 'string')
@@ -219,16 +220,18 @@ export class JlcEdaAdapter {
     const response = await this.call(['doctor'],12000);
     const native = response.value;
     if (typeof native?.connected !== 'boolean') throw new AdapterError('DOCTOR_SCHEMA_UNSUPPORTED', 'Unrecognized CLI doctor response.', 'unknown');
+    const routing=await this.routingCapability();
     return { status: native.connected ? 'ok' : 'needs_ui', publicToolCount:Object.keys(schemas).length, executable, installedVersion,
       platform: this.platform, nodeVersion: process.versions.node,
       editorConnected: native.connected, versionMatch: native.versionMatch ?? null,
       callMetrics:structuredClone(this.callMetrics),backgroundCalling:{transport:'official CLI; composed native reads',residentMcpSupportedOnValidatedClient:false},
       diagnosticsPresent: response.diagnosticsPresent,
-      compatibility: { validatedClientFamily: 'macOS JLCEDA Pro 4.1.60',
-        currentVersionInValidatedFamily: this.platform === 'darwin' && !!installedVersion?.startsWith('4.1.60.') },
+      compatibility: { validatedClientFamily: 'macOS JLCEDA Pro; qualification is workflow-specific',
+        currentVersionInValidatedFamily: this.platform === 'darwin' && (!!installedVersion?.startsWith('4.1.60.')||installedVersion==='4.1.71.7a7261be'),
+        currentWorkflowQualification:installedVersion==='4.1.71.7a7261be'?'A6/A7 model reads, local project import, initial empty-board sync and full save verified; layout/routing require their own task evidence':'Consult the exact workflow evidence; no general client-family routing guarantee' },
       capabilities: { projectInspection: true, partsLibrary: true, logicalConnectivity: true,
-        libraryGeometry: 'native model open/read; needs_ui when the installed API cannot open the requested model',
-        designMutation: true, autoRouting: false,
+        libraryGeometry: 'direct native model source with bounded supported geometry; legacy canvas fallback only when source API is unavailable',
+        designMutation: true, autoRouting: {workflowAvailable:true,sdkDeclared:routing.sdkDeclared??null,installedBridgeRegistered:routing.installedBridgeRegistered??null,executionVerifiedByDoctor:false,qualification:'Static interface/bridge availability only; actual route, keep, copper, DRC and saved result are reported by the task workflow'},
         uiAutomation: 'host-dependent; not detectable or bundled by this MCP server' },
       nextAction: native.connected ? 'List sessions or open the project path requested by the user.'
         : 'Start the installed JLCEDA Pro desktop app, then run doctor again. No project has been opened.' };
@@ -335,6 +338,11 @@ export class JlcEdaAdapter {
   }
 
   async jlc_eda_read_library_model(p) {
+    const direct = await this.invoke(p.sessionId, factsScript({ ...p, operation: 'model_source' }));
+    if (direct.status === 'ok') return summarizeSourceModel(direct);
+    // Only an absent API permits the legacy canvas path. Bad source/identity
+    // must not be concealed by opening another model window.
+    if (direct.code !== 'MODEL_SOURCE_API_UNAVAILABLE') return direct;
     const focused = await this.invoke(p.sessionId, factsScript({ ...p, operation: 'model_focus' }));
     if (focused.status !== 'ok') return focused;
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -347,7 +355,7 @@ export class JlcEdaAdapter {
   }
 
   async jlc_eda_read_connectivity(p) {
-    const result=await this.invoke(p.sessionId,connectivityScript(p));
+    const result=await this.invokeLossless(p.sessionId,connectivityScript(p));
     if(result.status!=='ok')return result;
     const netlist=parseNetlist(result.raw.source,p.expectedProjectUuid);
     if(parseNetlist(result.after.source,p.expectedProjectUuid).sourceSha256!==netlist.sourceSha256)return {status:'unknown',code:'NETLIST_CHANGED_DURING_READ'};
@@ -355,7 +363,7 @@ export class JlcEdaAdapter {
   }
 
   async jlc_eda_read_document(p) {
-    return this.invoke(p.sessionId,scripts.focusedDocument(p));
+    return this.invokeLossless(p.sessionId,scripts.focusedDocument(p));
   }
 
   async jlc_eda_close_session(p) {

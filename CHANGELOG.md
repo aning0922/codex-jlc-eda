@@ -1,5 +1,23 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a10 — source sync / 源码同步 (2026-10-18)
+
+- Sync the A6–A10 development work: validated model source reading, local exchange import, guarded empty-board sync, placement candidates/adjustments, native routing evidence and preview refresh.
+- Include A9-R1 compatible replacement validation: exact footprint preview defaults, declared equivalent target angles, full non-target preservation and saved-design verification.
+- Include experimental notes editing and bounded recovery. A10 remains incomplete after window focus interference; final positions, fresh disk verification and new delivery are pending.
+- Redesign both READMEs with a new original SVG banner, RC results, a clear source/runtime version map and current build instructions. Update the example, roadmap and evidence summary.
+- Complete the source package allowlist. Use a hand-authored synthetic fixture for public footprint regressions; keep the original real-model capture local.
+- Current offline suite: 188 tests; public protocol: 35 tools. See [validation](docs/validation.md) and [development status](docs/development-status.md). The published runtime remains Alpha.3; no new binary release is implied.
+
+同步 A6–A10 最新源码；A9-R1 的 RC 换料与保存已限定通过，A10 说明编辑仍未闭合。公开文档和下载版本分别标识，真实工程及模型不随仓库分发。
+
+## 0.11.0-alpha.4 — local candidate, unpublished (2026-10-10)
+
+- Read validated symbol/footprint source through the existing public model tool without opening a library canvas; keep source identity, geometry, units and unsaved-content provenance explicit.
+- Normalize native record CRLF endings without changing string or deletion semantics; 110 offline tests and unchanged 35-tool protocol pass.
+- Qualify a limited existing-board label edit, strict DRC/full-copper preservation and fresh disk persistence on EDA 4.1.71. RC, force sync, routing and actual chat-host loading remain unverified.
+
+
 ## 0.11.0-alpha.3 — 2026-10-10
 
 Targeted dependency fix / 最小依赖修复：fflate 0.8.2 → 0.8.3，MCP SDK 1.30.0 → 1.31.0；其他依赖版本保持。新增有1500ms子进程墙钟保护的畸形/合法ZIP64回归；两份既有原生/制造归档的旧/新解包文件名及内容SHA一致。完整离线/协议/audit结果见[验证记录](docs/validation.md)。

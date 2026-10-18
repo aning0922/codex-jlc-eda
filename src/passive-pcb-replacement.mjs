@@ -3,6 +3,10 @@ import {archiveSources} from './incremental-source.mjs';
 import {nativeModelRecords} from './file-model-evidence.mjs';
 import {preserveArchive} from './eco-preservation.mjs';
 import {fingerprint} from './drawing.mjs';
+// Raw native replacement may serialize the same orthogonal transform with a
+// signed angle. Exact multiples only: no geometric tolerance or arbitrary turns.
+export const exactReplacementAngle=(a,b)=>[a,b].every(v=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<=360&&v%90===0)&&((a-b)%360===0);
+export function restoredPassiveComponent(target,actual){const expected={...target.componentBefore,locked:target.locked};if(exactReplacementAngle(expected.angle,actual?.angle))expected.angle=actual.angle;return expected;}
 const canonical=x=>Array.isArray(x)?x.map(canonical):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])])):x;
 const jsonEqual=(a,b)=>{try{return fingerprint(canonical(JSON.parse(a)))===fingerprint(canonical(JSON.parse(b)));}catch{return false;}};
 export function preservedPassivePcb(record,state,data,{includeLocal=false}={}){
@@ -20,8 +24,9 @@ export function preservedPassivePcb(record,state,data,{includeLocal=false}={}){
   for(const[k,v]of Object.entries(actual.body.attrs??{}))if(JSON.stringify(v)!==JSON.stringify(attrs[k])){if(expectedMetadata[k]!==undefined&&jsonEqual(v,expectedMetadata[k]))attrs[k]=v;else if(values[k]!==undefined&&String(v)===String(values[k]))attrs[k]=v;else issues.push({code:'PASSIVE_PCB_METADATA_OUTSIDE_CANDIDATE',ref:t.input.designator,key:k});}
   const pinSwapInfo=Object.fromEntries(Object.entries(source.body.pinSwapInfo??{}).map(([k,v])=>[k.startsWith(oldId)?newId+k.slice(oldId.length):k,v]));
   // Observed native replacement creates an unlocked target; completion restores
-  // the original lock. No position, layer, angle or geometry is normalized.
-  const expected={...source.body,attrs,pinSwapInfo};if(!includeLocal&&actual.body.locked===false)expected.locked=false;
+  // the original lock. Only the declared target can use the exact equivalent
+  // orthogonal angle representation; position, layer and all model geometry stay exact.
+  const expected={...source.body,attrs,pinSwapInfo};if(exactReplacementAngle(source.body.angle,actual.body.angle))expected.angle=actual.body.angle;if(!includeLocal&&actual.body.locked===false)expected.locked=false;
   edits.push({type:'COMPONENT',id:oldId,after:expected});
   const attributes=[];
   for(const row of old.filter(r=>r.header.type==='ATTR'&&r.body.parentId===oldId)){
@@ -36,7 +41,7 @@ export function preservedPassivePcb(record,state,data,{includeLocal=false}={}){
    const id=JSON.parse(row.header.id),number=id[2];id[1]=newId;const newKey=JSON.stringify(id);map('PAD_NET',row.header.id,newKey);if(oldId!==newId)tombstones.push({uuid:record.pcbDocumentUuid,type:'PAD_NET',id:row.header.id});
    const body={...row.body};if(t.input.reconnect?.pin===number)body.padNet=t.input.reconnect.newNet;edits.push({type:'PAD_NET',id:row.header.id,after:body});
   }
-  targets.push({ref:t.input.designator,uniqueId:t.uniqueId,oldId,newId,primitiveIdChanged:oldId!==newId,original:source.body,imported:actual.body,attributes});
+  targets.push({ref:t.input.designator,uniqueId:t.uniqueId,oldId,newId,primitiveIdChanged:oldId!==newId,angleRepresentation:source.body.angle!==actual.body.angle&&exactReplacementAngle(source.body.angle,actual.body.angle)?{before:source.body.angle,after:actual.body.angle,qualification:'Exact equivalent orthogonal transform on the declared replaced instance only'}:null,original:source.body,imported:actual.body,attributes});
  }
  const newModels=state.plan.targets.flatMap(t=>state.replacements[t.input.designator].allowedNewModels),created=includeLocal?state.local.operations.flatMap((o,i)=>o.kind.startsWith('NEW_')?[state.steps['local/'+i]?.result?.primitiveId]:[]):[];
  if(includeLocal)edits.push(...state.plan.targets.flatMap(t=>t.removeOperations??[]).map(o=>({type:'LINE',id:o.id,after:null})));

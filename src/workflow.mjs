@@ -6,6 +6,7 @@ import {scripts} from './native-scripts.mjs';
 import {factsScript} from './native-facts.mjs';
 import {parseNetlist,digest} from './facts.mjs';
 import {withFreshRead} from './resources.mjs';
+import {importLocalProject} from './project-import.mjs';
 const fail=(code,message,status='failed')=>{throw Object.assign(new Error(message??code),{code,status});};
 export const load=async dir=>JSON.parse(await readFile(path.join(dir,'work-project.json'),'utf8'));
 export const persist=async(dir,data)=>writeFile(path.join(dir,'work-project.json'),JSON.stringify(data,null,2)+'\n');
@@ -37,6 +38,7 @@ function incompleteVerification(result,connectivity){
 }
 export const workflow={
  async jlc_eda_create_work_project(p){
+  if(p.projectImport)return importLocalProject(this,p);
   if(!path.isAbsolute(p.outputDirectory)||!path.isAbsolute(p.blankTemplatePath))fail('ABSOLUTE_PATH_REQUIRED');
   const known=await load(p.outputDirectory).catch(()=>null);if(!known?.sessionId)await this.ensureWorkWindowBudget();
   // A new directory is the task boundary. Existing directories never become editable implicitly.
@@ -74,6 +76,14 @@ export const workflow={
   if(!old){const d=await this.jlc_eda_read_document({...p,documentUuid:p.schematicPageUuid,kind:'schematic',includePins:true,limit:200});
    if(d.status!=='ok'||d.counts.components||d.counts.wires)fail('WORK_PAGE_NOT_EMPTY');ctx.r.circuit=p.circuit;ctx.r.drawRequestId=p.requestId;await persist(ctx.dir,ctx.r);}
   if(ctx.r.drawRequestId!==p.requestId)fail('REQUEST_CONFLICT');
+  if(p.phase==='tidy'){
+   if(ctx.r.pcbSyncBaseline||Object.keys(ctx.r.pcbSyncActions??{}).length||Object.values(ctx.r.actions).some(a=>a.state!=='completed'))fail('TIDY_COMPLETED_DRAW_REQUIRED');
+   const wires=[];for(const net of p.circuit.nets)for(const e of net.endpoints){const a=ctx.r.actions[p.requestId+'/net/'+e.ref+'/'+e.pin];if(a?.state!=='completed'||!a.result?.wireId)fail('TIDY_COMPLETED_DRAW_REQUIRED');wires.push({...a.result,net:net.name});}
+   const top=Math.max(...p.circuit.components.map(c=>c.pose.y))+100,left=Math.min(...p.circuit.components.map(c=>c.pose.x))-20;
+   const notes=p.circuit.notes.map((n,i)=>{if(ctx.r.actions[p.requestId+'/note/'+i]?.state!=='completed')fail('TIDY_COMPLETED_DRAW_REQUIRED');return {...n,toX:left,toY:top-i*18};});
+   const result=await action(this,p,ctx,p.requestId+'/tidy',{operation:'tidy',wires,notes});if(result.status!=='ok')return result;
+   const verification=await this.jlc_eda_verify_schematic(p);ctx.r.lastVerification=verification;await persist(ctx.dir,ctx.r);return verification;
+  }
   const title=await action(this,p,ctx,p.requestId+'/title-block',{operation:'title_block',showTitleBlock:p.showTitleBlock});if(title.status!=='ok')return title;
   for(const component of p.circuit.components){const r=await action(this,p,ctx,p.requestId+'/place/'+component.ref,{operation:'place',component});if(r.status!=='ok')return {...r,workDirectory:ctx.dir};}
   const d=await this.jlc_eda_read_document({...p,documentUuid:p.schematicPageUuid,kind:'schematic',includePins:true,includeGeometry:true,limit:200});
@@ -94,7 +104,7 @@ export const workflow={
   const doc=await this.jlc_eda_read_document({...p,documentUuid:p.schematicPageUuid,kind:'schematic',includePins:true,includeGeometry:true,limit:200});if(doc.status!=='ok')return incompleteVerification(doc,connectivity);
   const archive=await this.invoke(p.sessionId,drawingScript({...p,operation:'archive'}));if(archive.status!=='ok')return incompleteVerification(archive,connectivity);
   try{enrichModelSources(doc,archive.data);}catch(e){return incompleteVerification({status:'unknown',code:'MODEL_SOURCE_READ_UNCERTAIN',message:e.message},connectivity);}
-  const last=await this.invoke(p.sessionId,factsScript({...p,documentUuid:p.schematicPageUuid,operation:'netlist'}));if(last.status!=='ok')return incompleteVerification(last,connectivity);
+  const last=await this.invokeLossless(p.sessionId,factsScript({...p,documentUuid:p.schematicPageUuid,operation:'netlist'}));if(last.status!=='ok')return incompleteVerification(last,connectivity);
   let finalNetlist;try{finalNetlist=parseNetlist(last.source,p.expectedProjectUuid);}catch(e){return incompleteVerification({status:e.status??'unknown',code:e.code??'FINAL_NETLIST_READ_FAILED',message:e.message},connectivity);}
   const comparison=mergeConnectivityComparison(compareCircuit(p.circuit,connectivity.netlist,doc),connectivity.comparison);
   if(finalNetlist.sourceSha256!==connectivity.netlist.sourceSha256){comparison.issues.push({code:'NETLIST_CHANGED_DURING_VERIFICATION',before:connectivity.netlist.sourceSha256,after:finalNetlist.sourceSha256});comparison.status='unknown';}

@@ -230,8 +230,8 @@ test('relocated bundle speaks MCP without node_modules or a fixed working direct
     assert.match(incremental.description,/完整保存重开与关闭/);
     const eco=list.tools.find(t=>t.name==='jlc_eda_schematic_eco');assert.ok(eco);
     assert.deepEqual([...eco.inputSchema.required].sort(),['outputDirectory','phase','requestId','sourceCheckpointPath','sourcePath']);
-    assert.deepEqual(eco.inputSchema.properties.phase.enum,['derive','parts','read','plan','schematic','sync','verify_sync','complete','verify','finish','recover','preview','prepare_replace','adopt_replace']);
-    assert.deepEqual(eco.inputSchema.properties.mode.enum,['single_point','passives']);assert.equal(eco.inputSchema.properties.mode.default,'single_point');assert.equal(eco.inputSchema.properties.passiveChanges.additionalProperties,false);assert.equal(eco.inputSchema.properties.candidateSupplierIds.maxItems,4);
+    assert.deepEqual(eco.inputSchema.properties.phase.enum,['derive','parts','read','plan','schematic','sync','verify_sync','complete','verify','finish','recover','preview','prepare_replace','adopt_replace','prepare_notes','adopt_notes']);
+    assert.deepEqual(eco.inputSchema.properties.mode.enum,['single_point','passives','notes']);assert.equal(eco.inputSchema.properties.mode.default,'single_point');assert.equal(eco.inputSchema.properties.passiveChanges.additionalProperties,false);assert.equal(eco.inputSchema.properties.candidateSupplierIds.maxItems,4);
     assert.equal(eco.inputSchema.additionalProperties,false);assert.equal(eco.inputSchema.properties.addition.additionalProperties,false);
     for(const key of ['sessionId','expectedProjectUuid','pcbDocumentUuid','code'])assert.equal(eco.inputSchema.properties[key],undefined);
     assert.equal(eco.annotations.readOnlyHint,false);assert.equal(eco.annotations.destructiveHint,false);assert.equal(eco.annotations.openWorldHint,false);
@@ -239,7 +239,7 @@ test('relocated bundle speaks MCP without node_modules or a fixed working direct
     assert.ok(manufacturing);
     assert.deepEqual([...manufacturing.inputSchema.required].sort(),['outputDirectory','requestId','sourcePath']);
     for(const key of ['sourcePath','outputDirectory','requestId'])assert.equal(manufacturing.inputSchema.properties[key].type,'string');
-    assert.deepEqual(manufacturing.inputSchema.properties.phase.enum,['generate','verify']);
+    assert.deepEqual(manufacturing.inputSchema.properties.phase.enum,['generate','verify','refresh_previews']);
     assert.equal(manufacturing.annotations.destructiveHint,false);
     assert.equal(manufacturing.annotations.readOnlyHint,false);
     assert.ok(list.tools.some(x=>x.name==='jlc_eda_stop_work_project'));

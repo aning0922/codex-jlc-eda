@@ -1,5 +1,24 @@
 # Validation record / 验证记录
 
+## Current source — 0.11.0-dev.a10 / 当前源码
+
+2026-10-18 source sync. The checks below apply to the current source, including a synthetic public replacement for the private footprint fixture. / 本次核查对象为当前源码与合成公开 fixture。
+
+| Layer / 层次 | Result / 结果 |
+|---|---|
+| Offline regression / 离线回归 | **188/188**, with no failures, skips, cancellations or todos. No real EDA calls. |
+| Compiled MCP / 编译协议 | **35 tools**, current schemas/descriptions/annotations, 35 invalid-input rejections and simulated doctor; not actual chat-host qualification. |
+| Packaging / 打包 | Complete source allowlist, isolated source build/tests, runtime manifest/hash validation and relocated launch checked. No private model capture in either package. |
+| Documentation / 文档 | Chinese/English shell-command parity, local Markdown links and source allowlist scan checked. |
+| Real-editor history / 实机历史 | A6–A9-R1 have bounded results on macOS / EDA 4.1.71 using independent development builds. See [the evidence summary](development-status.md). No new editor run in this sync. |
+| Open work / 未闭合 | A10 text positions, final saved delivery, actual chat-host loading and stable background interaction remain unqualified. |
+| Hardware / 硬件 | RC manufacturing files validated; assembly/3D review and physical performance remain open. |
+| Remote CI / 远端 | Inspect [Actions](https://github.com/aning0922/codex-jlc-eda/actions) for the exact commit and Node 20/24 results; local checks alone do not establish remote success. |
+
+Current tool count remains 35, while some schemas and descriptions have changed since Alpha.3. Public synthetic fixtures verify the software contract; locally retained real-model cases are not redistributed. The next section preserves the older release's evidence separately.
+
+## Historical release — Alpha.3 / 历史发布记录
+
 2026-10-10 · developer preview `0.11.0-alpha.3` · local software checks / 本地软件验证。
 
 | Layer / 层次 | Status / 状态 |

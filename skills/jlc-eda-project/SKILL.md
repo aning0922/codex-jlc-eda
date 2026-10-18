@@ -10,7 +10,7 @@ description: 使用嘉立创EDA专业版读取工程、核实真实器件与引�
 ## 先选择工作流程
 
 - 环境/已有工程检查：doctor → open_project（隔离只读副本）→ inspect_project → read_document/read_connectivity/read_pcb_routing。未知工程身份先发现，随后按真实绑定核对；结束回收自有读取上下文。
-- 新小型原理图/首次PCB同步：create_work_project 或 derive_work_project → draw_schematic → verify/preview → sync_pcb → 原生复核 → verify → 布局/规则/局部或受限路由 → finish_work_project。具体边界见 [日常使用与状态处理](references/usage.md)。
+- 新小型原理图/首次PCB同步：create_work_project 或 derive_work_project → draw_schematic → verify/preview → sync_pcb → 原生复核 → verify → 布局/规则/局部或受限路由 → finish_work_project。已同步板可显式读取官方布局候选并在同一板框下采用约束位置；具体边界见 [日常使用与状态处理](references/usage.md)。
 - 已完成PCB局部孔/线/位号/EP钢网：incremental_pcb，从closed成品派生，plan → apply/verify → finish。工程内独立钢网封装仍有“仅所选实例”原生步骤，不写共享/全局库。
 - 单脚测试点：schematic_eco，默认 single_point 模式，沿已验收P4-D流程。
 - 常规两脚R/C新增或兼容换料/改接：schematic_eco，mode=passives；详见 [阻容增量操作](references/passives.md)。
@@ -28,7 +28,7 @@ mm输入，PCB原生+Y向上；原理图API10mil、PCB API mil、存储Y与API�
 
 工具返回 needs_ui 时，先核对返回的精确工作窗口/工程/目标。宿主有界面能力就完成明确原生步骤，再调用同请求验证；用户已授权的原生复核不额外逐项审批。缺少界面能力或Mac锁定时保留状态并给出一个具体下一步，继续不依赖界面的工作。
 
-原生导入 true 只表示复核/读回待完成。等待并查看准确窗口中的增删/属性/焊盘网络清单；只应用计划项，关闭旧导线自动改名和设计规则变更。pending复核期间不通过预览/原理图读取切页，不重开、不再次导入。复核可能迟于API回执出现，未出现时先保留回执与PCB只读结果。
+默认 review 路径的原生导入 true 只表示复核/读回待完成。显式 force_initial_empty 仅用于已完整证明为空的新 PCB 初次全量同步，仍须完整读回，不能将旧 UI 重试用于 force；范围和本地导入支线见 [日常使用](references/usage.md)。等待并查看准确窗口中的增删/属性/焊盘网络清单；只应用计划项，关闭旧导线自动改名和设计规则变更。pending复核期间不通过预览/原理图读取切页，不重开、不再次导入。复核可能迟于API回执出现，未出现时先保留回执与PCB只读结果。
 
 所有写入有持久意图和结果记录。重复请求复用既有动作，显式参数冲突/源变更拒绝；pending/unknown不因等待、服务重启或更换requestId而重放。只按具体已实现恢复条件处理，不能泛化旧任务的特殊恢复入口。对应历史条件只在需要时查 [历史记录](references/verified-history.md)。
 

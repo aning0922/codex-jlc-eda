@@ -13,11 +13,14 @@ import {rulesSchema,configureRules,ruleCheckpointEqual} from './rules.mjs';
 import {verifyAcceptedFileRoute,fileCheckBasis,losslessView} from './file-checkpoint.mjs';
 import {verifyRepairCheckpoint} from './local-repair.mjs';
 import {layoutSchema,planLayout,checkLayout,toMil} from './layout.mjs';
+import {controlledLayout} from './layout-candidate.mjs';
+import {capturePlacementArchives,comparePlacementArchives} from './placement-evidence.mjs';
+import {compareRouteArchives} from './route-archive-evidence.mjs';
 const id=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 export const p3Target={sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,schematicUuid:id,pcbDocumentUuid:id,workDirectory:z.string().min(1).max(4096)};
 export const p3Schemas={
  jlc_eda_read_pcb_routing:z.object({...p3Target}).strict(),
- jlc_eda_layout_pcb:z.object({...p3Target,requestId:id,layout:layoutSchema,phase:z.enum(['plan','apply','verify','retry_rejected']).default('plan')}).strict(),
+ jlc_eda_layout_pcb:z.object({...p3Target,requestId:id,layout:layoutSchema,strategy:z.enum(['manual','auto_candidate','adjust']).default('manual'),phase:z.enum(['plan','apply','verify','retry_rejected']).default('plan')}).strict(),
  jlc_eda_configure_pcb_rules:z.object({...p3Target,requestId:id,rules:rulesSchema,phase:z.enum(['apply','verify','prepare_ui','verify_ui','auto_recover','verify_auto','cleanup']).default('apply'),uiProfileName:z.string().min(1).max(100).optional()}).strict(),
  jlc_eda_route_pcb:z.object({...p3Target,requestId:id,phase:z.enum(['critical','native','prepare_ui','verify','retry_rejected','prepare_restore_undo']),guiParameterPolicy:z.enum(['require_all','allow_unverified']).default('require_all'),unit:z.enum(['mm','mil']).default('mm'),critical:z.object({net:z.string().min(1),from:z.object({uniqueId:id,pin:z.string().min(1)}).strict(),to:z.object({uniqueId:id,pin:z.string().min(1)}).strict(),waypoints:z.array(z.array(z.number().finite()).length(2)).max(30).default([]),layer:z.union([z.literal(1),z.literal(2)]),width:z.number().positive().finite()}).strict().optional(),routing:z.object({nets:z.array(z.string().min(1)).min(1).max(100),ignoreNets:z.array(z.string()).default([]),layers:z.array(z.union([z.literal(1),z.literal(2)])).min(1).max(2),existingPrimitiveMode:z.literal('keep'),cornerStyle:z.union([z.literal(0),z.literal(1)]),optimization:z.union([z.literal(0),z.literal(1)]),waitMs:z.number().int().min(30000).max(180000)}).strict().optional()}).strict(),
  jlc_eda_check_pcb:z.object({...p3Target,circuit:circuitSchema}).strict()
@@ -63,11 +66,18 @@ async function nativeRouting(p){
   try{const nativeResult=await eda.pcb_Document.autoRouting(p.props);return {status:await matches()?'ok':'unknown',nativeResult,startedAt,finishedAt:new Date().toISOString(),sourceApi:'eda.pcb_Document.autoRouting',props:p.props};}
   catch(e){return {status:'unknown',code:'PCB_NATIVE_ROUTING_ERROR',message:String(e?.message??e),startedAt};}
  }
+ if(p.operation==='auto_layout'){
+  const current=await eda.pcb_PrimitiveComponent.getAll();
+  if(current.length!==p.beforeComponents.length||p.beforeComponents.some(c=>!current.some(n=>n.getState_PrimitiveId()===c.id&&n.getState_UniqueId()===c.uniqueId&&n.getState_X()===c.x&&n.getState_Y()===c.y&&n.getState_Rotation()===c.rotation&&n.getState_PrimitiveLock()===c.primitiveLock)))return {status:'failed',code:'AUTO_LAYOUT_SCOPE_CHANGED'};
+  if(typeof eda.pcb_Document.autoLayout!=='function')return {status:'unsupported',code:'AUTO_LAYOUT_API_UNAVAILABLE',mutationRequested:false};
+  const startedAt=new Date().toISOString(),nativeResult=await eda.pcb_Document.autoLayout();
+  return {status:await matches()?'ok':'unknown',nativeResult,startedAt,finishedAt:new Date().toISOString(),sourceApi:'eda.pcb_Document.autoLayout',allowedComponentIds:p.beforeComponents.map(c=>c.id)};
+ }
  if(p.operation==='layout'){
   const log=[];
   if(await eda.pcb_Layer.getTheNumberOfCopperLayers()!==p.plan.board.layers)await eda.pcb_Layer.setTheNumberOfCopperLayers(p.plan.board.layers);
   const b=p.plan.board,points=[[b.x,b.y],[b.x+b.width,b.y],[b.x+b.width,b.y-b.height],[b.x,b.y-b.height],[b.x,b.y]];
-  const polygon=eda.pcb_MathPolygon.createPolygon(['R',b.x,b.y,b.width,b.height,0,0]);if(!polygon)return {status:'failed',code:'LAYOUT_OUTLINE_POLYGON_INVALID',log};const outline=await eda.pcb_PrimitivePolyline.create('',11,polygon,b.outlineWidth,true);if(!outline)return {status:'unknown',code:'LAYOUT_OUTLINE_CREATE_UNCONFIRMED',log};log.push({operation:'outline',object:serialize(outline,'Polyline')});
+  if(!p.preserveOutline){const polygon=eda.pcb_MathPolygon.createPolygon(['R',b.x,b.y,b.width,b.height,0,0]);if(!polygon)return {status:'failed',code:'LAYOUT_OUTLINE_POLYGON_INVALID',log};const outline=await eda.pcb_PrimitivePolyline.create('',11,polygon,b.outlineWidth,true);if(!outline)return {status:'unknown',code:'LAYOUT_OUTLINE_CREATE_UNCONFIRMED',log};log.push({operation:'outline',object:serialize(outline,'Polyline')});}
   for(const c of p.plan.poses){if(!await matches())return {status:'unknown',code:'LAYOUT_TARGET_CHANGED',log};const moved=await eda.pcb_PrimitiveComponent.modify(c.id,{x:c.x,y:c.y,rotation:c.rotation,layer:c.layer,primitiveLock:c.fixed});if(!moved)return {status:'unknown',code:'LAYOUT_MOVE_UNCONFIRMED',log};log.push({operation:'move',id:c.id,uniqueId:c.uniqueId,x:moved.getState_X(),y:moved.getState_Y(),rotation:moved.getState_Rotation(),layer:moved.getState_Layer(),primitiveLock:moved.getState_PrimitiveLock()});}
   return {status:await matches()?'ok':'unknown',log};
  }
@@ -94,13 +104,14 @@ async function nativeRouting(p){
 export const routingScript=p=>'('+nativeRouting.toString()+')('+JSON.stringify(p)+')';
 const beforeNativeRules=old=>old.beforeNative.ruleConfiguration;
 const readDoc=(a,p)=>a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
-const rawRead=async(a,p)=>{const focus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb'}));if(focus.status!=='ok')return focus;return proveFootprintVias(await a.invoke(p.sessionId,routingScript({...p,operation:'read'})));};
+const rawRead=async(a,p)=>{const focus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb'}));if(focus.status!=='ok')return focus;return proveFootprintVias(await a.invokeLossless(p.sessionId,routingScript({...p,operation:'read'})));};
 export const readOwnedRouting=rawRead;
 export const p3Workflow={
  async jlc_eda_read_pcb_routing(p){await pcbBound(this,p);const native=await rawRead(this,p);return {...native,routingCapability:await this.routingCapability()};},
  async jlc_eda_layout_pcb(p){
   if((await load(p.workDirectory)).pcbRepairBaseline)return {status:'unknown',code:'PCB_KNOWN_PARTIAL_LAYOUT_IMMUTABLE',nativeMutationReplayed:false};
   const {dir,r}=await pcbBound(this,p);r.pcbActions??={};const key='layout/'+p.requestId,hash=fingerprint(p.layout),old=r.pcbActions[key];
+  if(p.strategy!=='manual'||old?.strategy)return controlledLayout(this,p,{dir,r});
   if(old&&old.hash!==hash)return {status:'failed',code:'REQUEST_CONFLICT'};
   if(old&&p.phase==='retry_rejected'){
    if(old.retryCount||old.state!=='unknown'||old.nativeResult||old.error?.code!=='EXECUTION_ERROR')return {status:'unknown',code:'LAYOUT_RETRY_REJECTION_NOT_PROVEN'};
@@ -111,7 +122,9 @@ export const p3Workflow={
   }
   if(old){const doc=await readDoc(this,p),native=await rawRead(this,p),comparison=verifyLayoutSnapshot(old.plan,doc,native,old.afterNative?.objects.filter(x=>x.layer===11)),outline=comparison.board?.outline;
    const footprintVias=Array.isArray(old.beforeNative?.objects)&&Array.isArray(old.before?.components)?compareMovedFootprintVias(old.beforeNative.objects,old.before.components,old.plan,native.objects??[]):{status:'mismatch',issues:[{code:'LAYOUT_BEFORE_CHECKPOINT_MISSING'}]};comparison.issues.push(...footprintVias.issues);if(footprintVias.status!=='matched')comparison.status='mismatch';
-   const result={status:comparison.status==='matched'?'ok':'unknown',comparison,footprintVias,document:doc,native,nativeMutationReplayed:false};
+   const afterArchives=old.beforeArchives?await capturePlacementArchives(this,p):null;
+   const fullPreservation=afterArchives?comparePlacementArchives(old.beforeArchives,afterArchives,{documentUuid:p.pcbDocumentUuid,beforeDocument:old.beforeDocument,afterDocument:doc,outlineId:old.nativeResult?.log?.find(x=>x.operation==='outline')?.object?.primitiveId}):null;
+   const result={status:comparison.status==='matched'&&(!fullPreservation||fullPreservation.status==='matched')?'ok':'unknown',comparison,footprintVias,fullPreservation,document:doc,native,nativeMutationReplayed:false};
    if(result.status==='ok'){old.state='completed';old.after=pcbSnapshot(doc);old.afterNative=native;old.result=result;r.pcbLayoutBaseline={after:old.after,plan:old.plan,outline};await persist(dir,r);}return result;}
 
   if(p.phase==='verify')return {status:'failed',code:'LAYOUT_NO_RECORDED_ACTION'};
@@ -120,7 +133,8 @@ export const p3Workflow={
   if(plan.status!=='ok')return plan;
   if(p.phase==='plan')return {status:'ok',plan,before:doc,beforeNative,mutationRequested:false};
   if(!r.pcbSyncBaseline||beforeNative.status!=='ok'||beforeNative.objects.some(x=>!isOwnedFootprintVia(x)))return {status:'unsupported',code:'LAYOUT_REQUIRES_SYNCHRONIZED_UNROUTED_EMPTY_ARTWORK',native:beforeNative};
-  const action={hash,state:'pending',plan,before:pcbSnapshot(doc),beforeNative,startedAt:new Date().toISOString()};r.pcbActions[key]=action;await persist(dir,r);
+  const beforeArchives=await capturePlacementArchives(this,p);
+  const action={hash,state:'pending',plan,before:pcbSnapshot(doc),beforeDocument:doc,beforeArchives,beforeNative,startedAt:new Date().toISOString()};r.pcbActions[key]=action;await persist(dir,r);
   try{action.nativeResult=await this.invoke(p.sessionId,routingScript({...p,operation:'layout',plan}));action.state='unknown';await persist(dir,r);return this.jlc_eda_layout_pcb({...p,phase:'verify'});}catch(e){action.state='unknown';action.error={code:e.code,message:e.message};await persist(dir,r);throw e;}
  },
  async jlc_eda_configure_pcb_rules(p){
@@ -182,7 +196,7 @@ export const p3Workflow={
    const capability=await this.routingCapability();if(capability.status!=='supported')return {...capability,nativeEngineInvoked:false,nativeMutationReplayed:false,originalActionPreserved:true};
    const native=await rawRead(this,p),doc=await readDoc(this,p);
    if(doc.status!=='ok'||fingerprint(pcbSnapshot(doc))!==fingerprint(old.before)||compareRoutingCheckpoint(old.beforeNative,native).status!=='matched'||verifyLayoutSnapshot(r.pcbLayoutBaseline.plan,doc,native,r.pcbLayoutBaseline.outline).status!=='matched')return {status:'unknown',code:'PCB_ROUTE_RETRY_ZERO_EFFECT_NOT_PROVEN',native,document:doc};
-   old.attempts=[{error:old.error,requestedWaitMs:old.routing.waitMs,nativeEngineInvoked:false,reason:'official CLI rejected timeout argument before dispatch',proof:{native,document:doc}}];old.retryCount=1;old.state='pending';old.nativeWaitMs=Math.min(old.routing.waitMs,60000);await persist(dir,r);
+   old.attempts=[{error:old.error,requestedWaitMs:old.routing.waitMs,nativeEngineInvoked:false,reason:'official CLI rejected timeout argument before dispatch',proof:{native,document:doc}}];old.retryCount=1;old.state='pending';old.nativeWaitMs=old.routing.waitMs;await persist(dir,r);
    try{old.nativeResult=await this.invoke(p.sessionId,routingScript({...p,operation:'route',props:{RoutingNets:old.routing.nets,ignoreNets:old.routing.ignoreNets,layers:old.routing.layers,existingPrimitiveMode:'keep',cornerStyle:old.routing.cornerStyle,optimization:old.routing.optimization}}),old.routing.waitMs);old.state='unknown';await persist(dir,r);return this.jlc_eda_route_pcb({...p,phase:'verify'});}catch(e){old.state='unknown';old.error={code:e.code,message:e.message};await persist(dir,r);throw e;}
   }
   if(old){let native,doc;try{native=await rawRead(this,p);doc=await readDoc(this,p);}catch(e){const result=invalidateRouteObservation(old,{status:'unknown',code:'PCB_ROUTE_READBACK_FAILED',error:{code:e.code??null,message:e.message},nativeMutationReplayed:false});await persist(dir,r);return result;}const before=old.beforeNative.objects,after=native.objects;if(native.status!=='ok'||!Array.isArray(after)||doc.status!=='ok'){const result=invalidateRouteObservation(old,{status:'unknown',code:'PCB_ROUTE_READBACK_INCOMPLETE',native,document:doc,nativeMutationReplayed:false});await persist(dir,r);return result;}const preserved=before.map(x=>({id:x.primitiveId,unchanged:after.some(y=>fingerprint(x)===fingerprint(y))}));
@@ -190,17 +204,21 @@ export const p3Workflow={
    const addedComparison=verifyAddedCopper(old,added,p.unit),layout=verifyLayoutSnapshot(r.pcbLayoutBaseline.plan,doc,native,r.pcbLayoutBaseline.outline);
    const actualCritical=old.critical?after.filter(x=>old.nativeResult?.log?.some(y=>y.primitiveId===x.primitiveId)):null;
    const acceptedCheckpoint=old.afterNative?compareRoutingCheckpoint(old.afterNative,native):null;
-   const result={status:native.status==='ok'&&doc.status==='ok'?'ok':'unknown',native,document:doc,preserved,added,nonTargetChanges,positionChanges:positions,recordedNativeResult:old.nativeResult??null,nativeMutationReplayed:false,critical:actualCritical,addedComparison,layout,acceptedCheckpoint,parameterCoverage:guiParameterCoverage(old)};
+   const afterArchives=old.beforeArchives?await capturePlacementArchives(this,p):null;
+   const fullPreservation=afterArchives?compareRouteArchives(old.beforeArchives,afterArchives,{documentUuid:p.pcbDocumentUuid,added}):null;
+   const result={status:native.status==='ok'&&doc.status==='ok'?'ok':'unknown',native,document:doc,preserved,added,nonTargetChanges,positionChanges:positions,fullPreservation,recordedNativeResult:old.nativeResult??null,nativeMutationReplayed:false,critical:actualCritical,addedComparison,layout,acceptedCheckpoint,parameterCoverage:guiParameterCoverage(old)};
    if(acceptedCheckpoint?.status!=='matched'&&acceptedCheckpoint){result.status='unknown';result.code='PCB_ROUTE_ACCEPTED_OBSERVATION_CHANGED';}
    if(preserved.some(x=>!x.unchanged)||nonTargetChanges.length||positions.length||!ruleCheckpointEqual(beforeNativeRules(old),native.ruleConfiguration)||layout.status!=='matched'||addedComparison.status!=='matched'){result.status='unknown';result.code='PCB_ROUTE_PRESERVATION_OR_SCOPE_MISMATCH';}
+   if(fullPreservation&&fullPreservation.status!=='matched'){result.status='unknown';result.code='PCB_ROUTE_FULL_ARCHIVE_UNVERIFIED';}
    const applied=old.critical?actualCritical?.length===old.points.length-1&&old.nativeResult?.status==='ok':old.phase==='prepare_ui'?added.some(x=>x.net&&[1,2].includes(x.layer)):old.nativeResult?.status==='ok'&&added.some(x=>x.net&&[1,2].includes(x.layer));
    if(!applied){result.status='unknown';result.code='PCB_ROUTING_NOT_APPLIED_OR_OUTCOME_UNKNOWN';result.nextAction='Inspect the existing native operation and exact target. Do not rerun routing. Read/verify after applying an existing native iteration.';}
    if(old.invalidation&&result.status==='ok'){result.status='unknown';result.code='PCB_ROUTE_PREVIOUSLY_INVALIDATED';}
-   if(result.status==='ok'){if(old.state!=='completed'){old.state='completed';old.afterNative=native;old.after=pcbSnapshot(doc);old.result=result;r.pcbCopperBaseline={after:old.after,native};}await persist(dir,r);}else{invalidateRouteObservation(old,result);await persist(dir,r);}return result;
+   if(result.status==='ok'){if(old.state!=='completed'){old.state='completed';old.afterNative=native;old.after=pcbSnapshot(doc);old.afterArchives=afterArchives;old.result=result;r.pcbCopperBaseline={after:old.after,native,archives:afterArchives};}await persist(dir,r);}else{invalidateRouteObservation(old,result);await persist(dir,r);}return result;
   }
   if(p.phase==='verify')return {status:'failed',code:'PCB_ROUTE_NO_RECORDED_ACTION'};
   if(p.phase==='native'){const capability=await this.routingCapability();if(capability.status!=='supported')return {...capability,nativeMutationReplayed:false,nativeEngineInvoked:false,nextAction:'Use a verified official native UI path only after prior operations have ended. SDK declaration alone is insufficient.'};}
   if(unresolvedActions(r).length>0)return {status:'unknown',code:'PCB_ACTION_UNRESOLVED'};
+  if(r.pcbLayoutCandidate&&!r.pcbLayoutCandidate.adopted)return {status:'unknown',code:'PCB_LAYOUT_CANDIDATE_NOT_ADOPTED'};
   if(!r.pcbLayoutBaseline||!r.pcbRuleBaseline)return {status:'failed',code:'PCB_ROUTE_LAYOUT_AND_RULES_REQUIRED'};
   const doc=await readDoc(this,p),beforeNative=await rawRead(this,p);if(verifyLayoutSnapshot(r.pcbLayoutBaseline.plan,doc,beforeNative,r.pcbLayoutBaseline.outline).status!=='matched'||!ruleCheckpointEqual(beforeNative.ruleConfiguration,r.pcbRuleBaseline))return {status:'unknown',code:'PCB_ROUTE_BASELINE_CHANGED'};
   let points;
@@ -213,7 +231,8 @@ export const p3Workflow={
   }else if(!p.routing)return {status:'needs_input',code:'PCB_NATIVE_ROUTING_INPUT_REQUIRED'};
   const nets=new Set(doc.components.flatMap(c=>c.pins.map(x=>x.net)).filter(Boolean));if(p.routing&&(p.routing.nets.some(x=>!nets.has(x))||p.routing.nets.some(x=>p.routing.ignoreNets.includes(x))))return {status:'failed',code:'PCB_ROUTE_NET_SCOPE_INVALID'};
   if(p.phase==='prepare_ui'&&p.guiParameterPolicy!=='allow_unverified')return {status:'unsupported',code:'PCB_GUI_PARAMETER_MAPPING_UNVERIFIED',nativeEngineInvoked:false,mutationRequested:false,parameterCoverage:guiParameterCoverage({phase:'prepare_ui'}),nextAction:'GUI cornerStyle/optimization cannot be enforced. Explicit allow_unverified policy permits copper-scope verification only; hard parameter requirements are unsupported.'};
-  const action={hash,state:'pending',phase:p.phase,critical:p.critical,routing:p.routing,requestedWaitMs:p.routing?.waitMs,nativeWaitMs:p.routing?Math.min(p.routing.waitMs,60000):15000,points,before:pcbSnapshot(doc),beforeNative,startedAt:new Date().toISOString()};r.pcbActions[key]=action;await persist(dir,r);
+  const beforeArchives=await capturePlacementArchives(this,p);
+  const action={hash,state:'pending',phase:p.phase,critical:p.critical,routing:p.routing,requestedWaitMs:p.routing?.waitMs,nativeWaitMs:p.routing?p.routing.waitMs:15000,processWaitMs:(p.routing?p.routing.waitMs:15000)+3000,points,before:pcbSnapshot(doc),beforeNative,beforeArchives,startedAt:new Date().toISOString()};r.pcbActions[key]=action;await persist(dir,r);
   if(p.phase==='prepare_ui'){action.state='unknown';action.nativeResult={status:'needs_ui',code:'PCB_NATIVE_ROUTING_UI_REQUIRED'};await persist(dir,r);return {...action.nativeResult,target:{path:r.path,sessionId:p.sessionId,pcbDocumentUuid:p.pcbDocumentUuid},routing:p.routing,nextAction:'Configure the exact native routing scope/layers/rules and keep existing copper. Run once, explicitly apply its iteration, then verify this same request. No native engine has been invoked by this preparation.'};}
   try{action.nativeResult=await this.invoke(p.sessionId,routingScript({...p,operation:p.phase==='critical'?'critical':'route',points,net:p.critical?.net,layer:p.critical?.layer,width:p.critical?toMil(p.critical.width,p.unit):undefined,props:p.routing?{RoutingNets:p.routing.nets,ignoreNets:p.routing.ignoreNets,layers:p.routing.layers,existingPrimitiveMode:'keep',cornerStyle:p.routing.cornerStyle,optimization:p.routing.optimization}:undefined}),p.phase==='native'?p.routing.waitMs:15000);action.state='unknown';await persist(dir,r);return this.jlc_eda_route_pcb({...p,phase:'verify'});}catch(e){action.state='unknown';action.error={code:e.code,message:e.message};await persist(dir,r);throw e;}
  },
@@ -225,11 +244,12 @@ export const p3Workflow={
   const native=await rawRead(this,p),doc=await readDoc(this,p),layout=verifyLayoutSnapshot(expected.pcbLayoutBaseline.plan,doc,native,expected.pcbLayoutBaseline.outline),copper=expected.pcbCopperBaseline?compareRoutingCheckpoint(expected.pcbCopperBaseline.native,native):null;
   const rulesMatched=!expected.pcbRuleBaseline||ruleCheckpointEqual(expected.pcbRuleBaseline,native.ruleConfiguration);
   const unresolved=unresolvedActions(expected),issues=[...layout.issues,...(copper?.issues??[])];if(unresolved.length&&!preservationOnly)issues.push({code:'PCB_ACTION_UNRESOLVED',actions:unresolved});if(!rulesMatched)issues.push({code:'PCB_RULE_CHECKPOINT_MISMATCH'});
-  const drc=await this.invoke(p.sessionId,routingScript({...p,operation:'check'}),60000);
+  const drc=await this.invokeLossless(p.sessionId,routingScript({...p,operation:'check'}),60000);
   if(drc.status!=='ok')issues.push({code:'PCB_FRESH_DRC_UNAVAILABLE'});
   const drcComparison=expected.pcbCheck?compareNativeDrc(expected.pcbCheck.drc?.errors,drc.errors):null;
   if(drcConsistencyRequired&&drcComparison&&drcComparison.status!=='matched')issues.push(...drcComparison.issues);
-  return {status:'ok',comparison:{status:issues.length?'mismatch':'matched',issues,mismatches:[],identityComparison:identity.comparison},identity,native,document:doc,layout,copperCheckpoint:copper,copper:auditCopper(doc,native),rulesMatched,drc,drcComparison,drcConsistencyRequired,unresolvedActions:unresolved,preservationOnly,designReadbackOnly:true};
+  const fullArchive=await verifyRouteArchiveCheckpoint(this,p,expected);if(fullArchive?.status==='mismatch')issues.push({code:'PCB_FULL_ARCHIVE_CHECKPOINT_CHANGED'});
+  return {status:'ok',comparison:{status:issues.length?'mismatch':'matched',issues,mismatches:[],identityComparison:identity.comparison},identity,native,document:doc,layout,copperCheckpoint:copper,copper:auditCopper(doc,native),fullArchive,rulesMatched,drc,drcComparison,drcConsistencyRequired,unresolvedActions:unresolved,preservationOnly,designReadbackOnly:true};
  },
  async jlc_eda_check_pcb(p){
   const recorded=await load(p.workDirectory);
@@ -246,9 +266,10 @@ export const p3Workflow={
   }
   const {dir,r}=await pcbBound(this,p),identity=await this.jlc_eda_verify_pcb(p);if(identity.status!=='ok'||identity.comparison?.status!=='matched')return {status:'unknown',code:'PCB_CHECK_IDENTITY_UNVERIFIED',identity};
   await this.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb'}));
-  const drc=await this.invoke(p.sessionId,routingScript({...p,operation:'check'}),60000),native=await rawRead(this,p),doc=await readDoc(this,p);
+  const drc=await this.invokeLossless(p.sessionId,routingScript({...p,operation:'check'}),60000),native=await rawRead(this,p),doc=await readDoc(this,p);
   const result={status:drc.status==='ok'?'ok':'unknown',identity,drc,native,document:doc,layout:r.pcbLayoutBaseline?verifyLayoutSnapshot(r.pcbLayoutBaseline.plan,doc,native,r.pcbLayoutBaseline.outline):null,drcPassed:drc.status==='ok'&&drc.errors.length===0&&ruleCheckpointEqual(drc.beforeRules,drc.afterRules)};
-  result.copper=auditCopper(doc,native);result.rulesMatched=!!r.pcbRuleBaseline&&ruleCheckpointEqual(native.ruleConfiguration,r.pcbRuleBaseline);result.unresolvedActions=unresolvedActions(r);result.boardReady=result.unresolvedActions.length===0&&result.identity.comparison.status==='matched'&&result.layout?.status==='matched'&&result.drcPassed&&result.rulesMatched&&result.copper.fullyConnected;
+  result.fullArchive=await verifyRouteArchiveCheckpoint(this,p,r);
+  result.copper=auditCopper(doc,native);result.rulesMatched=!!r.pcbRuleBaseline&&ruleCheckpointEqual(native.ruleConfiguration,r.pcbRuleBaseline);result.unresolvedActions=unresolvedActions(r);result.boardReady=(!result.fullArchive||result.fullArchive.status==='matched')&&(!r.pcbLayoutCandidate||r.pcbLayoutCandidate.adopted)&&result.unresolvedActions.length===0&&result.identity.comparison.status==='matched'&&result.layout?.status==='matched'&&result.drcPassed&&result.rulesMatched&&result.copper.fullyConnected;
   r.pcbCheck=result;await persist(dir,r);return result;
  }
 };
@@ -284,4 +305,9 @@ async function recordFileCheckFailure(p,r,error){
 async function checkAcceptedFile(a,p,r){
  try{return await storeFileCheck(p,r,await verifyAcceptedFileRoute(a,p,r));}
  catch(error){return recordFileCheckFailure(p,r,error);}
+}
+
+async function verifyRouteArchiveCheckpoint(a,p,r){
+ const expected=r.pcbCopperBaseline?.archives;if(!expected)return null;
+ const actual=await capturePlacementArchives(a,p);const matched=fingerprint(expected.schematic)===fingerprint(actual.schematic)&&fingerprint(expected.pcb)===fingerprint(actual.pcb);return {status:matched?"matched":"mismatch",expected:{schematic:expected.schematic,pcb:expected.pcb},actual:{schematic:actual.schematic,pcb:actual.pcb}};
 }

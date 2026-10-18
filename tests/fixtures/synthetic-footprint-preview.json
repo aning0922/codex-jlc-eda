@@ -1,0 +1,263 @@
+{
+  "provenance": "Hand-authored synthetic model and identities for public regression tests. The 13 configuration bodies encode the bounded compatibility contract documented in docs/native-preview-defaults.md; no real library model or project capture is included.",
+  "before": {
+    "uuid": "synthetic-footprint-preview",
+    "docType": "FOOTPRINT",
+    "rows": [
+      {
+        "type": "META",
+        "id": "meta",
+        "body": {
+          "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      },
+      {
+        "type": "CANVAS",
+        "id": "canvas",
+        "body": {
+          "originX": 0,
+          "originY": 0
+        }
+      },
+      {
+        "type": "LAYER",
+        "id": "[\"LAYER\",1]",
+        "body": {
+          "layerType": "TOP",
+          "layerName": "Synthetic top",
+          "use": true
+        }
+      },
+      {
+        "type": "PAD",
+        "id": "synthetic-pad-1",
+        "body": {
+          "number": "1",
+          "x": -5,
+          "y": 0,
+          "defaultPad": {
+            "width": 3,
+            "height": 2
+          }
+        }
+      },
+      {
+        "type": "PAD",
+        "id": "synthetic-pad-2",
+        "body": {
+          "number": "2",
+          "x": 5,
+          "y": 0,
+          "defaultPad": {
+            "width": 3,
+            "height": 2
+          }
+        }
+      },
+      {
+        "type": "LINE",
+        "id": "synthetic-outline",
+        "body": {
+          "startX": -6,
+          "startY": -2,
+          "endX": 6,
+          "endY": -2,
+          "width": 0.25
+        }
+      },
+      {
+        "type": "ATTR",
+        "id": "synthetic-attribute",
+        "body": {
+          "key": "name",
+          "value": "SYNTHETIC TEST MODEL"
+        }
+      }
+    ]
+  },
+  "after": {
+    "uuid": "synthetic-footprint-preview",
+    "docType": "FOOTPRINT",
+    "rows": [
+      {
+        "type": "META",
+        "id": "meta",
+        "body": {
+          "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      },
+      {
+        "type": "CANVAS",
+        "id": "canvas",
+        "body": {
+          "originX": 0,
+          "originY": 0
+        }
+      },
+      {
+        "type": "LAYER",
+        "id": "[\"LAYER\",1]",
+        "body": {
+          "layerType": "TOP",
+          "layerName": "Synthetic top",
+          "use": true
+        }
+      },
+      {
+        "type": "PAD",
+        "id": "synthetic-pad-1",
+        "body": {
+          "number": "1",
+          "x": -5,
+          "y": 0,
+          "defaultPad": {
+            "width": 3,
+            "height": 2
+          }
+        }
+      },
+      {
+        "type": "PAD",
+        "id": "synthetic-pad-2",
+        "body": {
+          "number": "2",
+          "x": 5,
+          "y": 0,
+          "defaultPad": {
+            "width": 3,
+            "height": 2
+          }
+        }
+      },
+      {
+        "type": "LINE",
+        "id": "synthetic-outline",
+        "body": {
+          "startX": -6,
+          "startY": -2,
+          "endX": 6,
+          "endY": -2,
+          "width": 0.25
+        }
+      },
+      {
+        "type": "ATTR",
+        "id": "synthetic-attribute",
+        "body": {
+          "key": "name",
+          "value": "SYNTHETIC TEST MODEL"
+        }
+      },
+      {
+        "type": "NET",
+        "id": "[\"NET\",\"\"]",
+        "body": {
+          "netType": null,
+          "specialColor": null,
+          "retLine": true,
+          "differentialName": null,
+          "isPositiveNet": false,
+          "equalLengthGroupName": null
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"ALL\"]",
+        "body": {
+          "layerId": 56,
+          "display": false,
+          "color": null
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"DRC\"]",
+        "body": {
+          "layerId": 0,
+          "color": "#FFCC00"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"PROHIBITEDREGION\"]",
+        "body": {
+          "layerId": 0,
+          "color": "#9966FF"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"BOARDSHAPE\"]",
+        "body": {
+          "layerId": 0,
+          "color": "#6D6A69"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"PARTITION\"]",
+        "body": {
+          "layerId": 0,
+          "color": "#C0C0C0"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"PROPERTY\"]",
+        "body": {
+          "layerId": 0,
+          "display": false,
+          "color": null
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"CURSOR\"]",
+        "body": {
+          "display": true,
+          "color": "#00ffff"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"BACKGROUND\"]",
+        "body": {
+          "display": true,
+          "color": "#000000"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"GRID\"]",
+        "body": {
+          "display": true,
+          "color": "#ffffff"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"BOLDGRID\"]",
+        "body": {
+          "display": true,
+          "color": "#ffffff"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"COORDINATEAXIS\"]",
+        "body": {
+          "display": true,
+          "color": "#ffffff"
+        }
+      },
+      {
+        "type": "PRIMITIVE",
+        "id": "[\"PRIMITIVE\",\"SELECTBOX\"]",
+        "body": {
+          "display": true,
+          "color": "#00ffff"
+        }
+      }
+    ]
+  }
+}

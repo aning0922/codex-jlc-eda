@@ -5,6 +5,15 @@ import {circuitSchema,compareCircuit,drawingScript} from '../src/drawing.mjs';
 const component={ref:'r',designator:'R1',deviceUuid:'dev',libraryUuid:'lib',supplierId:'part',manufacturerPart:'mpn',footprintUuid:'fp',pose:{x:50,y:50,rotation:90,mirror:false},properties:{Value:'4k7'}};
 const circuit=circuitSchema.parse({components:[component],nets:[{name:'VCC',endpoints:[{ref:'r',pin:'1'}]}],nc:[{ref:'r',pin:'2'}]});
 function snapshot(){return {netlist:{counts:{components:1,pins:2},issues:[],components:[{designator:'R1',uniqueId:'r',supplierId:'part',manufacturerPart:'mpn',pins:[{number:'1',net:'VCC'},{number:'2',net:''}]}]},doc:{counts:{components:1},truncated:false,components:[{...component,id:'instance',uniqueId:'r',rotation:270,x:50,y:50,mirror:false,deviceSource:{uuid:'dev',libraryUuid:'lib'},footprintSource:{uuid:'fp',libraryUuid:'lib'},pins:[{number:'1',noConnected:false},{number:'2',noConnected:true}],properties:{Value:'4k7'}}]}};}
+test('reserved Name is checked against native name, including missing and stale-property counterexamples',()=>{
+ const expected=structuredClone(circuit);expected.components[0].properties.Name='IN';
+ const {netlist,doc}=snapshot();doc.components[0].name='IN';
+ assert.equal(compareCircuit(expected,netlist,doc).status,'matched');
+ doc.components[0].properties.Name='IN';doc.components[0].name='WRONG';
+ assert.ok(compareCircuit(expected,netlist,doc).mismatches.some(x=>x.key==='Name'&&x.actual==='WRONG'));
+ delete doc.components[0].name;
+ assert.ok(compareCircuit(expected,netlist,doc).mismatches.some(x=>x.key==='Name'));
+});
 test('structured input refuses duplicate, unknown and conflicting net/NC endpoints',()=>{assert.throws(()=>circuitSchema.parse({...circuit,nc:[{ref:'r',pin:'1'}]}));assert.throws(()=>circuitSchema.parse({...circuit,nets:[{name:'VCC',endpoints:[{ref:'foreign',pin:'1'}]}]}));});
 test('full circuit comparison catches splits, extra parts, unspecified pins and attribute loss',()=>{let {netlist,doc}=snapshot();assert.equal(compareCircuit(circuit,netlist,doc).status,'matched');netlist.components[0].pins[0].net='WRONG';assert.equal(compareCircuit(circuit,netlist,doc).status,'mismatch');({netlist,doc}=snapshot());netlist.components.push({designator:'EXTRA',uniqueId:'extra',pins:[]});assert.ok(compareCircuit(circuit,netlist,doc).mismatches.some(x=>x.code==='EXTRA_COMPONENT'));({netlist,doc}=snapshot());netlist.components[0].pins.push({number:'3',net:''});assert.ok(compareCircuit(circuit,netlist,doc).mismatches.some(x=>x.code==='UNSPECIFIED_PIN'));({netlist,doc}=snapshot());doc.components[0].properties={};assert.ok(compareCircuit(circuit,netlist,doc).mismatches.some(x=>x.code==='PROPERTY_MISMATCH'));});
 test('native action checks project and page before touching any creation API',async()=>{const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;let creates=0;const eda={dmt_Project:{getCurrentProjectInfo:async()=>({uuid:'p'})},dmt_SelectControl:{getCurrentDocumentInfo:async()=>({uuid:'wrong',parentProjectUuid:'p',documentType:1})},sch_PrimitiveComponent:{create:async()=>creates++}};const result=await new AsyncFunction('eda','return await '+drawingScript({expectedProjectUuid:'p',schematicPageUuid:'page',operation:'place',component}))(eda);assert.equal(result.code,'TARGET_MISMATCH');assert.equal(creates,0);});
@@ -22,4 +31,15 @@ test('confirmed pre-write failure is distinguishable and safely retryable, with 
  let journal=JSON.parse(await readFile(path.join(dir,'work-project.json')));assert.equal(journal.actions['draw/place/r'].retryable,true);
  assert.equal((await a.dispatch('jlc_eda_draw_schematic',params)).phase,'placed');assert.equal(attempts,2);
  journal=JSON.parse(await readFile(path.join(dir,'work-project.json')));assert.equal(journal.actions['draw/place/r'].attempts[0].result.code,'DEVICE_NOT_FOUND');
+});
+
+test('tidy validates all owned sources before writing and only changes text presentation',async()=>{
+ const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;let writes=[];
+ const attrs={getState_PrimitiveId:()=> 'label',getState_Key:()=> 'Name',getState_Value:()=> 'IN'};
+ let values={};const eda={dmt_Project:{getCurrentProjectInfo:async()=>({uuid:'p'})},dmt_SelectControl:{getCurrentDocumentInfo:async()=>({uuid:'page',parentProjectUuid:'p',documentType:1})},sch_PrimitiveAttribute:{getAll:async()=>[attrs],modify:async(id,property)=>{writes.push({id,property});values=property;return true;},get:async()=>Object.fromEntries(Object.entries(values).map(([k,v])=>['getState_'+k[0].toUpperCase()+k.slice(1),()=>v]))},sch_PrimitiveText:{getAll:async()=>[]}};
+ const p={expectedProjectUuid:'p',schematicPageUuid:'page',operation:'tidy',wires:[{wireId:'wire',net:'IN',pin:{x:100,y:100,rotation:90},end:{x:100,y:125}}],notes:[{text:'missing',x:0,y:0,toX:10,toY:20}]};
+ const run=()=>new AsyncFunction('eda','return await '+drawingScript(p))(eda);
+ assert.equal((await run()).code,'TIDY_NOTE_SOURCE_MISMATCH');assert.equal(writes.length,0);
+ p.notes=[];assert.equal((await run()).status,'ok');assert.deepEqual(writes,[{id:'label',property:{x:112,y:112.5,rotation:0,alignMode:2}}]);
+ p.wires[0].net='WRONG';assert.equal((await run()).code,'TIDY_WIRE_SOURCE_MISMATCH');assert.equal(writes.length,1);
 });

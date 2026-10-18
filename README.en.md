@@ -1,130 +1,141 @@
+<div align="center">
+
 # Codex JLC EDA
+
+### From a design brief to a verifiable schematic and PCB
+
+A local MCP / Skill plugin for JLCEDA Pro.<br>
+Real component models · Isolated work copies · Native placement and routing · Verified saves
 
 [简体中文](README.md) · **English**
 
-Let an AI assistant design small, low-voltage boards in isolated JLCEDA Pro copies—and verify the result against real models, connectivity and a fresh read from disk.
+[Latest results](#latest-results) · [Quick start](#quick-start) · [RC example](examples/rc-filter/README.md) · [Validation](docs/validation.md) · [Changelog](CHANGELOG.md)
 
-![Conceptual workflow: requirements, real models, isolated design, verification and save; not a screenshot of a real PCB](docs/assets/workflow.svg)
+</div>
 
-**Developer preview `0.11.0-alpha.3`** · **35 MCP tools** · **macOS / EDA Pro 4.1.60** · [MIT](LICENSE)
+![Original Codex JLC EDA concept diagram: requirements, real models, isolated design, verification and saving; not an editor screenshot](docs/assets/workflow.svg)
 
-[Quick start](#quick-start) · [Capabilities](#capabilities) · [Validation status](#validation-status) · [Use and recovery](#use-and-recovery) · [Contributing](#contributing)
+| Development source | Published runtime | Public interface | License |
+|:---:|:---:|:---:|:---:|
+| `0.11.0-dev.a10` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
 
-> This is an Alpha developer preview. The previously identified ZIP64 decompression issue has been fixed with `fflate 0.8.3`, and the SDK updated to `1.31.0`; see the [security assessment](docs/dependency-security.md). The RC example has not been executed, and Alpha.3 has not been installed or tested in the real editor. This is not an official JLCEDA or OpenAI project.
+> **Current progress · synced on 2026-10-18**
+> Independent development builds on EDA Pro 4.1.71 have completed an RC board's schematic, PCB synchronization, constrained placement, native routing, compatible component replacement and fresh disk verification. This source includes those results and the unfinished A10 notes-editing branch. The published download remains Alpha.3 and does not include these later capabilities. This is a community Alpha developer preview, unaffiliated with JLCEDA or OpenAI.
+
+## Latest results
+
+Starting with a real blank project, the workflow completed an RC signal filter board, then derived a new copy from the saved, closed result and replaced C1 from **10 nF to 100 nF**. These bounded real-editor results were recorded on 2026-10-10 and 10-11.
+
+| 8 components · 13 pins · 3 nets | 21 traces · 0 vias | Strict DRC: 0 | 41 manufacturing files |
+|:---:|:---:|:---:|:---:|
+| All pin → net → pad mappings checked | All nets connected; about 60.24 mm total trace length | Connectivity, visual review and saving checked separately | Gerber / BOM / CPL and associated files checked |
+
+- **A6 · Real model reading** — Validated symbol and footprint source with explicit identity, units and geometry provenance; qualified a bounded existing-board edit and save on 4.1.71.
+- **A7 · Schematic to PCB** — RC schematic, local exchange-file import, controlled initial synchronization into an empty PCB, and complete saving of the unrouted stage.
+- **A8 · Placement and native routing** — Evaluated a native placement candidate, adopted circuit-constrained positions, then completed native routing, strict checks and fresh disk readback.
+- **A9-R1 · Compatible real replacement** — Replaced C1 with a real compatible 100 nF part, preserved non-target content, nets, placement, rules and existing copper, and completed saving, closing and local manufacturing checks.
+- **A10 · Notes editing in development** — Two text changes have full live-archive evidence. Position cleanup, final disk verification and a new delivery remain incomplete. Window focus interference is unresolved.
+
+Manufacturing status is `filesValid=true`, `manufacturingReady=false`: assembly orientation, 3D and physical performance still need separate verification. See the [development status and evidence summary](docs/development-status.md).
 
 ## Capabilities
 
-Provide requirements and a project path. The assistant looks up actual parts, checks internal identities and pin geometry, plans placement, and verifies each stage.
+Describe the circuit and project location. The assistant uses tools to read, plan, execute and verify each stage.
 
-| Task | Current scope |
+| Stage | Current capability |
 |---|---|
-| Inspect and verify | Project identity, real library models, schematic pins, PCB pads, nets and copper objects |
-| Create a low-voltage board | Native blank template → schematic → PCB synchronization and native review → placement, rules and bounded connections |
-| Modify a completed project | Derive from a genuine closed result; add ordinary two-terminal R/C parts, replace real compatible parts, or reconnect a local branch with creation provenance |
-| Adjust a PCB locally | Bounded hole/track, reference-label and project-local stencil changes, with preservation checks |
-| Save and deliver | Save both documents, read a fresh disk copy and compare the full design; generate local Gerber, BOM, CPL, previews and checks |
+| **Understand a project** | Project identity, real library models, complete native records, schematic pins, PCB pads and copper connectivity |
+| **Create a small board** | Native blank templates, schematic drawing and annotation, initial PCB sync, constrained placement and bounded native routing |
+| **Modify a completed design** | Derive from a closed result; add ordinary top-layer two-pin R/C parts, replace compatible real parts, or make source-backed local reconnections |
+| **Preserve the design** | Compare complete before/after archives, preserve non-target content, avoid replaying unknown writes, and diagnose or recover using the original request |
+| **Save and deliver** | Save both documents, verify in a fresh disk context, generate local Gerber / BOM / CPL files, previews and hash manifests |
 
-The target is a small, two-layer board with one schematic page and one board. Passive ECO is limited to ordinary top-side, two-terminal resistors/non-polar MLCCs, orthogonal rotations and compatible geometry, with 1–2 parts per stage. Connector ECO, arbitrary footprint replacement, high-speed/RF/high-voltage work, multiple boards and arbitrary whole-board optimization are outside this preview's commitments.
+Scope: **one schematic page, one low-voltage two-layer board**. Passive changes are limited to ordinary two-pin resistors / non-polar MLCCs, orthogonal orientations and compatible geometry, with 1–2 parts per stage. High-speed / RF / high-voltage designs, multiple boards, arbitrary footprint changes and unrestricted whole-board optimization are outside current qualification.
 
 ## Quick start
 
-### 1 · Prepare the environment
+### 1 · Choose a version
 
-- macOS and **JLCEDA Pro desktop 4.1.60**. The browser edition is not supported. The official CLI is part of the desktop client; other client versions have not been qualified here. [Official CLI documentation](https://prodocs.lceda.cn/cn/api/guide/cli.html)
-- A Codex desktop host that can run local stdio MCP servers, and **Node.js ≥20**. The launcher prefers `CODEX_MCP_NODE_PATH`, then `node` on PATH.
-- Native UI interaction requires desktop capabilities provided by the host; this package does not grant screen or mouse permissions. Without them, the operator handles the exact window steps for creating a template, opening a model, replacing a part or confirming import.
+| Your goal | Entry point | What to expect |
+|---|---|---|
+| Inspect or develop the latest work | Current source, `0.11.0-dev.a10` | Build required; A10 notes editing is unfinished |
+| Use the existing precompiled package | [Alpha.3 pre-release](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | No npm installation; excludes the A6–A10 additions |
 
-### 2 · Use the precompiled runtime package
+Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host supporting local stdio MCP**. Version 4.1.60 is the earlier baseline; 4.1.71 has the bounded qualifications above. Other platforms, versions and `.eprj3` paths need separate checks. Native interaction requires host desktop capabilities or operator assistance. [Official CLI documentation](https://prodocs.lceda.cn/cn/api/guide/cli.html)
 
-The user-facing asset is `codex-jlc-eda-0.11.0-alpha.3-runtime.zip`. [Pre-release page](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) · [Runtime ZIP](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/codex-jlc-eda-0.11.0-alpha.3-runtime.zip) · [Checksums](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/SHA256SUMS). After downloading the assets:
-
-1. Put the runtime ZIP and `SHA256SUMS` in the same directory and calculate the digest:
-
-   ```sh
-   shasum -a 256 codex-jlc-eda-0.11.0-alpha.3-runtime.zip
-   ```
-
-   The output must match its entry in `SHA256SUMS`. Checksums detect changed bytes; they do not replace trust in the publisher.
-2. Extract to a stable directory, keeping both the root `.agents/` and `plugins/jlc-eda/`. Bundles are included: **no npm install is needed**.
-3. Register the local source and install it. The installation subcommand was confirmed in the local Codex CLI:
-
-   ```sh
-   codex plugin marketplace add "/absolute/path/to/unpacked-runtime"
-   codex plugin add jlc-eda@jlc-eda-alpha --json
-   codex plugin list --marketplace jlc-eda-alpha --json
-   ```
-
-4. If an older source is installed, disable its same-named plugin while retaining its cache, so two `jlc_eda` servers are not confused. When a reload is needed, wait for a suitable break in other work, fully restart the desktop host, then verify the version in a fresh context. A version directory is not proof that the host loaded it. [Official local plugin guidance](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
-
-This is installation from a local runtime package. The source Git repository does not include `dist`; adding a Git marketplace is not a verified zero-build installation path. **Alpha.3 has not actually been installed.** The existing installed-file check was performed on Alpha.1.
-
-### 3 · Make the first request
-
-> Use the JLCEDA assistant to check the environment. Report the actually loaded plugin version, tool count and editor connection status. Only inspect the environment for now.
-
-The target is `pluginVersion=0.11.0-alpha.3` and `publicToolCount=35`. If `editorConnected=false`, open the EDA desktop editor first. For a nonstandard installation, set `JLCEDA_CLI_PATH` to the absolute path of the official executable.
-
-You can also run `node dist/cli.mjs doctor` inside the runtime package's `plugins/jlc-eda/`. This checks a separate CLI process; it does not prove the chat host loaded that version.
-
-<details>
-<summary><strong>Developers: build from source</strong></summary>
-
-Enter the source root containing this project's `package.json`. Always bind npm to that root explicitly, rather than allowing it to search a parent project.
+### 2 · Build the latest source
 
 ```sh
+git clone https://github.com/aning0922/codex-jlc-eda.git
+cd codex-jlc-eda
 PROJECT_ROOT="$(pwd -P)"
-node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-alpha.3") process.exit(1)'
+node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a10") process.exit(1)'
 npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund
 npm --prefix "$PROJECT_ROOT" test
 npm --prefix "$PROJECT_ROOT" run test:protocol
 npm --prefix "$PROJECT_ROOT" run package
 ```
 
-Outputs are under `release/0.11.0-alpha.3/`: source/runtime ZIPs, per-file manifests and checksums. Protocol tests use a simulated CLI and do not open EDA. See [testing details](docs/testing.md) (Chinese).
+Outputs are written to `release/0.11.0-dev.a10/`: source / runtime ZIPs, file manifests and `SHA256SUMS`. This creates a local development build; it does not establish a new public release or actual chat-host qualification. Offline tests and protocol checks do not call the real editor.
+
+<details>
+<summary><strong>Use the published Alpha.3 runtime</strong></summary>
+
+Download the [runtime ZIP](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/codex-jlc-eda-0.11.0-alpha.3-runtime.zip) and [SHA256SUMS](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/SHA256SUMS). Compare this digest with its manifest entry before unpacking into a permanent directory.
+
+```sh
+shasum -a 256 codex-jlc-eda-0.11.0-alpha.3-runtime.zip
+```
+
+Keep the root `.agents/` and `plugins/jlc-eda/` directories. The runtime includes its bundles and needs no `npm install`. The published version uses `fflate 0.8.3` and MCP SDK `1.31.0`; see the historical [dependency security review](docs/dependency-security.md).
 
 </details>
 
-## Use and recovery
+### 3 · Install the unpacked local runtime
 
-Describe the task without inventing UUIDs, session IDs or individual track coordinates:
+These commands accept the root of either runtime ZIP described above. Confirm the chosen version first.
 
-- “Inspect an isolated copy of this project and check every pin, pad net and copper connection.”
-- “Build a low-voltage RC filter board from a fresh blank template, select real parts, and verify the saved result by reading it from disk.”
-- “Derive a copy of my completed board and replace C1 with a real 100 nF part using compatible geometry. Preserve everything else and check the BOM and saved design.”
+```sh
+codex plugin marketplace add "/absolute/path/to/unpacked-runtime"
+codex plugin add jlc-eda@jlc-eda-alpha --json
+codex plugin list --marketplace jlc-eda-alpha --json
+```
 
-The [eight-component RC example](examples/rc-filter/README.md) is a **specification awaiting execution**: 8 components, 13 pins, 3 nets and one real C1 replacement from 10 nF to 100 nF. It is not a completed tutorial or evidence of physical performance. The detailed specification and operational references are currently in Chinese; public MCP tool descriptions also remain in Chinese.
+If an older source provides the same plugin, disable that source and keep its cache to avoid confusing two `jlc_eda` services. When reloading is necessary, fully restart the desktop host at a convenient break, then check the loaded version in a fresh context. [Local plugin installation](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
 
-| Status | Next action |
+Installed-file matching and actual host loading are separate checks. The source repository excludes `dist`; a Git source is not a verified zero-build installation path. The launcher prefers `CODEX_MCP_NODE_PATH`, then `node` on PATH. Set `JLCEDA_CLI_PATH` for a nonstandard editor installation.
+
+### 4 · Start a conversation
+
+> Use the JLCEDA assistant to check the environment. Report the loaded plugin version, tool count and editor connection status. Only check the environment for now.
+
+Expect your installed version and **35** tools. If `editorConnected=false`, open the desktop editor first. Then describe a task:
+
+> Build a low-voltage RC filter board from a fresh blank template. Verify real parts and every pin, complete the schematic and PCB, check connectivity, and verify saving through fresh disk readback.
+
+> Derive a copy of the completed board, replace C1 with a real compatible 100 nF capacitor, preserve everything else, and check the BOM and saved result.
+
+## Validation and recovery
+
+The current public offline suite contains **188 tests**. Protocol checks cover **35 tools and 35 invalid-input rejections**. Real-editor results came from independent development builds; actual chat-host loading, sustained background interaction and hardware performance need separate qualification. [Validation record](docs/validation.md) · [GitHub Actions](https://github.com/aning0922/codex-jlc-eda/actions)
+
+| Returned status | Next step |
 |---|---|
-| `needs_ui` | Complete the native step in the exact work window identified by the tool, then verify with the same request. Keep the PCB in front during import review; do not repeat import. |
-| `unknown` / `pending` | Preserve receipts, project and journal; perform read-only diagnosis. Do not change requestId, edit the journal or blindly replay a write. |
-| `failed` / `unsupported` | Address the specific model, provenance or geometry gap. A compatible alternative may be selected before writes; parameters are frozen after writing. |
-| `ok` / `closed` | Success applies to the current stage. Persistence requires an independent disk read; closed reuse only verifies a historical completed result. |
+| `needs_ui` | Complete the specified native step in the exact window, then verify with the same request |
+| `unknown` / `pending` | Preserve the project, receipts and journal; diagnose read-only before further action |
+| `failed` / `unsupported` | Address the specific model, source, geometry or state issue |
+| `ok` / `closed` | Read the scope of that stage's evidence; final persistence requires independent disk readback |
 
-Detailed rules: [everyday use](skills/jlc-eda-project/references/usage.md) · [passive modifications](skills/jlc-eda-project/references/passives.md) (Chinese).
-
-## Validation status
-
-| Subject | Available evidence | Not established |
-|---|---|---|
-| Inherited 0.10.0 capabilities | Existing real-editor records for bounded board and passive workflows | General qualification for arbitrary circuits, footprints or rotations |
-| Alpha.1 | Independent builds, 103 offline tests, all 35 tool schemas and compiled MCP checks; 19 installed files matched | Alpha loaded in the chat host or the RC workflow completed; the last observed service was still 0.10.0 |
-| Alpha.3 developer preview | Dependency fixes, 105 offline tests, normal archive content comparisons and compiled protocol checks; see [validation record](docs/validation.md) | Actual host loading, a complete real-editor RC run or physical performance; see [Actions](https://github.com/aning0922/codex-jlc-eda/actions) for remote status |
-
-Logical correspondence, full copper connectivity, strict DRC, visual inspection and disk persistence are separate checks. Manufacturing file generation is not production approval. Assembly orientation, machine zero orientation, mechanical/3D fit and physical performance still require confirmation. Uploads, orders and payments need separate explicit authorization.
+[Daily use](skills/jlc-eda-project/references/usage.md) · [Passive changes](skills/jlc-eda-project/references/passives.md) · [Testing](docs/testing.md) · [Roadmap](docs/roadmap.md)
 
 ## Data and licensing
 
-The local MCP processes projects, copies and manufacturing files. Library lookup, accounts and synchronization may use JLCEDA's official services. Tool results are sent to the AI host and may include paths, reference labels, nets, model information and previews; handling depends on the host's settings. **Local MCP does not mean data never leaves the machine.** The plugin does not require an additional model API key.
+The local MCP handles projects, copies and manufacturing files. Library search, accounts and synchronization may use JLCEDA services. Tool outputs go to the AI host and can include paths, models and previews, subject to that host's settings. This plugin requires no additional LLM API key.
 
-Project-owned code, prose and the original conceptual graphic use [MIT](LICENSE). The 31 bundled dependencies retain [their own licenses](THIRD_PARTY_NOTICES.txt). Real library models, native projects, screenshots and manufacturing data do not automatically inherit MIT; historical materials are excluded from the package. See [source and distribution boundaries](docs/sources-and-licenses.md) (Chinese).
+Original code, documentation and the concept diagram use [MIT](LICENSE); bundled dependencies retain [their own licenses](THIRD_PARTY_NOTICES.txt). Real library models, native projects, editor screenshots and manufacturing materials stay local. Public regression tests use synthetic data. [Sources and redistribution boundaries](docs/sources-and-licenses.md)
 
-## Contributing
+## Contribute
 
-[Contribution guide](CONTRIBUTING.md) · [Security reporting](SECURITY.md) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Pre-release notes](docs/releases/0.11.0-alpha.3.en.md)
+[Contribution guide](CONTRIBUTING.md) · [Report an issue](https://github.com/aning0922/codex-jlc-eda/issues) · [Security policy](SECURITY.md) · [Releases](https://github.com/aning0922/codex-jlc-eda/releases)
 
-Use the [Issue templates](https://github.com/aning0922/codex-jlc-eda/issues) for ordinary feedback and provide only the version, platform, status code and a redacted minimal reproduction. Do not publish complete projects or journals. Please report vulnerabilities through the [private reporting channel](https://github.com/aning0922/codex-jlc-eda/security/advisories/new), not an ordinary Issue. No email address or response deadline is promised.
-
----
-
-[简体中文](README.md) · **English**
+Include versions, platform, status codes and a sanitized minimal reproduction. Report security issues through the [private reporting channel](https://github.com/aning0922/codex-jlc-eda/security/advisories/new).

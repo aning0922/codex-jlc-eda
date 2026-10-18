@@ -11,3 +11,6 @@ artifacts/
 *.eprj2
 *.epro
 work-project.json
+
+# Private real-model capture; public tests use the synthetic equivalent.
+tests/fixtures/native-footprint-preview.json

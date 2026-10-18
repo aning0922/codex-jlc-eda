@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { parseNativeSource } from './native-records.mjs';
 
 export const digest = text => createHash('sha256').update(text).digest('hex');
 const error = (code, message) => Object.assign(new Error(message), { code, status: 'unknown' });
@@ -146,4 +147,81 @@ export function summarizeModel(result) {
     canvasOrigin: summary.canvasOrigin ?? (canvas ? { originX: canvas.originX ?? null, originY: canvas.originY ?? null } : null),
     recordCounts: Object.fromEntries([...new Set(records.map(r => r.header.type))].map(t => [t,records.filter(r => r.header.type === t).length])),
     sourceCoverage: 'terminal geometry via public APIs; raw source fingerprint retained' };
+}
+
+// Bounded 3.0 model reader. Returns native source coordinates, never a guessed
+// footprint size or a replacement for an instance's frozen project model.
+export function summarizeSourceModel(result) {
+  const { source, ...summary } = result;
+  const reject = (code, status = 'unknown') => ({ ...summary, status, code,
+    sourceSha256: typeof source === 'string' ? digest(source) : null });
+  if (typeof source !== 'string' || !source.length || source.length > 2 * 1024 * 1024)
+    return reject('MODEL_SOURCE_UNAVAILABLE_OR_TOO_LARGE');
+  const pcb = result.kind === 'footprint';
+  if (!['symbol','footprint'].includes(result.kind) || !result.modelUuid || !result.libraryUuid
+      || result.metadata?.uuid !== result.modelUuid || result.metadata?.libraryUuid !== result.libraryUuid
+      || result.sourceApi !== (pcb ? 'eda.lib_Footprint.getDocumentSource' : 'eda.lib_Symbol.getDocumentSource')
+      || !['current_project_library','requested_external_library'].includes(result.sourceScope))
+    return reject('MODEL_SOURCE_IDENTITY_UNPROVEN');
+  let rows;
+  try { rows = parseNativeSource(source); } catch { return reject('MODEL_SOURCE_FORMAT_UNSUPPORTED','unsupported'); }
+  const of = type => rows.filter(r => r.header.type === type);
+  const head = of('DOCHEAD'), canvas = of('CANVAS');
+  if (head.length !== 1 || rows[0] !== head[0] || head[0].body?.uuid !== result.modelUuid
+      || head[0].body?.docType !== (pcb ? 'FOOTPRINT' : 'SYMBOL'))
+    return reject('MODEL_SOURCE_TARGET_MISMATCH');
+  if (rows.some(r => r.deleted)) return reject('MODEL_SOURCE_TOMBSTONES_UNSUPPORTED','unsupported');
+  if (canvas.length !== 1 || ![canvas[0].body?.originX,canvas[0].body?.originY].every(Number.isFinite))
+    return reject('MODEL_SOURCE_ORIGIN_UNPROVEN');
+  const terminals = of(pcb ? 'PAD' : 'PIN'), parts = of('PART');
+  if (!terminals.length || terminals.length > 1000) return reject('MODEL_PIN_COUNT_UNSUPPORTED','unsupported');
+  if (!pcb && (parts.length !== 1 || !parts[0].header.id)) return reject('MODEL_MULTIPART_UNSUPPORTED','unsupported');
+  const pins = [], ids = new Set(), numbers = new Set();
+  const attr = (id, key) => {
+    const found = of('ATTR').filter(r => r.body?.parentId === id && r.body.key === key);
+    return found.length === 1 ? found[0].body.value : null;
+  };
+  for (const {header,body:b} of terminals) {
+    if (!b || typeof header.id !== 'string' || !header.id || ids.has(header.id)) return reject('MODEL_TERMINAL_ID_AMBIGUOUS');
+    ids.add(header.id);
+    const number = pcb ? b.num : attr(header.id,'Pin Number');
+    if (typeof number !== 'string' || !number || numbers.has(number)) return reject('MODEL_TERMINAL_NUMBER_AMBIGUOUS');
+    numbers.add(number);
+    if (pcb) {
+      const d = b.defaultPad;
+      const roundThrough = b.layerId === 12 && b.plated === true && b.padType === 'NORMAL'
+        && b.hole?.holeType === 'ROUND' && Number.isFinite(b.hole.width) && b.hole.width > 0
+        && b.hole.height === b.hole.width && b.hole.width < Math.min(d?.width,d?.height)
+        && b.padOffsetX === 0 && b.padOffsetY === 0;
+      if (![b.centerX,b.centerY,b.padAngle,b.padOffsetX,b.padOffsetY,d?.width,d?.height].every(Number.isFinite)
+          || d.width <= 0 || d.height <= 0 || !['RECT','ELLIPSE','OVAL'].includes(d.padType)
+          || !(roundThrough || b.hole === null && [1,2].includes(b.layerId))
+          || !Array.isArray(b.specialPad) || b.specialPad.length
+          || d.padType === 'RECT' && (!Number.isFinite(d.radius) || d.radius < 0))
+        return reject('MODEL_PAD_GEOMETRY_UNSUPPORTED','unsupported');
+      pins.push({id:header.id,number,name:null,x:b.centerX,y:b.centerY,rotation:b.padAngle,layer:b.layerId,
+        padShape:d.padType === 'RECT' ? [d.padType,d.width,d.height,d.radius] : [d.padType,d.width,d.height],
+        padOffset:{x:b.padOffsetX,y:b.padOffsetY},relativeAngle:b.relativeAngle ?? null,
+        hole:roundThrough?['ROUND',b.hole.width]:null,sourceHole:b.hole,plated:b.plated??null,
+        pinType:null,noConnected:null});
+    } else {
+      if (![b.x,b.y,b.rotation,b.length].every(Number.isFinite) || b.length < 0
+          || b.partId !== parts[0].header.id || ![0,90,180,270].includes(b.rotation)
+          || typeof b.display !== 'boolean' || typeof b.pinShape !== 'string')
+        return reject('MODEL_PIN_GEOMETRY_UNSUPPORTED','unsupported');
+      pins.push({id:header.id,number,name:attr(header.id,'Pin Name'),x:b.x,y:b.y,rotation:b.rotation,
+        length:b.length,partId:b.partId,display:b.display,pinShape:b.pinShape,layer:null,padShape:null,hole:null,
+        pinType:attr(header.id,'Pin Type'),noConnected:null});
+    }
+  }
+  return { ...summary, status:'ok', pins, terminalBounds:null, canvasOrigin:canvas[0].body,
+    sourceSha256:digest(source),sourceFormat:'native 3.0 pipe records',
+    sourceVersion:{version:head[0].body.version ?? null,editVersion:head[0].body.editVersion ?? null},
+    recordCounts:Object.fromEntries([...new Set(rows.map(r=>r.header.type))].map(t=>[t,of(t).length])),
+    coordinates:pcb ? 'mil; native library source coordinates' : '10mil; native symbol source coordinates',
+    coordinateSystem:{unit:pcb?'mil':'10mil',rotationUnit:'degrees',representation:'native source; no axis/angle transform applied'},
+    persistenceVerified:false,sourceCoverage:'Explicit model/library metadata and DOCHEAD binding; terminal geometry from official source API',
+    coverage:{mechanicalBodyBoundsVerified:false,model3dDimensionsVerified:false,
+      projectInstanceOverridesResolved:false,deviceAssociationVerified:false,
+      note:'May include unsaved worker content. Read the device association separately. External library data must not replace a frozen project-instance model; no save or design mutation was requested.'} };
 }

@@ -381,7 +381,7 @@
   },
   {
     "name": "jlc_eda_create_work_project",
-    "description": "从原生空白模板创建独立任务工程；拒绝已有输出与非空模板。",
+    "description": "从原生空白模板创建独立任务工程；或用 projectImport 将官方 epro/epro2 交换文件单次导入新的本地目录，返回独立导入结果，不隐式授予可写绑定。拒绝已有输出与非空模板。",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -398,11 +398,34 @@
         "requestId": {
           "type": "string",
           "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        },
+        "projectImport": {
+          "type": "object",
+          "properties": {
+            "sourcePath": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            },
+            "expectedProjectUuid": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            }
+          },
+          "required": [
+            "sourcePath",
+            "sessionId",
+            "expectedProjectUuid"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
         "outputDirectory",
-        "blankTemplatePath",
         "requestId"
       ],
       "additionalProperties": false,
@@ -445,7 +468,8 @@
           "type": "string",
           "enum": [
             "place",
-            "complete"
+            "complete",
+            "tidy"
           ],
           "default": "complete"
         },
@@ -1852,7 +1876,7 @@
   },
   {
     "name": "jlc_eda_sync_pcb",
-    "description": "在绑定的无布线任务 PCB 中调用官方原理图树导入，核对全部元件、真实封装与 pin→pad 网络。复核未应用时返回 needs_ui 并保持 PCB。重复请求只读回，未知导入不自动重放；verify 用于界面完成后核查。retry_unapplied_review 仅在首次复核已关闭且完整零影响读回时明确恢复一次，超时或部分应用拒绝。",
+    "description": "在绑定的无布线任务 PCB 中调用官方原理图树导入，核对全部元件、真实封装与 pin→pad 网络。importMode 默认 review；显式 force_initial_empty 仅在完整原生空板、全部模型和实例/网络范围证明后单次全量初次同步，保留规则及非目标内容，不允许复核重试。复核未应用时返回 needs_ui 并保持 PCB。重复请求只读回，未知导入不自动重放；verify 用于界面完成后核查。retry_unapplied_review 仅在首次复核已关闭且完整零影响读回时明确恢复一次，超时或部分应用拒绝。",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2104,6 +2128,14 @@
             "retry_unapplied_review"
           ],
           "default": "apply"
+        },
+        "importMode": {
+          "type": "string",
+          "enum": [
+            "review",
+            "force_initial_empty"
+          ],
+          "default": "review"
         }
       },
       "required": [
@@ -3219,6 +3251,15 @@
             "components"
           ],
           "additionalProperties": false
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "auto_candidate",
+            "adjust"
+          ],
+          "default": "manual"
         },
         "phase": {
           "type": "string",
@@ -4355,7 +4396,8 @@
           "type": "string",
           "enum": [
             "generate",
-            "verify"
+            "verify",
+            "refresh_previews"
           ],
           "default": "generate"
         },
@@ -4724,7 +4766,7 @@
   },
   {
     "name": "jlc_eda_schematic_eco",
-    "description": "从完成工程正式派生单页已有PCB的受限原理图增量任务，默认单脚SMT或passives模式常规两脚R/C新增、真实兼容换料与有创建来源的一脚局部改接；原生器件管理器/导入复核、局部连接、完整非目标与工程内封装保持及保存重开。来源保持、参数冲突拒绝、未知动作不重放。",
+    "description": "从完成工程正式派生单页已有PCB的受限原理图增量任务，默认单脚SMT或passives模式常规两脚R/C新增、真实兼容换料与有创建来源的一脚局部改接；原生器件管理器/导入复核、局部连接、完整非目标与工程内封装保持及保存重开。notes模式仅更正已有单页独立TEXT的内容和位置，完整旧体绑定与非目标保持，不同步PCB；已证明旧TEXT API不持久化时可限定准备原生属性面板并采用冻结计划的完整读回。来源保持、参数冲突拒绝、未知动作不重放。",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4751,9 +4793,53 @@
           "type": "string",
           "enum": [
             "single_point",
-            "passives"
+            "passives",
+            "notes"
           ],
           "default": "single_point"
+        },
+        "noteChanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+              },
+              "expectedText": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "atMm": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": -5000,
+                  "maximum": 5000
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            },
+            "required": [
+              "id",
+              "expectedText"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "noteId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
         },
         "passiveChanges": {
           "type": "object",
@@ -5269,7 +5355,9 @@
             "recover",
             "preview",
             "prepare_replace",
-            "adopt_replace"
+            "adopt_replace",
+            "prepare_notes",
+            "adopt_notes"
           ]
         },
         "candidateSupplierId": {

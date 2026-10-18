@@ -1,6 +1,6 @@
 {
   "name": "jlc-eda",
-  "version": "0.11.0-alpha.3",
+  "version": "0.11.0-dev.a10",
   "description": "Local JLCEDA Pro plugin with isolated schematic/PCB workflows, verified passive ECO, full disk verification and local manufacturing delivery.",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
