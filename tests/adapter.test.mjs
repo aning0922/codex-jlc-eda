@@ -123,7 +123,7 @@ test('a successful open with failed metadata is returned as unknown with its ses
       commands.push(args);
       if (args[0] === 'doctor') return { value: { connected: true } };
       if (args[0] === 'session' && args[1] === 'list') return { value: [] };
-      if (args[0] === 'open') return { value: { sessionId: 'own-session', path: args[2] } };
+      if (args[0] === 'open') return { value: { sessionId: 'own-session', path: args[2], headless:true } };
       if (args[0] === 'invoke') throw new Error('native timeout');
       if (args[0] === 'session' && args[1] === 'close') return { value: { status: 'closed' } };
       throw new Error('Unexpected command');
@@ -159,7 +159,7 @@ test('opening waits for project loading by repeating only metadata reads', async
     const adapter = new JlcEdaAdapter({ inspectionRoot: dir, executable: '/unused', runner: async (_exe, args) => {
       if (args[0] === 'doctor') return { value: { connected: true } };
       if (args[0] === 'session') return { value: [] };
-      if (args[0] === 'open') { opens++; return { value: { sessionId: 'loading-session', path: args[2] } }; }
+      if (args[0] === 'open') { opens++; return { value: { sessionId: 'loading-session', path: args[2], headless:true } }; }
       if (args[0] === 'invoke') return { value: ++reads === 1
         ? { status: 'unknown', code: 'NO_CURRENT_PROJECT' }
         : reads === 2 ? { status: 'unknown', code: 'PROJECT_TREE_NOT_READY_OR_EMPTY', project: { uuid: projectUuid } }

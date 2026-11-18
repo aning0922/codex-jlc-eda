@@ -46,7 +46,7 @@ test('service shutdown closes only inspections and retains active/unknown writin
 test('timed-out opening recovers only exact new native path; ambiguous or pre-existing contexts are retained',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'p2cr1-open-'));try{
   const a=new JlcEdaAdapter({inspectionRoot:root});await a.resources.register({sessionId:'opening-x',kind:'inspection',path:'/copy/任务.eprj2',beforeSessionIds:['old']});await a.resources.update('opening-x',{state:'opening'});
-  a.jlc_eda_sessions=async()=>({sessions:[{sessionId:'old',status:'alive'},{sessionId:'new',status:'alive'},{sessionId:'other',status:'alive'}]});a.invoke=async sid=>({status:'ok',anchor:'#prjPath='+encodeURIComponent(encodeURIComponent(sid==='new'?'/copy/任务.eprj2':'/different/project'))});
+  a.jlc_eda_sessions=async()=>({sessions:[{sessionId:'old',status:'alive'},{sessionId:'new',status:'alive',origin:'cli',headless:true,path:'/copy/任务.eprj2'},{sessionId:'other',status:'alive',origin:'cli',headless:false,path:'/copy/任务.eprj2'}]});a.invoke=async sid=>({status:'ok',anchor:'#prjPath='+encodeURIComponent(encodeURIComponent(sid==='new'?'/copy/任务.eprj2':'/different/project'))});
   const closed=[];a.destroyOwnedSession=async sid=>{closed.push(sid);return {status:'ok'};};assert.equal((await a.recoverInspectionOpening('opening-x')).status,'ok');assert.deepEqual(closed,['new']);
   assert.equal(resourceAnchorPath('#prjPath=%252Fcopy%252Ffile.eprj2'),'/copy/file.eprj2');
   assert.equal(resourceAnchorPath('id=project,prjPath=%252Fcopy%252Ffile.eprj2,tab=page'),'/copy/file.eprj2');

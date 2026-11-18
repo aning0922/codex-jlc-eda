@@ -43,7 +43,7 @@ export const stoppingWorkflow={async jlc_eda_stop_work_project(p){
  if(identity.status!=='ok'||resourceAnchorPath(identity.anchor)!==r.path||identity.projectUuid!==p.expectedProjectUuid)return unknown('STOP_LIVE_PATH_UNCONFIRMED');
  const owned=(await this.resources.all()).find(x=>x.kind==='work'&&x.path===r.path&&x.sessionId===p.sessionId);
  if(!owned)return unknown('STOP_RESOURCE_OWNERSHIP_UNCONFIRMED');
- if(!this.resources.entries.has(p.sessionId))await this.registerWorkSession({sessionId:p.sessionId,path:r.path,workDirectory:dir,recoveredFromOwner:owned.ownerId});
+ if(!this.resources.entries.has(p.sessionId))await this.registerWorkSession({sessionId:p.sessionId,path:r.path,workDirectory:dir,renderMode:owned.renderMode,recoveredFromOwner:owned.ownerId});
  let stageComparison=null;
  if(failedUi){
   const native=await readOwnedRouting(this,p),doc=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});

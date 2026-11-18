@@ -17,10 +17,10 @@ Real component models · Isolated work copies · Native placement and routing ·
 
 | Development source | Published runtime | Public interface | License |
 |:---:|:---:|:---:|:---:|
-| `0.11.0-dev.a10` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
+| `0.11.0-dev.a11` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
 
 > **Current progress · synced on 2026-10-18**
-> Independent development builds on EDA Pro 4.1.71 have completed an RC board's schematic, PCB synchronization, constrained placement, native routing, compatible component replacement and fresh disk verification. This source includes those results and the unfinished A10 notes-editing branch. The published download remains Alpha.3 and does not include these later capabilities. This is a community Alpha developer preview, unaffiliated with JLCEDA or OpenAI.
+> The RC board completed schematic generation, PCB synchronization, placement, routing and compatible component replacement on EDA Pro 4.1.71. Version 4.1.105 was used for notes editing, background recovery across Codex hosts and fresh disk verification. The published download is Alpha.3. This is a community developer preview.
 
 ## Latest results
 
@@ -34,7 +34,7 @@ Starting with a real blank project, the workflow completed an RC signal filter b
 - **A7 · Schematic to PCB** — RC schematic, local exchange-file import, controlled initial synchronization into an empty PCB, and complete saving of the unrouted stage.
 - **A8 · Placement and native routing** — Evaluated a native placement candidate, adopted circuit-constrained positions, then completed native routing, strict checks and fresh disk readback.
 - **A9-R1 · Compatible real replacement** — Replaced C1 with a real compatible 100 nF part, preserved non-target content, nets, placement, rules and existing copper, and completed saving, closing and local manufacturing checks.
-- **A10 · Notes editing in development** — Two text changes have full live-archive evidence. Position cleanup, final disk verification and a new delivery remain incomplete. Window focus interference is unresolved.
+- **A10–A11 · Notes delivery and background working copies** — Two corrections and three text positions were verified after a fresh reopen. New working copies default to headless. Choose `renderMode: "visible"` at creation when the native picker or import review is required.
 
 Manufacturing status is `filesValid=true`, `manufacturingReady=false`: assembly orientation, 3D and physical performance still need separate verification. See the [development status and evidence summary](docs/development-status.md).
 
@@ -58,10 +58,10 @@ Scope: **one schematic page, one low-voltage two-layer board**. Passive changes 
 
 | Your goal | Entry point | What to expect |
 |---|---|---|
-| Inspect or develop the latest work | Current source, `0.11.0-dev.a10` | Build required; A10 notes editing is unfinished |
+| Inspect or develop the latest work | Current source, `0.11.0-dev.a11` | Local build with A11 background working copies |
 | Use the existing precompiled package | [Alpha.3 pre-release](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | No npm installation; excludes the A6–A10 additions |
 
-Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host supporting local stdio MCP**. Version 4.1.60 is the earlier baseline; 4.1.71 has the bounded qualifications above. Other platforms, versions and `.eprj3` paths need separate checks. Native interaction requires host desktop capabilities or operator assistance. [Official CLI documentation](https://prodocs.lceda.cn/cn/api/guide/cli.html)
+Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host supporting local stdio MCP**. Version 4.1.60 is the earlier baseline; 4.1.71 and 4.1.105 have the bounded qualifications above. Other platforms, versions and `.eprj3` paths need separate checks. Native interaction requires host desktop capabilities or operator assistance. [Official CLI documentation](https://prodocs.lceda.cn/cn/api/guide/cli.html)
 
 ### 2 · Build the latest source
 
@@ -69,14 +69,14 @@ Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host suppo
 git clone https://github.com/aning0922/codex-jlc-eda.git
 cd codex-jlc-eda
 PROJECT_ROOT="$(pwd -P)"
-node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a10") process.exit(1)'
+node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a11") process.exit(1)'
 npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund
 npm --prefix "$PROJECT_ROOT" test
 npm --prefix "$PROJECT_ROOT" run test:protocol
 npm --prefix "$PROJECT_ROOT" run package
 ```
 
-Outputs are written to `release/0.11.0-dev.a10/`: source / runtime ZIPs, file manifests and `SHA256SUMS`. This creates a local development build; it does not establish a new public release or actual chat-host qualification. Offline tests and protocol checks do not call the real editor.
+Outputs are written to `release/0.11.0-dev.a11/`: source / runtime ZIPs, file manifests and `SHA256SUMS`. This creates a local development build; it does not establish a new public release or actual chat-host qualification. Offline tests and protocol checks do not call the real editor.
 
 <details>
 <summary><strong>Use the published Alpha.3 runtime</strong></summary>
@@ -117,7 +117,7 @@ Expect your installed version and **35** tools. If `editorConnected=false`, open
 
 ## Validation and recovery
 
-The current public offline suite contains **188 tests**. Protocol checks cover **35 tools and 35 invalid-input rejections**. Real-editor results came from independent development builds; actual chat-host loading, sustained background interaction and hardware performance need separate qualification. [Validation record](docs/validation.md) · [GitHub Actions](https://github.com/aning0922/codex-jlc-eda/actions)
+The offline suite covers working-copy identity, repeat requests and uncertain results. Protocol checks cover 35 tools and 35 invalid inputs. A11 also ran against the installed editor through independent Codex hosts. [Validation record](docs/validation.md)
 
 | Returned status | Next step |
 |---|---|

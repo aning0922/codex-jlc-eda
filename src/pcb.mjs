@@ -6,19 +6,19 @@ import {mkdir,realpath,copyFile,readFile,writeFile} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import path from 'node:path';
 import {unzipSync,strFromU8} from 'fflate';
-import {circuitSchema,fingerprint,enrichModelSources,mergeConnectivityComparison,drawingScript} from './drawing.mjs';
+import {workRenderMode,circuitSchema,fingerprint,enrichModelSources,mergeConnectivityComparison,drawingScript} from './drawing.mjs';
 import {compareAssignments,digest,parseNetlist} from './facts.mjs';
 import {scripts} from './native-scripts.mjs';
 import {factsScript} from './native-facts.mjs';
-import {bound,load,persist} from './workflow.mjs';
-import {withFreshRead,resourceIdentityScript,resourceAnchorPath} from './resources.mjs';
-import {ensureTaskContext} from './task-session.mjs';
+import {bound,load,persist,closedWorkResult} from './workflow.mjs';
+import {withFreshRead} from './resources.mjs';
+import {ensureTaskContext,checkRenderMode,interactiveRequired} from './task-session.mjs';
 import {forcePreflight,compareForceImport} from './force-sync.mjs';
 const id=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const readTarget={sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,schematicUuid:id,pcbDocumentUuid:id};
 const workTarget={...readTarget,workDirectory:z.string().min(1).max(4096)};
 export const pcbSchemas={
- jlc_eda_derive_work_project:z.object({sourcePath:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:id,circuit:circuitSchema,sourcePcbState:z.enum(['empty','synchronized_unrouted']).default('empty'),sourceCheckpointPath:z.string().min(1).max(4096).optional(),phase:z.enum(['open','recover']).default('open')}).strict(),
+ jlc_eda_derive_work_project:z.object({renderMode:workRenderMode,sourcePath:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:id,circuit:circuitSchema,sourcePcbState:z.enum(['empty','synchronized_unrouted']).default('empty'),sourceCheckpointPath:z.string().min(1).max(4096).optional(),phase:z.enum(['open','recover']).default('open')}).strict(),
  jlc_eda_sync_pcb:z.object({...workTarget,requestId:id,circuit:circuitSchema,phase:z.enum(['apply','verify','retry_unapplied_review']).default('apply'),importMode:z.enum(['review','force_initial_empty']).default('review')}).strict(),
  jlc_eda_verify_pcb:z.object({...readTarget,circuit:circuitSchema}).strict(),
  jlc_eda_reopen_pcb:z.object({...workTarget,circuit:circuitSchema}).strict(),
@@ -263,14 +263,15 @@ async function forceSync(a,p,ctx,requestHash,old){
 export const pcbWorkflow={
  async jlc_eda_derive_work_project(p){
   if(!path.isAbsolute(p.outputDirectory)||!path.isAbsolute(p.sourcePath))fail('ABSOLUTE_PATH_REQUIRED');
-  const known=await load(p.outputDirectory).catch(()=>null);if(p.phase==='recover'&&!known)fail('DERIVE_RECOVERY_NO_RECORDED_REQUEST');if(!known?.sessionId)await this.ensureWorkWindowBudget();
+  const known=await load(p.outputDirectory).catch(()=>null);if(p.phase==='recover'&&!known)fail('DERIVE_RECOVERY_NO_RECORDED_REQUEST');if(known)checkRenderMode(known,p.renderMode);
   const source=await realpath(p.sourcePath);if(!/\.eprj2$/i.test(source))fail('WORK_FORMAT_UNSUPPORTED',undefined,'unsupported');
   let r;
   try{await mkdir(p.outputDirectory);}catch(e){if(e.code!=='EEXIST')throw e;
    r=await load(p.outputDirectory).catch(()=>null);
    if(!r||r.derivation?.sourcePath!==source||(r.derivation.sourcePcbState??'empty')!==p.sourcePcbState||r.requestId!==p.requestId||fingerprint(r.circuit)!==fingerprint(p.circuit))fail('OUTPUT_ALREADY_EXISTS');
+   if(r.finish?.state==='closed')return closedWorkResult(await realpath(p.outputDirectory),r);
    if(r.kind==='task_work_project'){
-    const dir=await realpath(p.outputDirectory),context=await ensureTaskContext(this,dir,r);if(context.status!=='ok')return {...context,workDirectory:dir};
+    const dir=await realpath(p.outputDirectory),context=await ensureTaskContext(this,dir,r,{renderMode:p.renderMode});if(context.status!=='ok')return {...context,workDirectory:dir};
     let verification;
     if(r.pcbSyncBaseline)verification=await this.verifyRecoveredTask(r,context);
     else{const target={sessionId:r.sessionId,expectedProjectUuid:r.projectUuid,schematicPageUuid:r.schematicPageUuid,schematicUuid:r.schematicUuid,pcbDocumentUuid:r.pcbDocumentUuid,circuit:r.circuit},link=association(context.project,target);if(link.status!=='ok')return link;
@@ -278,37 +279,19 @@ export const pcbWorkflow={
     r.lastRecoveryVerification=verification;if(verification.status==='ok')r.bindingStatus='verified';await persist(dir,r);
     return verification.status==='ok'?{status:'ok',...r,workDirectory:dir,reused:context.reused,recoveredSession:context.reopenedClosedTask,activeSessionVerified:true}:{...verification,workDirectory:dir};
    }
-   if((!r.sessionId||!r.openPathConfirmed)&&p.phase!=='recover')return {status:'unknown',code:'DERIVE_OUTCOME_UNKNOWN',...r,nextAction:'Inspect the recorded target; derivation is never reopened or recopied automatically.'};
+   if(!r.renderMode&&(!r.sessionId||!r.openPathConfirmed)&&p.phase!=='recover')return {status:'unknown',code:'DERIVE_OUTCOME_UNKNOWN',...r,nextAction:'Inspect the recorded target; derivation is never reopened or recopied automatically.'};
   }
   const dir=await realpath(p.outputDirectory),file=path.join(dir,'work.eprj2'),hash=r?.derivation.sourceSha256??digest(await readFile(source));
   if(!r){
   await copyFile(source,file,constants.COPYFILE_EXCL);
-  r={kind:'derivation_pending',requestId:p.requestId,path:file,circuit:p.circuit,actions:{},derivation:{sourcePath:source,sourcePcbState:p.sourcePcbState,sourceSha256:hash,copiedSha256:digest(await readFile(file)),at:new Date().toISOString()}};await persist(dir,r);
+  r={kind:'derivation_pending',renderMode:p.renderMode??'headless',requestId:p.requestId,path:file,circuit:p.circuit,actions:{},derivation:{sourcePath:source,sourcePcbState:p.sourcePcbState,sourceSha256:hash,copiedSha256:digest(await readFile(file)),at:new Date().toISOString()}};await persist(dir,r);
   if(r.derivation.copiedSha256!==hash||digest(await readFile(source))!==hash)fail('SOURCE_CHANGED_DURING_COPY',undefined,'unknown');
-  const before=await this.jlc_eda_sessions();r.openAttempt={state:'pending',beforeSessionIds:before.sessions.map(x=>x.sessionId),at:new Date().toISOString()};await persist(dir,r);
-  let opened;try{opened=await this.call(['open','--path',file],35000);}catch(e){r.openAttempt.state='unknown';r.openAttempt.error={code:e.code,message:e.message};await persist(dir,r);return {status:e.status??'unknown',code:e.code??'DERIVE_OPEN_UNKNOWN',message:e.message,target:{workDirectory:dir,path:file},executionRecord:dir+'/work-project.json',nextAction:'Inspect the exact task path and existing native session. phase=recover only discovers and validates an already opened context; it never reopens or recopies.'};}
-  r.openAttempt.state='returned';r.openAttempt.response=opened.value;
-  r.sessionId=opened.value?.sessionId;r.openPathConfirmed=opened.value?.path===file;await persist(dir,r);
-  if(!id.safeParse(r.sessionId).success||!r.openPathConfirmed||before.sessions.some(x=>x.sessionId===r.sessionId))fail('DERIVE_OPEN_UNCONFIRMED',undefined,'unknown');
-  await this.registerWorkSession({sessionId:r.sessionId,path:file,workDirectory:dir});
-  }else if(!r.sessionId||!r.openPathConfirmed){
-   if(p.phase!=='recover')fail('DERIVE_OUTCOME_UNKNOWN',undefined,'unknown');
-   const sessions=await this.jlc_eda_sessions(),matches=[];
-   for(const session of sessions.sessions.filter(x=>x.status==='alive'&&x.headless===false&&!r.openAttempt?.beforeSessionIds?.includes(x.sessionId)).slice(0,8)){
-    let identity;try{identity=await this.invoke(session.sessionId,resourceIdentityScript);}catch{continue;}
-    const anchor=resourceAnchorPath(identity.anchor);if(identity.status==='ok'&&anchor&&await realpath(anchor).catch(()=>null)===file)matches.push({session,identity});
-   }
-   r.openRecoveryReadback={at:new Date().toISOString(),matches,openedAgain:false};await persist(dir,r);
-   if(matches.length!==1)return {status:'needs_ui',code:'DERIVE_EXISTING_CONTEXT_NOT_CONFIRMED',target:{workDirectory:dir,path:file},matches:matches.length,nextAction:'In the installed editor open the exact task copy and switch to PCB1, leaving one visible task window. Preserve this journal; do not replay CLI open. A new registered visible context must be discovered and verified before writes.'};
-   r.sessionId=matches[0].session.sessionId;r.openPathConfirmed=true;await persist(dir,r);await this.registerWorkSession({sessionId:r.sessionId,path:file,workDirectory:dir});
-  }else{
-   const sessions=await this.jlc_eda_sessions(),session=sessions.sessions.find(x=>x.sessionId===r.sessionId&&x.status==='alive');
-   if(!session||(session.path&&await realpath(session.path)!==file)||r.path!==file)fail('DERIVE_RECORDED_SESSION_UNCERTAIN',undefined,'unknown');
   }
-  this.ownedSessions.add(r.sessionId);
-  let project;
-  for(let i=0;i<5;i++){project=await this.jlc_eda_inspect_project({sessionId:r.sessionId,expectedProjectUuid:r.projectUuid});if(!['NO_CURRENT_PROJECT','PROJECT_TREE_NOT_READY_OR_EMPTY'].includes(project.code))break;if(i<4)await new Promise(x=>setTimeout(x,300));}
-  if(project.status!=='ok')return {...project,target:r,executionRecord:path.join(dir,'work-project.json')};
+  // Older journals used openAttempt for the same one-shot open intent.
+  if(!r.taskOpenAttempt&&r.openAttempt){r.taskOpenAttempt=r.openAttempt;r.renderMode??=r.openAttempt.response?.headless?'headless':'visible';}
+  const context=await ensureTaskContext(this,dir,r,{allowOpen:p.phase!=='recover',renderMode:p.renderMode});
+  if(context.status!=='ok')return {...context,workDirectory:dir,executionRecord:path.join(dir,'work-project.json')};
+  const project=context.project;
   const pages=project.documents.filter(x=>x.itemType==='Schematic Page'),pcbs=project.documents.filter(x=>x.itemType==='PCB'),roots=project.documents.filter(x=>x.itemType==='Schematic');
   if(pages.length!==1||pcbs.length!==1||roots.length!==1)fail('DERIVE_SINGLE_BOARD_SCOPE_REQUIRED');
   Object.assign(r,{projectUuid:project.project.uuid,schematicPageUuid:pages[0].uuid,pcbDocumentUuid:pcbs[0].uuid,schematicUuid:roots[0].uuid,documents:project.documents});await persist(dir,r);
@@ -331,7 +314,7 @@ export const pcbWorkflow={
    r.derivation.synchronizedVerification=actual;r.pcbSyncBaseline=history.pcbSyncBaseline;
   }
   if(digest(await readFile(source))!==hash)fail('DERIVE_SOURCE_CHANGED',undefined,'unknown');
-  Object.assign(r,{kind:'task_work_project',createdAt:new Date().toISOString(),boardName:link.boardName,derivationVerified:true,initialPcb:{inventory:inv,document:doc}});await persist(dir,r);
+  Object.assign(r,{kind:'task_work_project',createdAt:new Date().toISOString(),bindingStatus:'verified',boardName:link.boardName,derivationVerified:true,initialPcb:{inventory:inv,document:doc}});await persist(dir,r);
   return {status:'ok',...r,workDirectory:dir,inspectionCopy:false};
  },
  async jlc_eda_verify_pcb(p){
@@ -365,6 +348,7 @@ export const pcbWorkflow={
   const unresolved=Object.entries(r.pcbSyncActions).find(([key,x])=>key!==p.requestId&&x.state!=='completed');
   if(unresolved)fail('PCB_PRIOR_IMPORT_UNRESOLVED','Read back the original request; a new request cannot bypass pending/unknown state.','unknown');
   if(p.importMode==='force_initial_empty')return forceSync(this,p,ctx,requestHash,old);
+  if(r.renderMode==='headless'&&(p.phase==='retry_unapplied_review'||(!old&&p.phase==='apply')))return interactiveRequired(r,'native_import_review');
   if(p.phase==='retry_unapplied_review'){
    // Explicit, bounded recovery only for a returned review dialog with a proven
    // zero-effect first import. Never replay a timed-out or partially applied write.

@@ -17,10 +17,10 @@
 
 | 开发源码 | 公开运行包 | 公共接口 | 许可 |
 |:---:|:---:|:---:|:---:|
-| `0.11.0-dev.a10` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 项 MCP 工具** | [MIT](LICENSE) |
+| `0.11.0-dev.a11` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 项 MCP 工具** | [MIT](LICENSE) |
 
 > **当前进展 · 2026-10-18 同步**
-> RC 小板已在 EDA Pro 4.1.71 的独立开发构建中完成原理图、PCB 同步、约束布局、官方布线、兼容换料和保存回读。最新源码包含这些成果及尚未完成验收的 A10 说明编辑分支；公开下载仍为 Alpha.3，不包含后续开发能力。项目为社区 Alpha 开发预览，非嘉立创或 OpenAI 官方项目。
+> RC 小板在 EDA Pro 4.1.71 完成了原理图、PCB 同步、布局、布线和兼容换料。在 4.1.105 上已验证说明修改、后台跨宿主恢复和磁盘回读。公开下载为 Alpha.3。本项目是社区开发预览。
 
 ## 最新成果
 
@@ -34,7 +34,7 @@
 - **A7 · 原理图到 PCB** — RC 原理图、本地交换文件导入、受控空板首次同步，以及未布线阶段的完整保存闭合。
 - **A8 · 布局与官方布线** — 评价官方布局候选、采用电路约束位置，再完成官方路由、严格检查和新磁盘回读。
 - **A9-R1 · 真实兼容换料** — C1 换为兼容 100 nF 实际器件，保留非目标内容、网络、布局、规则与既有铜，完成保存关闭及本地制造文件检查。
-- **A10 · 说明编辑开发中** — 两处文字内容已有现场档案证明；位置整理、最终保存回读与新交付尚未完成。窗口焦点干扰仍待解决。
+- **A10–A11 · 说明交付与后台工作副本** — 两处文案和三条位置保存重开后均已核对。新副本默认隐藏，后续请求沿用创建时的模式。需要原生选料器或导入复核时，新建副本可显式指定 `renderMode: "visible"`。
 
 制造结果为 `filesValid=true`、`manufacturingReady=false`：装配方向、3D 及实物性能仍需另验。完整范围见[开发进展与证据摘要](docs/development-status.md)。
 
@@ -58,10 +58,10 @@
 
 | 你的目的 | 使用入口 | 需要了解 |
 |---|---|---|
-| 查看或开发最新成果 | 当前仓库源码 `0.11.0-dev.a10` | 需构建；A10 说明编辑仍未闭合 |
+| 查看或开发最新成果 | 当前仓库源码 `0.11.0-dev.a11` | 本地构建，含 A11 后台工作副本 |
 | 使用现有预编译包 | [Alpha.3 预发布](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | 无需 npm 安装；不包含 A6–A10 的新增能力 |
 
-环境要求：**macOS、Node.js ≥20、嘉立创 EDA 桌面专业版、支持本地 stdio MCP 的 Codex 宿主**。4.1.60 是早期基线，4.1.71 已完成上述限定路径验证；其他平台、版本及 `.eprj3` 路径另验。原生交互需要宿主桌面能力或操作者配合。[官方 CLI 文档](https://prodocs.lceda.cn/cn/api/guide/cli.html)
+环境要求：**macOS、Node.js ≥20、嘉立创 EDA 桌面专业版、支持本地 stdio MCP 的 Codex 宿主**。4.1.60 是早期基线，4.1.71 与 4.1.105 已完成上述限定路径验证；其他平台、版本及 `.eprj3` 路径另验。原生交互需要宿主桌面能力或操作者配合。[官方 CLI 文档](https://prodocs.lceda.cn/cn/api/guide/cli.html)
 
 ### 2 · 从最新源码构建
 
@@ -69,14 +69,14 @@
 git clone https://github.com/aning0922/codex-jlc-eda.git
 cd codex-jlc-eda
 PROJECT_ROOT="$(pwd -P)"
-node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a10") process.exit(1)'
+node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a11") process.exit(1)'
 npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund
 npm --prefix "$PROJECT_ROOT" test
 npm --prefix "$PROJECT_ROOT" run test:protocol
 npm --prefix "$PROJECT_ROOT" run package
 ```
 
-产物位于 `release/0.11.0-dev.a10/`，包含 source / runtime ZIP、逐文件清单及 `SHA256SUMS`。这是本地开发构建，不代表新版本已发布或已通过实际聊天宿主验收。离线测试和协议检查不会调用真实 EDA。
+产物位于 `release/0.11.0-dev.a11/`，包含 source / runtime ZIP、逐文件清单及 `SHA256SUMS`。这是本地开发构建，不代表新版本已发布或已通过实际聊天宿主验收。离线测试和协议检查不会调用真实 EDA。
 
 <details>
 <summary><strong>使用公开 Alpha.3 运行包</strong></summary>
@@ -117,7 +117,7 @@ codex plugin list --marketplace jlc-eda-alpha --json
 
 ## 验证与恢复
 
-当前源码的公开离线套件为 **188 项测试**，协议检查覆盖 **35 项工具及 35 个非法输入拒绝**。实机成果来自独立开发构建；实际聊天宿主加载、全程后台交互及硬件性能另验。[详细验证记录](docs/validation.md) · [GitHub Actions](https://github.com/aning0922/codex-jlc-eda/actions)
+离线组覆盖工作副本身份、重复请求和未知结果。协议测试核对 35 项工具及 35 个非法输入。A11 另用独立 Codex 宿主连接实际编辑器完成验收。[验证记录](docs/validation.md)
 
 | 返回状态 | 应如何继续 |
 |---|---|

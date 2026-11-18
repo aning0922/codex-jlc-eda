@@ -1,5 +1,11 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a11 · 2026-11-18
+
+- Open new working copies in a hidden native session by default. Select `renderMode: "visible"` for interactive workflows. macOS CLI helper launches use LaunchServices in the background.
+- Recover the recorded work path and render identity after a host reconnect. Competing calls on the same output directory share a process-aware lock. Unknown native writes retain their journal.
+- Verified A10 note persistence on EDA 4.1.105. A read-only inspection can now compare an explicitly associated PCB in a project with multiple schematics after checking the complete set of component identities.
+
 ## 0.11.0-dev.a10 — source sync / 源码同步 (2026-10-18)
 
 - Sync the A6–A10 development work: validated model source reading, local exchange import, guarded empty-board sync, placement candidates/adjustments, native routing evidence and preview refresh.

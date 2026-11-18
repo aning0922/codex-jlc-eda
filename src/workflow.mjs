@@ -1,6 +1,8 @@
-import {mkdir,readFile,writeFile,realpath,copyFile,stat} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,realpath,copyFile,stat,rename,rm} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import path from 'node:path';
+import {randomUUID} from 'node:crypto';
+import {ensureTaskContext,checkRenderMode} from './task-session.mjs';
 import {drawingScript,compareCircuit,fingerprint,enrichModelSources,mergeConnectivityComparison} from './drawing.mjs';
 import {scripts} from './native-scripts.mjs';
 import {factsScript} from './native-facts.mjs';
@@ -9,7 +11,17 @@ import {withFreshRead} from './resources.mjs';
 import {importLocalProject} from './project-import.mjs';
 const fail=(code,message,status='failed')=>{throw Object.assign(new Error(message??code),{code,status});};
 export const load=async dir=>JSON.parse(await readFile(path.join(dir,'work-project.json'),'utf8'));
-export const persist=async(dir,data)=>writeFile(path.join(dir,'work-project.json'),JSON.stringify(data,null,2)+'\n');
+export async function persist(dir,data){
+ const file=path.join(dir,'work-project.json'),tmp=file+'.'+randomUUID()+'.tmp';
+ try{await writeFile(tmp,JSON.stringify(data,null,2)+'\n',{flag:'wx'});await rename(tmp,file);}
+ finally{await rm(tmp,{force:true});}
+}
+export async function closedWorkResult(dir,r){
+ const f=r.finish,file=path.join(dir,'work.eprj2');
+ if(r.path!==file||await realpath(file)!==file||!f.disk?.persistenceVerified||f.disk.resourceCleanup?.status!=='ok'||!f.closed?.sessionNoLongerAlive||digest(await readFile(file))!==f.sourceSha256)
+  return {status:'unknown',code:'CLOSED_WORK_FILE_OR_PROOF_CHANGED',workDirectory:dir};
+ return {status:'ok',workDirectory:dir,path:file,closed:true,reused:true,persistenceVerified:true,fullDesignArchiveCompared:true,completedFileVerified:true,completedFileSha256:f.sourceSha256};
+}
 export async function bound(a,p,{focusSchematic=true}={}){
  if(!path.isAbsolute(p.workDirectory))fail('ABSOLUTE_DIRECTORY_REQUIRED');
  const dir=await realpath(p.workDirectory),r=await load(dir);
@@ -17,7 +29,8 @@ export async function bound(a,p,{focusSchematic=true}={}){
  if(r.bindingStatus&&r.bindingStatus!=='verified')fail('WORK_RECOVERY_VERIFICATION_REQUIRED');
  const sessions=await a.jlc_eda_sessions(),s=sessions.sessions.find(x=>x.sessionId===p.sessionId&&x.status==='alive');
  if(!s)fail('WORK_SESSION_NOT_ALIVE');
- if(s.path&&await realpath(s.path)!==r.path)fail('WORK_PATH_MISMATCH');
+ if(r.renderMode&&s.headless!==(r.renderMode==='headless'))fail('TASK_RENDER_MODE_UNCONFIRMED',undefined,'unknown');
+ if(r.renderMode==='headless'&&!s.path||s.path&&await realpath(s.path)!==r.path)fail('WORK_PATH_MISMATCH');
  if(await realpath(r.path)!==r.path||!r.openPathConfirmed)fail('WORK_PATH_UNCONFIRMED');
  if(focusSchematic){const focus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.schematicPageUuid,kind:'schematic'}));
  if(focus.status!=='ok')fail(focus.code,'Target focus failed',focus.status);}
@@ -40,25 +53,27 @@ export const workflow={
  async jlc_eda_create_work_project(p){
   if(p.projectImport)return importLocalProject(this,p);
   if(!path.isAbsolute(p.outputDirectory)||!path.isAbsolute(p.blankTemplatePath))fail('ABSOLUTE_PATH_REQUIRED');
-  const known=await load(p.outputDirectory).catch(()=>null);if(!known?.sessionId)await this.ensureWorkWindowBudget();
   // A new directory is the task boundary. Existing directories never become editable implicitly.
   let r,dir,file;
   try{await mkdir(p.outputDirectory);}catch(e){if(e.code!=='EEXIST')throw e;
    r=await load(p.outputDirectory).catch(()=>null);if(!r||r.requestId!==p.requestId||r.templateSource!==await realpath(p.blankTemplatePath))fail('OUTPUT_ALREADY_EXISTS');
-   if(r.kind==='task_work_project')return {status:'ok',...r,workDirectory:await realpath(p.outputDirectory),reused:true};
-   if(!r.sessionId)return {status:'unknown',code:'CREATE_OUTCOME_UNKNOWN',...r,nextAction:'Inspect recorded session; do not recreate or recopy.'};}
+   checkRenderMode(r,p.renderMode);
+   if(r.templateSha256&&digest(await readFile(r.templateSource))!==r.templateSha256)fail('WORK_TEMPLATE_CHANGED',undefined,'unknown');
+   if(r.kind==='task_work_project'&&r.finish?.state==='closed')return closedWorkResult(await realpath(p.outputDirectory),r);
+   if(r.kind==='creation_pending'&&!r.taskOpenAttempt&&!r.renderMode&&!r.sessionId)return {status:'unknown',code:'CREATE_OUTCOME_UNKNOWN',path:r.path};}
   dir=await realpath(p.outputDirectory);
   if(!r){const template=await realpath(p.blankTemplatePath);
    if(!/\.eprj2$/i.test(template))fail('WORK_FORMAT_UNSUPPORTED','Editable creation currently supports eprj2 blank templates.','unsupported');
+   const templateSha256=digest(await readFile(template));
    file=path.join(dir,'work.eprj2');await copyFile(template,file,constants.COPYFILE_EXCL);
-   r={kind:'creation_pending',requestId:p.requestId,templateSource:template,path:file,actions:{}};await persist(dir,r);
-   const opened=await this.call(['open','--path',file],35000);r.sessionId=opened.value?.sessionId;r.openPathConfirmed=opened.value?.path===file;await persist(dir,r);
-   if(!r.sessionId||!r.openPathConfirmed)fail('CREATE_OPEN_UNCONFIRMED',undefined,'unknown');
-   await this.registerWorkSession({sessionId:r.sessionId,path:file,workDirectory:dir});
+   if(digest(await readFile(file))!==templateSha256||digest(await readFile(template))!==templateSha256)fail('SOURCE_CHANGED_DURING_COPY',undefined,'unknown');
+   r={kind:'creation_pending',renderMode:p.renderMode??'headless',requestId:p.requestId,templateSource:template,templateSha256,path:file,actions:{}};await persist(dir,r);
   }
-  this.ownedSessions.add(r.sessionId);
-  let project;for(let i=0;i<5;i++){project=await this.jlc_eda_inspect_project({sessionId:r.sessionId});if(project.status==='ok')break;await new Promise(x=>setTimeout(x,300));}
-  if(project.status!=='ok')return {...project,...r};
+  const complete=r.kind==='task_work_project';
+  const context=await ensureTaskContext(this,dir,r,{allowOpen:!complete,renderMode:p.renderMode});
+  if(context.status!=='ok')return {...context,path:r.path,workDirectory:dir};
+  const project=context.project;
+  if(complete){r.bindingStatus='verified';await persist(dir,r);return {status:'ok',...r,workDirectory:dir,reused:true};}
   r.projectUuid=project.project.uuid;const pages=project.documents.filter(x=>x.itemType==='Schematic Page');
   if(pages.length!==1)fail('BLANK_TEMPLATE_PAGE_SCOPE_UNSUPPORTED');r.schematicPageUuid=pages[0].uuid;await persist(dir,r);
   const target={sessionId:r.sessionId,expectedProjectUuid:r.projectUuid};
@@ -66,7 +81,7 @@ export const workflow={
    const read=await this.jlc_eda_read_document({...target,documentUuid:doc.uuid,kind:doc.itemType==='PCB'?'pcb':'schematic',includePins:true,includeGeometry:true,limit:200});
    if(read.status!=='ok'||read.counts.components||read.counts.wires||read.counts.lines||read.counts.viaObjects||read.counts.polylines||(read.counts.nonPartComponents??0)>1)fail('TEMPLATE_NOT_EMPTY','No writable binding was granted.');
   }
-  r.kind='task_work_project';r.blankVerified=true;r.createdAt=new Date().toISOString();r.documents=project.documents;
+  r.kind='task_work_project';r.bindingStatus='verified';r.blankVerified=true;r.createdAt=new Date().toISOString();r.documents=project.documents;
   await persist(dir,r);return {status:'ok',...r,workDirectory:dir,creationMethod:'copy of native empty template; all schematic and PCB design counts read back empty',inspectionCopy:false};
  },
  async jlc_eda_draw_schematic(p){

@@ -1,6 +1,10 @@
 # Validation record / 验证记录
 
-## Current source — 0.11.0-dev.a10 / 当前源码
+## Current source · 0.11.0-dev.a11
+
+On macOS with EDA 4.1.105, the local candidate ran in isolated Codex app-server processes using the public MCP catalog. The RC notes case covered background creation, host reconnection, native save, independent disk reopen, PCB preservation, session cleanup and reuse of the completed request. macOS activation events were observed passively. The native picker remains an interactive step.
+
+## Historical source check · 0.11.0-dev.a10
 
 2026-10-18 source sync. The checks below apply to the current source, including a synthetic public replacement for the private footprint fixture. / 本次核查对象为当前源码与合成公开 fixture。
 

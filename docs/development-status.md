@@ -1,10 +1,8 @@
 # Development status / 开发进展
 
-Updated / 更新：2026-10-18。Current source / 当前源码：`0.11.0-dev.a10`。Published runtime / 公开运行包：[0.11.0-alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3)。
+2026-11-18 · Local source / 本地源码 `0.11.0-dev.a11`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
 
-本页汇总维护者保留在本地的 2026-10-10 至 10-11 实机记录与总体复核结论。真实工程、库模型、完整日志、原生截图和制造资料没有随仓库分发；公开源码与合成测试可复核软件行为，不能单独重现私有实机证据。本次同步只做源码、文档与离线构建检查，没有重新执行 EDA 操作。
-
-This page summarizes locally retained editor evidence and review results from October 10–11. Native projects, library models, full logs, editor screenshots and manufacturing files are not distributed. Public code and synthetic tests expose software behavior, but do not independently reproduce the private editor evidence. This sync performs source, documentation and offline build checks, with no new editor operations.
+The RC qualification used EDA 4.1.71 for A6–A9 and 4.1.105 on macOS for the A10 closeout and A11 background lifecycle. Project files and native evidence are retained locally.
 
 ## Version map / 版本对应
 
@@ -14,7 +12,7 @@ This page summarizes locally retained editor evidence and review results from Oc
 | `0.11.0-alpha.4` | Historical local A6 candidate, never published. Its release notes describe that snapshot only. / 历史本地候选，仅代表 A6 时点。 |
 | `0.11.0-dev.a7` / `dev.a8` | Independent schematic/sync and placement/routing qualification builds. / 原理图同步与布局布线开发验证。 |
 | `0.11.0-dev.a9-r1` | Most recent completed RC replacement workflow, within the scope below. / 最近完成限定验收的 RC 换料流程。 |
-| `0.11.0-dev.a10` | Current source; includes unfinished notes editing and bounded recovery work. / 当前源码，说明编辑尚未完成。 |
+| `0.11.0-dev.a11` | Background working copies and board-scoped inspection. / 隐藏工作副本、跨宿主恢复和按板读取。 |
 
 Tool count remains **35**. Input schemas and descriptions have evolved for model source, import, initial sync, layout, preview refresh and notes editing; the protocol fixture tracks the current contract, not the original Alpha.3 schema.
 
@@ -33,18 +31,11 @@ A9-R1 review recomputed approximately **60.23535 mm** total trace length and all
 
 A8 的路由预算实际传入 120000 ms，进程预算为 123000 ms；本例引擎实际约 582 ms，因此只证明预算未被截到 60 秒，不证明超过 60 秒的真实引擎作业已运行。双层板定义不代表本例两面都有路由线。
 
-## Open milestone / 未闭合阶段
+## A10 and A11 on macOS 4.1.105
 
-**A10 — Notes editing remains incomplete. / 自由说明编辑仍未闭合。**
+A10 retained two corrected texts and all three specified positions in the drawing frame after reopening. The comparison covered the full PCB archive. A11 edited a new RC copy, recovered the same headless session through a second Codex app-server process, saved, reopened independently and closed both owned sessions. The native picker remains available on explicitly visible copies.
 
-- Two text content changes were observed in a complete live native archive. Three planned positions had not been reached. / 两处内容更正已进入完整现场档案，三条位置尚未到位。
-- The native TEXT API could change an in-memory view without updating the stored archive; a successful save return alone did not prove persistence. The implementation keeps this failure evidence and allows only bounded, source-verified recovery. / 界面返回与保存返回值不能替代档案及磁盘证据。
-- Final visual review, fresh disk persistence, finish, closed reuse and new manufacturing delivery were not completed. / 最终视觉、磁盘回读、闭合与新制造交付未完成。
-- Work stopped after observed focus interference. Stable background window interaction is unresolved; A11 has not started. / 因焦点干扰停止实机操作，A11 尚未开始。
-
-The A9-R1 saved design still contains outdated free-text notes and imperfect text placement. Electrical part values and manufacturing checks do not establish that these annotations were corrected in a final saved delivery. Do not label A10 a finished tutorial or validated general text-editing feature.
-
-A9-R1 成品的自由说明仍有旧参数/未布线字样和位置问题。器件参数已更新不等于所有图面说明已更新；A10 不能写成完整通过或通用文字编辑资格。
+A10 两处文案和三条位置已完成磁盘回读。A11 在隔离的 Codex 宿主安装候选运行包，使用公开 MCP 入口对接真实 EDA。工程副本默认隐藏，复核选料时应在新副本创建请求中选用可见模式。
 
 ## Remaining qualification / 仍需验证
 

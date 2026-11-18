@@ -66,6 +66,17 @@ export function parseNetlist(source, expectedProjectUuid) {
     netNames: [...nets].sort(), components, issues };
 }
 
+// A native netlist carries the project ID but omits the schematic root ID.
+export function matchesSchematicScope(netlist,pages){
+ if(!pages.length||pages.some(page=>page.truncated!==false)||!netlist.components.length||netlist.issues.length)return false;
+ const ids=new Map();
+ for(const page of pages)for(const c of page.components){
+  if(!c.uniqueId||!c.designator||(ids.has(c.uniqueId)&&ids.get(c.uniqueId)!==c.designator))return false;
+  ids.set(c.uniqueId,c.designator);
+ }
+ return ids.size===netlist.components.length&&netlist.components.every(c=>ids.get(c.uniqueId)===c.designator);
+}
+
 export function compareAssignments(netlist, schematicDocuments, pcb) {
   const issues = [...netlist.issues], mismatches = [], matched = [];
   const groups = new Map(), pcbById = new Map();

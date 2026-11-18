@@ -385,6 +385,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "renderMode": {
+          "type": "string",
+          "enum": [
+            "headless",
+            "visible"
+          ],
+          "description": "New working copies default to headless. Choose visible at creation for native picker or import review. Omit on resume to keep the recorded mode."
+        },
         "outputDirectory": {
           "type": "string",
           "minLength": 1,
@@ -1307,6 +1315,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "renderMode": {
+          "type": "string",
+          "enum": [
+            "headless",
+            "visible"
+          ],
+          "description": "New working copies default to headless. Choose visible at creation for native picker or import review. Omit on resume to keep the recorded mode."
+        },
         "sourceWorkDirectory": {
           "type": "string",
           "minLength": 1,
@@ -1612,6 +1628,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "renderMode": {
+          "type": "string",
+          "enum": [
+            "headless",
+            "visible"
+          ],
+          "description": "New working copies default to headless. Choose visible at creation for native picker or import review. Omit on resume to keep the recorded mode."
+        },
         "sourcePath": {
           "type": "string",
           "minLength": 1,
@@ -4439,6 +4463,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "renderMode": {
+          "type": "string",
+          "enum": [
+            "headless",
+            "visible"
+          ],
+          "description": "New working copies default to headless. Choose visible at creation for native picker or import review. Omit on resume to keep the recorded mode."
+        },
         "sourcePath": {
           "type": "string",
           "minLength": 1,
@@ -4770,6 +4802,14 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "renderMode": {
+          "type": "string",
+          "enum": [
+            "headless",
+            "visible"
+          ],
+          "description": "New working copies default to headless. Choose visible at creation for native picker or import review. Omit on resume to keep the recorded mode."
+        },
         "sourcePath": {
           "type": "string",
           "minLength": 1,

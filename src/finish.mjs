@@ -1,5 +1,5 @@
 import {z} from 'zod';import {readFile,realpath} from 'node:fs/promises';
-import {load,persist,bound} from './workflow.mjs';import {circuitSchema,drawingScript,fingerprint} from './drawing.mjs';
+import {load,persist,bound,closedWorkResult} from './workflow.mjs';import {circuitSchema,drawingScript,fingerprint} from './drawing.mjs';
 import {pcbScript} from './pcb.mjs';import {scripts} from './native-scripts.mjs';
 import {unresolvedActions} from './pcb-validation.mjs';
 import {archiveDesignFingerprint,withFreshRead} from './resources.mjs';import {digest} from './facts.mjs';
@@ -22,6 +22,11 @@ export const finishWorkflow={async jlc_eda_finish_work_project(p){
  if(unresolved(initial))return {status:'unknown',code:'WORK_ACTION_UNRESOLVED',editorWindowDestroyed:false,nextAction:'Read back the pending action without replay. This work window is retained.'};
  if(fingerprint(initial.circuit)!==fingerprint(p.circuit))return {status:'failed',code:'FINISH_CIRCUIT_CONFLICT',editorWindowDestroyed:false};
  if(initial.pcbDocumentUuid&&(initial.pcbDocumentUuid!==p.pcbDocumentUuid||initial.schematicUuid!==p.schematicUuid))return {status:'needs_input',code:'FINISH_ASSOCIATED_PCB_REQUIRED',editorWindowDestroyed:false,nextAction:'Provide the task recorded schematicUuid and pcbDocumentUuid, including an unsynchronized empty PCB.'};
+ if(initial.finish?.state==='closed'){
+  if(initial.finish.requestId!==p.requestId)return {status:'failed',code:'REQUEST_CONFLICT'};
+  return closedWorkResult(dir,initial);
+ }
+ if(initial.finish)return {status:'unknown',code:'WORK_FINISH_ALREADY_PENDING',nativeMutationRequested:false};
  const ruleCleanup=[];
  for(const [key,action] of Object.entries(initial.pcbActions??{}))if(key.startsWith('rules/')&&action.autoRecovery?.ownedProfiles?.length&&!action.autoRecovery.cleanupVerified){
   if(!action.plan.input)return {status:'unknown',code:'WORK_RULE_CLEANUP_INPUT_UNCONFIRMED',editorWindowDestroyed:false};
@@ -36,7 +41,7 @@ export const finishWorkflow={async jlc_eda_finish_work_project(p){
  if(!this.resources.entries.has(p.sessionId)){
   const stored=(await this.resources.all()).find(r=>r.sessionId===p.sessionId&&r.path===initial.path&&r.kind==='work');
   if(!stored)return {status:'unknown',code:'WORK_RESOURCE_OWNERSHIP_UNCONFIRMED',editorWindowDestroyed:false};
-  await this.registerWorkSession({sessionId:p.sessionId,path:initial.path,workDirectory:dir,recoveredFromOwner:stored.ownerId});
+  await this.registerWorkSession({sessionId:p.sessionId,path:initial.path,workDirectory:dir,renderMode:stored.renderMode,recoveredFromOwner:stored.ownerId});
  }
  const saved=await this.jlc_eda_save_work_project(p);
  const live=await verify(p);

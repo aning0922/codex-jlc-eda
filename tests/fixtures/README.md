@@ -1,6 +1,6 @@
 # 可分发 fixture
 
-`public-tools.json` 是当前开发版的自有公共工具目录和 schema 基线，MIT；只运行 MCP 握手和 tools/list，未连接编辑器。当前全部 35 工具应与它一致；部分 schema 与说明已随 A6–A10 扩展，并非与历史 Alpha.3 逐字段一致。
+`public-tools.json` 是当前开发版的自有公共工具目录和 schema 基线，MIT；只运行 MCP 握手和 tools/list，未连接编辑器。当前全部 35 工具应与它一致；部分 schema 与说明已随 A6–A11 扩展，并非与历史 Alpha.3 逐字段一致。
 
 其他 fixture 在测试中由手写最小数据生成：几何线段/板框、CSV/CAM 文本、原生记录、临时工作目录。它们只验证软件逻辑，不证明 EDA 保存或真实器件正确。不包含第三方符号、封装或 3D。
 

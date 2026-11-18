@@ -1,14 +1,16 @@
 import {ecoSchemas,ecoWorkflow} from './eco.mjs';
 import {incrementalSchemas,incrementalWorkflow} from './incremental.mjs';
 import {manufacturingSchemas,manufacturingWorkflow} from './manufacturing.mjs';
-import { spawn } from 'node:child_process';
-import { access, realpath, stat, readFile, mkdir, mkdtemp, copyFile } from 'node:fs/promises';
+import { execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import { access, realpath, stat, readFile, mkdir, mkdtemp, copyFile, rm } from 'node:fs/promises';
 import { constants, createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
 import {drawingSchemas} from './drawing.mjs';
+import {withWorkLock} from './work-lock.mjs';
 import {workflow} from './workflow.mjs';
 import {pcbSchemas,pcbWorkflow} from './pcb.mjs';
 import {ResourceLedger,resourceIdentityScript,resourceAnchorPath} from './resources.mjs';
@@ -25,9 +27,9 @@ import {fileRoutingSchemas,fileRoutingWorkflow} from './file-routing.mjs';
 import {repairSchemas,repairWorkflow} from './local-repair.mjs';
 import { scripts } from './native-scripts.mjs';
 import { factsScript } from './native-facts.mjs';
-import { normalizeDevice, parseNetlist, compareAssignments, summarizeModel, summarizeSourceModel } from './facts.mjs';
+import { normalizeDevice, parseNetlist, matchesSchematicScope, compareAssignments, summarizeModel, summarizeSourceModel } from './facts.mjs';
 
-export const VERSION = '0.11.0-dev.a10';
+export const VERSION = '0.11.0-dev.a11';
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const session = { sessionId: id };
 const target = { ...session, expectedProjectUuid: id };
@@ -75,8 +77,42 @@ export async function hashFile(file) {
   return hash.digest('hex');
 }
 
+function parseCliResponse(output, exitCode, diagnosticsPresent) {
+  let result;
+  try { result = JSON.parse(output.trim()); }
+  catch { throw new AdapterError('CLI_INVALID_JSON', 'CLI did not return one valid JSON response.', 'unknown'); }
+  if (!result || typeof result.ok !== 'boolean')
+    throw new AdapterError('CLI_SCHEMA_UNSUPPORTED', 'CLI response does not match the supported envelope.', 'unknown');
+  if (!result.ok || exitCode !== 0) {
+    const code = result.error?.code || 'CLI_FAILED';
+    const unknown = /TIMEOUT|CONNECTION|DISCONNECT|BRIDGE_NOT_READY/.test(code);
+    throw new AdapterError(code, String(result.error?.message || 'CLI command failed.').slice(0,1200), unknown ? 'unknown' : 'failed');
+  }
+  return {value:result.value, durationMs:result.durationMs ?? null, diagnosticsPresent};
+}
+
+const launch = promisify(execFile);
+async function runBackgroundBundle(bundle, args, {timeoutMs, maxBytes, env}) {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'jlceda-cli-'));
+  const stdout = path.join(dir,'stdout'), stderr = path.join(dir,'stderr');
+  try {
+    // LaunchServices runs a separate CLI helper without activating the editor.
+    await launch('/usr/bin/open', ['-ngjW','-a',bundle,'--stdout',stdout,'--stderr',stderr,'--args',...args],
+      {env, timeout:timeoutMs, maxBuffer:65536});
+    if ((await stat(stdout)).size > maxBytes)
+      throw new AdapterError('CLI_OUTPUT_LIMIT','CLI output exceeded the bounded response size.','unknown');
+    return parseCliResponse(await readFile(stdout,'utf8'), 0, (await stat(stderr)).size > 0);
+  } catch (e) {
+    if (e instanceof AdapterError) throw e;
+    throw new AdapterError(e.killed ? 'CLI_TIMEOUT' : 'CLI_LAUNCH_UNCONFIRMED',
+      'Background CLI helper did not return a confirmed response. Inspect the recorded operation before retrying.', 'unknown');
+  } finally { await rm(dir,{recursive:true,force:true}); }
+}
+
 export async function runCommand(executable, args, options = {}) {
   const { timeoutMs = 12000, maxBytes = 4 * 1024 * 1024, env = process.env } = options;
+  const bundle = process.platform === 'darwin' && executable.match(/^(.*\.app)\/Contents\/MacOS\/[^/]+$/);
+  if (bundle) return runBackgroundBundle(bundle[1], args, {timeoutMs,maxBytes,env});
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env });
     let output = '', diagnostic = '', bytes = 0, failure, settled = false, killTimer,exitDrainTimer;
@@ -106,19 +142,8 @@ export async function runCommand(executable, args, options = {}) {
       if (settled) return;
       settled = true; clearTimeout(timer); clearTimeout(killTimer);clearTimeout(exitDrainTimer);
       if (failure) { reject(failure); return; }
-      let result;
-      try { result = JSON.parse(output.trim()); }
-      catch { reject(new AdapterError('CLI_INVALID_JSON', 'CLI did not return one valid JSON response.', 'unknown')); return; }
-      if (!result || typeof result.ok !== 'boolean') {
-        reject(new AdapterError('CLI_SCHEMA_UNSUPPORTED', 'CLI response does not match the supported envelope.', 'unknown')); return;
-      }
-      if (!result.ok || exitCode !== 0) {
-        const code = result.error?.code || 'CLI_FAILED';
-        const unknown = /TIMEOUT|CONNECTION|DISCONNECT|BRIDGE_NOT_READY/.test(code);
-        reject(new AdapterError(code, String(result.error?.message || 'CLI command failed.').slice(0,1200), unknown ? 'unknown' : 'failed'));
-        return;
-      }
-      resolve({ value: result.value, durationMs: result.durationMs ?? null, diagnosticsPresent: diagnostic.trim().length > 0 });
+      try { resolve(parseCliResponse(output,exitCode,diagnostic.trim().length>0)); }
+      catch (error) { reject(error); }
     };
     child.on('close',finish);
     // Electron descendants can retain pipe handles after the CLI process exits.
@@ -169,7 +194,8 @@ export class JlcEdaAdapter {
       try {
         if (!schemas[name]) throw new AdapterError('UNKNOWN_TOOL', 'Unknown plugin tool.');
         const params = schemas[name].parse(input);
-        const result = await this[name](params);
+        const directory=params.workDirectory??params.outputDirectory;
+        const result = directory ? await withWorkLock(directory,()=>this[name](params)) : await this[name](params);
         const record=this.resources.entries.get(params.sessionId);
         const readTools=['jlc_eda_inspect_project','jlc_eda_read_document','jlc_eda_read_connectivity','jlc_eda_search_devices','jlc_eda_read_device','jlc_eda_read_library_model','jlc_eda_verify_schematic','jlc_eda_verify_pcb'];
         if(record?.kind==='inspection'&&readTools.includes(name)&&(['failed','unknown','unsupported'].includes(result.status)||['unknown','mismatch'].includes(result.comparison?.status)))result.resourceCleanup=await this.destroyOwnedSession(params.sessionId).catch(e=>({status:'unknown',code:e.code??'RESOURCE_CLEANUP_FAILED'}));
@@ -224,7 +250,7 @@ export class JlcEdaAdapter {
     return { status: native.connected ? 'ok' : 'needs_ui', publicToolCount:Object.keys(schemas).length, executable, installedVersion,
       platform: this.platform, nodeVersion: process.versions.node,
       editorConnected: native.connected, versionMatch: native.versionMatch ?? null,
-      callMetrics:structuredClone(this.callMetrics),backgroundCalling:{transport:'official CLI; composed native reads',residentMcpSupportedOnValidatedClient:false},
+      callMetrics:structuredClone(this.callMetrics),backgroundCalling:{transport:this.platform==='darwin'&&executable.includes('.app/Contents/MacOS/')?'macOS LaunchServices background CLI':'official executable',defaultWorkRenderMode:'headless',residentMcpSupportedOnValidatedClient:false},
       diagnosticsPresent: response.diagnosticsPresent,
       compatibility: { validatedClientFamily: 'macOS JLCEDA Pro; qualification is workflow-specific',
         currentVersionInValidatedFamily: this.platform === 'darwin' && (!!installedVersion?.startsWith('4.1.60.')||installedVersion==='4.1.71.7a7261be'),
@@ -264,7 +290,7 @@ export class JlcEdaAdapter {
     const before = await this.jlc_eda_sessions();
     const sourceSha256 = await hashFile(sourcePath);
     const prior = this.openedPaths.get(sourcePath);
-    if (!fresh && prior && prior.sourceSha256 === sourceSha256 && before.sessions.some(s => s.sessionId === prior.sessionId && s.status === 'alive')) {
+    if (!fresh && prior && prior.sourceSha256 === sourceSha256 && before.sessions.some(s => s.sessionId === prior.sessionId && s.status === 'alive' && s.headless===true && s.path===prior.path)) {
       const inspected = await this.jlc_eda_inspect_project({ sessionId: prior.sessionId, expectedProjectUuid: prior.projectUuid });
       return { ...inspected, sessionId: prior.sessionId, path: prior.path, sourcePath, sourceSha256,requestedRenderMode:'headless',
         inspectionCopy: true, openedByThisService: true, reusedOwnedSession: true, designMutationRequested: false };
@@ -286,10 +312,10 @@ export class JlcEdaAdapter {
       sourcePath, sourceSha256, path: projectPath, inspectionCopy: true,
       nextAction: 'Inspect the editor and sessions before retrying. Only the inspection copy was passed to the editor.' }; }
     const sid = response.value?.sessionId;
-    if (!id.safeParse(sid).success || response.value?.path !== projectPath)
+    if (!id.safeParse(sid).success || response.value?.path !== projectPath || response.value?.headless!==true)
       throw new AdapterError('OPEN_RESULT_UNCERTAIN', 'The open result did not identify the requested file. Inspect the editor before retrying.', 'unknown');
-    if(fresh&&before.sessions.some(s=>s.sessionId===sid))return {status:'unknown',code:'FRESH_SESSION_NOT_CREATED',sessionId:sid,path:projectPath,sourcePath,sourceSha256,inspectionCopy:true,freshDiskContext:false};
-    if (!before.sessions.some(s => s.sessionId === sid)) this.ownedSessions.add(sid);
+    if(before.sessions.some(s=>s.sessionId===sid))return {status:'unknown',code:'FRESH_SESSION_NOT_CREATED',sessionId:sid,path:projectPath,sourcePath,sourceSha256,inspectionCopy:true,freshDiskContext:false};
+    this.ownedSessions.add(sid);
     if(this.ownedSessions.has(sid))await this.resources.register({sessionId:sid,path:projectPath,sourcePath,sourceSha256,kind:'inspection',renderMode:'headless',freshDiskContext:fresh});
     await this.resources.update(openingId,{state:'resolved',nativeSessionId:sid});
     if (!fresh && this.ownedSessions.has(sid)) this.openedPaths.set(sourcePath, { sessionId: sid, path: projectPath, sourceSha256 });
@@ -355,9 +381,12 @@ export class JlcEdaAdapter {
   }
 
   async jlc_eda_read_connectivity(p) {
-    const result=await this.invokeLossless(p.sessionId,connectivityScript(p));
+    const inspection=this.resources.entries.get(p.sessionId)?.kind==='inspection';
+    const result=await this.invokeLossless(p.sessionId,connectivityScript(p,{inspection}));
     if(result.status!=='ok')return result;
     const netlist=parseNetlist(result.raw.source,p.expectedProjectUuid);
+    if(result.scope?.multipleSchematicRoots&&!matchesSchematicScope(netlist,result.schematic))
+      return {status:'unknown',code:'BOARD_NETLIST_MEMBERSHIP_UNVERIFIED',scope:result.scope};
     if(parseNetlist(result.after.source,p.expectedProjectUuid).sourceSha256!==netlist.sourceSha256)return {status:'unknown',code:'NETLIST_CHANGED_DURING_READ'};
     return {status:'ok',projectUuid:result.projectUuid,schematicUuid:result.schematicUuid,scope:result.scope,sourceApi:result.raw.sourceApi,netlist,comparison:compareAssignments(netlist,result.schematic,result.pcb),coverage:{saveRun:false,schematicNetlistStableAcrossRead:true,atomicEditorSnapshot:false,officialInvokeCount:1,note:'Matching assignments do not prove DRC, copper continuity or circuit functionality.'}};
   }
@@ -406,7 +435,7 @@ export class JlcEdaAdapter {
   }return {cleanup,retained};}
   async recoverInspectionOpening(openingId){
     const record=this.resources.entries.get(openingId);if(!record||record.kind!=='inspection'||record.state!=='opening')return {status:'not_needed'};
-    const listed=await this.jlc_eda_sessions(),candidates=listed.sessions.filter(s=>s.status==='alive'&&!record.beforeSessionIds.includes(s.sessionId));
+    const listed=await this.jlc_eda_sessions(),candidates=listed.sessions.filter(s=>s.status==='alive'&&s.origin==='cli'&&s.headless===true&&s.path===record.path&&!record.beforeSessionIds.includes(s.sessionId));
     const matched=[];
     for(const s of candidates.slice(0,8)){
       let identity;try{identity=await this.invoke(s.sessionId,resourceIdentityScript);}catch{continue;}

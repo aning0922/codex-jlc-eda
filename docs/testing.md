@@ -7,7 +7,7 @@
 | 自包含离线单元与模拟协议 | `npm --prefix "$PROJECT_ROOT" test` | 合成 fixture、原几何测试、路径/状态/网络/原生脚本拒绝行为、搬迁 bundle。无 EDA 调用；跳过/待做/取消非零即失败。 |
 | 编译公共 MCP | `npm --prefix "$PROJECT_ROOT" run test:protocol` | MCP initialize、tools/list、35 schema 与冻结基线逐项比对、35 个非法输入拒绝、模拟 doctor、CLI 调用哨兵。不是实机或实际宿主资格。 |
 | 私有真实捕获资料回归 | `npm --prefix "$PROJECT_ROOT" run test:fixtures` | 下列所有环境变量必须存在；缺失立即非零退出，不能默默跳过。不是重新运行 EDA。 |
-| 真实 EDA 集成 | 人工/受控环境，见 RC 实例 | macOS + 已验证版本、可用账户/库与稳定宿主界面能力；A6–A9-R1 在 4.1.71 有限定实机结果，实际聊天宿主与 A10 尚待验收，见 [开发进展](development-status.md)。 |
+| 真实 EDA 集成 | 人工/受控环境，见 RC 实例 | macOS + 已验证版本、可用账户/库与稳定宿主界面能力；A6–A9-R1 在 4.1.71 有限定实机结果，4.1.105 的 A10 与 A11 后台宿主已有独立实测，见 [开发进展](development-status.md)。 |
 
 私有资料组要求 `MANUFACTURING_FIXTURE_DIRECTORY`（旧 10 件/25 孔制造捕获）、`PASSIVE_MANUFACTURING_FIXTURE_DIRECTORY`（B 阻容修改后 13 件/28 孔、保留其当时 C5 告警的制造捕获）、`INCREMENTAL_NATIVE_ADOPTION_FIXTURE`（实际模型采用 JSON，同目录真实 work-project.json）、`INCREMENTAL_CLOSED_WORK_FIXTURE`（真实 closed work-project.json，其来源文件均可读取）、`PASSIVE_REAL_FIXTURE`（原阻容模型/计划回归 JSON）。这些不是任意新板都可替代的测试资料，不随公开仓库分发。不得因新板不满足旧计数而改写旧 journal。没有私有资料时使用默认离线组，并报告该组未执行。
 

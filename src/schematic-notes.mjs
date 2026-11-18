@@ -1,3 +1,4 @@
+import {interactiveRequired} from './task-session.mjs';
 import {noteChangesSchema,notesPhases} from './schematic-notes-input.mjs';
 export {noteChangesSchema,notesPhases} from './schematic-notes-input.mjs';
 import {readFile,writeFile,realpath,lstat} from 'node:fs/promises';
@@ -111,6 +112,7 @@ export async function notesWorkflow(p){
  }
  if(!s.plan)fail('NOTES_PLAN_REQUIRED');
  if(p.phase==='prepare_notes'){
+  if(r.renderMode==='headless')return interactiveRequired(r,'native_text_editor');
   if(!p.noteId||!notesUiFallbackEligible(r))fail('NOTES_NATIVE_UI_FALLBACK_UNPROVEN','unknown');
   await focus('schematic');const result=await a.invoke(q.sessionId,notesScript({...q,operation:'prepare',noteId:p.noteId}));s.uiPreparations??={};s.uiPreparations[p.noteId]={at:new Date().toISOString(),result};await persist(ctx.dir,r);return{...result,target:q,planned:s.plan.edits.find(e=>e.id===p.noteId)};
  }

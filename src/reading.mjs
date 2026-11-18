@@ -1,12 +1,17 @@
 import {scripts} from './native-scripts.mjs';
 import {factsScript} from './native-facts.mjs';
 // Same native readers and target guards, composed into one official invoke.
-export function connectivityScript(p){return `(async()=>{
+export function connectivityScript(p,{inspection=false}={}){return `(async()=>{
  const p=${JSON.stringify(p)},project=await ${scripts.project(p)};
  if(project.status!=='ok')return project;
  const page=project.documents.find(d=>d.uuid===p.schematicPageUuid&&d.itemType==='Schematic Page');
  if(!page)return {status:'failed',code:'DOCUMENT_NOT_IN_TARGET'};
- if(project.documents.filter(d=>d.itemType==='Schematic').length!==1)return {status:'unsupported',code:'MULTI_SCHEMATIC_EXPORT_SCOPE_UNVERIFIED'};
+ const multiRoot=project.documents.filter(d=>d.itemType==='Schematic').length>1;
+ if(multiRoot){
+  const boards=project.boards.filter(b=>b.schematicUuid===page.parentSchematicUuid&&b.schematicPageUuids.includes(page.uuid));
+  if(!${inspection}||!p.pcbDocumentUuid||boards.length!==1||boards[0].pcbDocumentUuid!==p.pcbDocumentUuid)
+   return {status:'unsupported',code:'MULTI_SCHEMATIC_EXPORT_SCOPE_UNVERIFIED'};
+ }
  const pages=project.documents.filter(d=>d.itemType==='Schematic Page'&&d.parentSchematicUuid===page.parentSchematicUuid);
  if(pages.length>8)return {status:'unsupported',code:'SCHEMATIC_PAGE_LIMIT'};
  const pcbDoc=p.pcbDocumentUuid?project.documents.find(d=>d.uuid===p.pcbDocumentUuid&&d.itemType==='PCB'):null;
@@ -22,6 +27,6 @@ export function connectivityScript(p){return `(async()=>{
  const refocus=await focusPage();if(refocus.status!=='ok')return refocus;
  const after=await ${factsScript({...p,documentUuid:p.schematicPageUuid,operation:'netlist'})};if(after.status!=='ok')return after;
  const end=await ${scripts.project(p)};if(end.status!=='ok')return end;
- return {status:'ok',projectUuid:p.expectedProjectUuid,schematicUuid:page.parentSchematicUuid,scope:{schematicPages:pages.map(d=>d.uuid),pcbDocumentUuid:pcbDoc?.uuid??null},raw,after,schematic,pcb};
+ return {status:'ok',projectUuid:p.expectedProjectUuid,schematicUuid:page.parentSchematicUuid,scope:{schematicPages:pages.map(d=>d.uuid),pcbDocumentUuid:pcbDoc?.uuid??null,...(multiRoot?{boardName:page.boardName,multipleSchematicRoots:true}:{})},raw,after,schematic,pcb};
 })()`;}
 function getFunction(code){return code.slice(1,code.lastIndexOf(')('));}

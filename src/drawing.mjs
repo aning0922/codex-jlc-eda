@@ -19,10 +19,11 @@ export const circuitSchema=z.object({components:z.array(componentSchema).min(1).
     if(!refs.has(e.ref)||used.has(k))c.addIssue({code:'custom',message:'Unknown ref or duplicate endpoint '+k});used.add(k);}
 });
 const target={sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,workDirectory:z.string().min(1).max(4096)};
+export const workRenderMode=z.enum(['headless','visible']).describe('New working copies default to headless. Choose visible at creation for native picker or import review. Omit on resume to keep the recorded mode.').optional();
 export const drawingSchemas={
-  jlc_eda_create_work_project:z.object({outputDirectory:z.string().min(1).max(4096),blankTemplatePath:z.string().min(1).max(4096).optional(),requestId:id,
+  jlc_eda_create_work_project:z.object({renderMode:workRenderMode,outputDirectory:z.string().min(1).max(4096),blankTemplatePath:z.string().min(1).max(4096).optional(),requestId:id,
     projectImport:z.object({sourcePath:z.string().min(1).max(4096),sessionId:id,expectedProjectUuid:id}).strict().optional()
-  }).strict().refine(p=>!!p.blankTemplatePath!==!!p.projectImport,'Choose a blank template or an isolated local project import.'),
+  }).strict().refine(p=>!!p.blankTemplatePath!==!!p.projectImport,'Choose a blank template or an isolated local project import.').refine(p=>!p.projectImport||!p.renderMode,'Project import uses its existing isolated session.'),
   jlc_eda_draw_schematic:z.object({...target,requestId:id,phase:z.enum(['place','complete','tidy']).default('complete'),showTitleBlock:z.boolean().default(false),circuit:circuitSchema}).strict(),
   jlc_eda_verify_schematic:z.object({sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,circuit:circuitSchema}).strict(),
   jlc_eda_save_work_project:z.object({...target,requestId:id,pcbDocumentUuid:id.optional(),schematicUuid:id.optional()}).strict().refine(p=>!!p.pcbDocumentUuid===!!p.schematicUuid,'PCB save requires both pcbDocumentUuid and schematicUuid.'),

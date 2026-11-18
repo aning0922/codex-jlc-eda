@@ -18,7 +18,7 @@ export async function preserveFileStage(adapter,p){
  await pcbBound(a,p);const identity=await a.invoke(p.sessionId,resourceIdentityScript);
  if(identity.status!=='ok'||identity.projectUuid!==r.projectUuid||resourceAnchorPath(identity.anchor)!==r.path)return bad('FILE_STAGE_LIVE_PATH_UNCONFIRMED');
  const owned=(await a.resources.all()).find(x=>x.kind==='work'&&x.path===r.path&&x.sessionId===p.sessionId);if(!owned)return bad('FILE_STAGE_RESOURCE_OWNERSHIP_UNCONFIRMED');
- if(!a.resources.entries.has(p.sessionId))await a.registerWorkSession({sessionId:p.sessionId,path:r.path,workDirectory:dir,recoveredFromOwner:owned.ownerId});
+ if(!a.resources.entries.has(p.sessionId))await a.registerWorkSession({sessionId:p.sessionId,path:r.path,workDirectory:dir,renderMode:owned.renderMode,recoveredFromOwner:owned.ownerId});
  const sourceHistory=history(r),actionFingerprint=fingerprint(action),initial=await verifyFileRoute(a,p,r,action,{reconcileSource:false});
  if(!qualifiedPartial(initial)||compareRoutingCheckpoint(action.lastReadback.native,initial.native).status!=='matched'||initial.storedCopper.sha256!==action.lastReadback.storedCopper.sha256||!same(initial.drcEvidenceStable.beforeDesign,action.lastReadback.drcEvidenceStable.afterDesign))return bad('FILE_STAGE_PARTIAL_CONTENT_CHANGED',{initial});
  const attempts=stop?[...(stop.attemptHistory??[]),{...stop,attemptHistory:undefined}]:[];

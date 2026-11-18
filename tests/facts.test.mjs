@@ -125,11 +125,11 @@ test('model source parsing preserves the reported origin without inventing physi
 test('repeated opens within one service reuse its live owned session without another open command', async () => {
   const dir=await mkdtemp(path.join(os.tmpdir(),'jlc-reuse-'));
   try {
-    const file=path.join(dir,'file.eprj2');await writeFile(file,'fixture');let opens=0;
+    const file=path.join(dir,'file.eprj2');await writeFile(file,'fixture');let opens=0,copyPath;
     const adapter=new JlcEdaAdapter({inspectionRoot:dir,executable:'/unused',runner:async(_exe,args)=>{
       if(args[0]==='doctor')return{value:{connected:true}};
-      if(args[0]==='session')return{value:opens?[{sessionId:'own-'+opens,status:'alive'}]:[]};
-      if(args[0]==='open'){opens++;await writeFile(args[2],'simulated editor history');return{value:{sessionId:'own-'+opens,path:args[2]}};}
+      if(args[0]==='session')return{value:opens?[{sessionId:'own-'+opens,status:'alive',path:copyPath,headless:true}]:[]};
+      if(args[0]==='open'){opens++;copyPath=args[2];await writeFile(args[2],'simulated editor history');return{value:{sessionId:'own-'+opens,path:args[2],headless:true}};}
       if(args[0]==='invoke')return{value:{status:'ok',project:{uuid:'p'},documents:[]}};
       throw new Error('unexpected');
     }});

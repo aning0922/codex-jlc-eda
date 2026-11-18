@@ -127,6 +127,7 @@
     "src/stencil-geometry.mjs",
     "src/stopping.mjs",
     "src/task-session.mjs",
+    "src/work-lock.mjs",
     "src/workflow.mjs",
     "tests/a8-layout-budget.test.mjs",
     "tests/adapter.test.mjs",
@@ -156,6 +157,7 @@
     "tests/project-import.test.mjs",
     "tests/resources.test.mjs",
     "tests/schematic-notes.test.mjs",
+    "tests/work-session.test.mjs",
     "tests/zip64.test.mjs"
   ],
   "runtime": [

@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {mkdir,realpath,copyFile,readFile} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import path from 'node:path';
-import {circuitSchema,fingerprint} from './drawing.mjs';
+import {workRenderMode,circuitSchema,fingerprint} from './drawing.mjs';
 import {digest} from './facts.mjs';
 import {load,persist} from './workflow.mjs';
 import {association,pcbSnapshot,positionDiff,comparePreservedPcbSnapshot} from './pcb.mjs';
@@ -15,10 +15,10 @@ import {selectKnownPartialStage} from './known-partial-stage.mjs';
 import {readRepairSnapshot} from './local-repair.mjs';
 import {refreshRepairContinuation} from './repair-context-refresh.mjs';
 import {archive} from './finish.mjs';
-import {ensureTaskContext} from './task-session.mjs';
+import {ensureTaskContext,checkRenderMode} from './task-session.mjs';
 const id=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const sha=z.string().regex(/^[a-f0-9]{64}$/);
-export const continuationSchemas={jlc_eda_resume_work_project:z.object({sourceWorkDirectory:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:id,phase:z.enum(['resume','refresh_saved','recover_refreshed']).default('resume'),circuit:circuitSchema,repairIntent:z.object({kind:z.literal('local_repair'),sourceFileSha256:sha,sourceJournalSha256:sha,stopRequestId:id,fileRequestId:id,nets:z.array(z.string().min(1)).min(1).max(12),purpose:z.string().min(10).max(1000)}).strict().optional()}).strict()};
+export const continuationSchemas={jlc_eda_resume_work_project:z.object({renderMode:workRenderMode,sourceWorkDirectory:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:id,phase:z.enum(['resume','refresh_saved','recover_refreshed']).default('resume'),circuit:circuitSchema,repairIntent:z.object({kind:z.literal('local_repair'),sourceFileSha256:sha,sourceJournalSha256:sha,stopRequestId:id,fileRequestId:id,nets:z.array(z.string().min(1)).min(1).max(12),purpose:z.string().min(10).max(1000)}).strict().optional()}).strict()};
 const fail=(code,message=code)=>{throw Object.assign(new Error(message),{code,status:'unknown'});};
 
 export async function verifyRecoveredTask(a,r,context){
@@ -65,17 +65,18 @@ export const continuationWorkflow={async verifyRecoveredTask(r,context){return v
  if(savedHash!==hash)fail('CONTINUATION_SAVED_FILE_CHANGED');
  try{await mkdir(p.outputDirectory);}catch(e){if(e.code!=='EEXIST')throw e;r=await load(p.outputDirectory).catch(()=>null);if(!r||r.continuation?.requestId!==p.requestId||r.continuation.sourcePath!==sourcePath||r.continuation.sourceSha256!==hash||r.continuation.sourceCheckpointSha256!==checkpointHash)fail('CONTINUATION_REQUEST_CONFLICT');}
  const dir=await realpath(p.outputDirectory),file=path.join(dir,'work.eprj2');
+ if(r)checkRenderMode(r,p.renderMode);
  if(r?.finish?.state==='closed')return {status:'unknown',code:'CONTINUATION_FINISHED_NO_AUTOMATIC_REOPEN',workDirectory:dir,nativeOpenRequested:false};
  if(!r){
-  await this.ensureWorkWindowBudget();await copyFile(sourcePath,file,constants.COPYFILE_EXCL);await copyFile(path.join(sourceDir,'work-project.json'),path.join(dir,'source-journal.json'),constants.COPYFILE_EXCL);
+  await copyFile(sourcePath,file,constants.COPYFILE_EXCL);await copyFile(path.join(sourceDir,'work-project.json'),path.join(dir,'source-journal.json'),constants.COPYFILE_EXCL);
   if(digest(await readFile(file))!==hash||digest(await readFile(sourcePath))!==hash||digest(await readFile(path.join(sourceDir,'work-project.json')))!==checkpointHash)fail('CONTINUATION_SOURCE_CHANGED_DURING_COPY');
-  r=structuredClone(source);r.kind='continuation_pending';r.path=file;r.sessionId=null;r.projectUuid=null;r.openPathConfirmed=false;r.bindingStatus='verification_pending';
+  r=structuredClone(source);r.kind='continuation_pending';r.renderMode=p.renderMode??'headless';r.path=file;r.sessionId=null;r.projectUuid=null;r.openPathConfirmed=false;r.bindingStatus='verification_pending';
   r.continuation={requestId:p.requestId,sourceDirectory:sourceDir,sourcePath,sourceSha256:hash,sourceCheckpointSha256:checkpointHash,copiedSha256:hash,sourceBinding:{sessionId:source.sessionId,projectUuid:source.projectUuid,path:sourcePath},sourceJournalCopy:path.join(dir,'source-journal.json'),...(selectedStage?{selectedStage}:{}),startedAt:new Date().toISOString()};
   if(selectedStage?.kind==='known_partial_file_stage')r.pcbRepairBaseline={predecessorFingerprint:fingerprint(selectedStage),native:selectedStage.native,document:selectedStage.document,storedCopper:selectedStage.storedCopper,padModels:selectedStage.padModels,nativeRules:selectedStage.nativeRules,sourceStage:true};
   // Opening provenance is separate; old openAttempt and every old action stay intact.
   delete r.taskOpenAttempt;await persist(dir,r);
  }
- const context=await ensureTaskContext(this,dir,r);if(context.status!=='ok')return {...context,workDirectory:dir,executionRecord:path.join(dir,'work-project.json')};
+ const context=await ensureTaskContext(this,dir,r,{renderMode:p.renderMode});if(context.status!=='ok')return {...context,workDirectory:dir,executionRecord:path.join(dir,'work-project.json')};
  const verification=await this.verifyRecoveredTask(r,context);r.continuation.lastVerification=verification;await persist(dir,r);
  if(verification.status!=='ok')return {...verification,workDirectory:dir};
  if(digest(await readFile(sourcePath))!==hash||digest(await readFile(path.join(sourceDir,'work-project.json')))!==checkpointHash)fail('CONTINUATION_SOURCE_CHANGED_DURING_VERIFICATION');
