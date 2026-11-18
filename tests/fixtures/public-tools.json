@@ -593,6 +593,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -632,6 +642,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -840,6 +874,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -879,6 +923,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -1142,6 +1210,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -1181,6 +1259,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -1454,6 +1556,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -1493,6 +1605,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -1758,6 +1894,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -1797,6 +1943,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -2041,6 +2211,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -2080,6 +2260,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -2315,6 +2519,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -2354,6 +2568,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -2575,6 +2813,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -2614,6 +2862,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -2881,6 +3153,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -2920,6 +3202,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -3851,6 +4157,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -3890,6 +4206,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",
@@ -4129,6 +4469,16 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "junction": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": -5000,
+                      "maximum": 5000
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
                   "endpoints": {
                     "type": "array",
                     "items": {
@@ -4168,6 +4518,30 @@
               },
               "minItems": 1,
               "maxItems": 100
+            },
+            "openPins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "ref",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500
             },
             "nc": {
               "type": "array",

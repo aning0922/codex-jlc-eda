@@ -61,3 +61,5 @@ create_work_project 可选择 projectImport 支线，把官方导出的 .epro/.e
 使用 `schematic_eco mode=notes` 从有完整 closed 证明的单页成品正式派生。derive/read → plan(noteChanges) → schematic → verify/preview → finish；同请求 closed 复用保持只读。每次最多3个独立页 TEXT，仅 text 与 atMm（坐标转为原理图10mil单位，存储Y反向），必须给实际读取的 id 与 expectedText；不支持 ATTR、网络标签、符号内文字、删改其他图元或同步PCB。plan 绑定完整旧体与实际API属性；所有原理图非目标与PCB档案、规则、逻辑严格保持，逐步持久意图，未知写入不重放。完整保存、新磁盘重读和铜/DRC核查通过后关闭。
 
 V4.1.71 实测：TEXT.modify 可以改变界面对象但未进入完整存储档案，官方 save 也未提交；单体get与getAll还存在对齐枚举不一致。不能据界面读回或save true放行。本轮保存了这次精确首条失败/零存储变化证据；complete只允许一次限定保存探测，失败不重放。prepare_notes/adopt_notes仅在该已证明条件下准备原生属性面板并采用全冻结计划的完整档案结果；不是任意unknown恢复。read保持设计只读。recover仅在既有工作上下文已确认关闭、文件与已验证closed来源逐字节一致且属于上述精确失败时，允许一次原路径恢复；保留旧open/unknown/保存探测，完整档案与TEXT API旧体重核后才接受新绑定，未知打开不得重试。实测原生文字属性面板已成功提交两处内容更正，但坐标整理及最终闭合尚未完成；不承诺通用自由说明编辑能力。
+
+阶段性原理图可在 circuit.openPins 中逐脚列出后续待接引脚。保存与重开必须验证这些脚的网络为空且无 NC 标记。circuit.nets[].junction 以原理图 API 的 10 mil 坐标指定连接点，插件依据真实实例的引脚位置和朝向生成正交导线。带 junction 的阶段调用 tidy 时，以已记录的导线身份整理分支标签并保留已排好的说明。

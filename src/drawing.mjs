@@ -5,17 +5,20 @@ import { digest, compareAssignments } from './facts.mjs';
 const id=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const label=z.string().trim().min(1).max(120);
 const pose=z.object({x:z.number().finite(),y:z.number().finite(),rotation:z.union([z.literal(0),z.literal(90),z.literal(180),z.literal(270)]).default(0),mirror:z.boolean().default(false)}).strict();
+const junction=z.array(z.number().finite().min(-5000).max(5000)).length(2);
+const pendingPin=z.object({ref:id,pin:label}).strict();
 const endpoint=z.object({ref:id,pin:label,stubLength:z.number().min(10).max(80).default(25)}).strict();
 export const componentSchema=z.object({ref:id,designator:label,deviceUuid:id,libraryUuid:id,subPartName:label.optional(),pose,
   properties:z.record(z.string().max(400)).default({}),supplierId:label,manufacturerPart:label,footprintUuid:id}).strict();
 export const circuitSchema=z.object({components:z.array(componentSchema).min(1).max(30),
-  nets:z.array(z.object({name:label,endpoints:z.array(endpoint).min(1).max(100)}).strict()).min(1).max(100),
+  nets:z.array(z.object({name:label,junction:junction.optional(),endpoints:z.array(endpoint).min(1).max(100)}).strict()).min(1).max(100),
+  openPins:z.array(pendingPin).min(1).max(500).optional(),
   nc:z.array(endpoint).default([]),notes:z.array(z.object({x:z.number().finite(),y:z.number().finite(),text:z.string().min(1).max(1000)}).strict()).max(10).default([])
 }).strict().superRefine((v,c)=>{
   for(const key of ['ref','designator'])if(new Set(v.components.map(x=>x[key])).size!==v.components.length)c.addIssue({code:'custom',message:'Duplicate '+key});
   if(new Set(v.nets.map(x=>x.name)).size!==v.nets.length)c.addIssue({code:'custom',message:'Duplicate net name'});
   const refs=new Set(v.components.map(x=>x.ref)),used=new Set();
-  for(const e of [...v.nets.flatMap(n=>n.endpoints),...v.nc]){const k=e.ref+'.'+e.pin;
+  for(const e of [...v.nets.flatMap(n=>n.endpoints),...v.nc,...(v.openPins??[])]){const k=e.ref+'.'+e.pin;
     if(!refs.has(e.ref)||used.has(k))c.addIssue({code:'custom',message:'Unknown ref or duplicate endpoint '+k});used.add(k);}
 });
 const target={sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,workDirectory:z.string().min(1).max(4096)};
@@ -58,7 +61,7 @@ export function compareCircuit(circuit,netlist,doc){
   }
   for(const c of netlist.components)if(!circuit.components.some(e=>e.designator===c.designator))mismatches.push({code:'EXTRA_COMPONENT',designator:c.designator});
   for(const symbol of doc.components)if(!circuit.components.some(e=>e.designator===symbol.designator))mismatches.push({code:'EXTRA_DOCUMENT_SYMBOL',symbolId:symbol.id,uniqueId:symbol.uniqueId,designator:symbol.designator});
-  const assignments=[...circuit.nets.flatMap(n=>n.endpoints.map(e=>({...e,net:n.name,nc:false}))),...circuit.nc.map(e=>({...e,net:'',nc:true}))];
+  const assignments=[...circuit.nets.flatMap(n=>n.endpoints.map(e=>({...e,net:n.name,nc:false}))),...circuit.nc.map(e=>({...e,net:'',nc:true})),...(circuit.openPins??[]).map(e=>({...e,net:'',nc:false,deferred:true}))];
   const expectedPins=new Set(assignments.map(e=>e.ref+'.'+e.pin));
   for(const e of assignments){const group=actualByRef.get(e.ref),pins=group?.c.pins.filter(x=>x.number===e.pin)??[],symbols=group?.symbols.flatMap(x=>x.pins.filter(p=>p.number===e.pin))??[];
     if(!group?.identityValid||pins.length!==1||symbols.length!==1){issues.push({code:'PIN_MISSING_OR_AMBIGUOUS',...e});continue;}
@@ -69,7 +72,7 @@ export function compareCircuit(circuit,netlist,doc){
   for(const [ref,g] of actualByRef)for(const symbol of g.symbols)for(const pin of symbol.pins)if(!expectedPins.has(ref+'.'+pin.number))mismatches.push({code:'UNSPECIFIED_DOCUMENT_PIN',ref,symbolId:symbol.id,pin:pin.number});
   if(doc.truncated!==false||doc.counts?.components!==doc.components.length)issues.push({code:'FINAL_DOCUMENT_COVERAGE_UNCERTAIN'});
   return {status:issues.length?'unknown':mismatches.length?'mismatch':'matched',matched,matchedPinAssignments:matched.length,mismatches,issues,documentConnectivity,
-    coverage:{logical:true,metadata:true,pose:true,persistence:false,erc:false,electrical:false,physical:false}};
+    coverage:{logical:true,metadata:true,pose:true,...(circuit.openPins?{deferredPins:circuit.openPins.length}:{}),persistence:false,erc:false,electrical:false,physical:false}};
 }
 // A normal schematic_checked means native schematic association was checked without a PCB.
 // Preserve known upstream problems even when the final expected-input comparison is clean.
@@ -127,6 +130,36 @@ async function nativeDraw(p){
     await eda.sch_PrimitiveComponent.modify(primitiveId,{designator:e.designator,uniqueId:e.ref,otherProperty:{...pre,...e.properties}});
     if(!await sameTarget())return changed();
     return {status:'ok',primitiveId};
+  }
+  if(p.operation==='junction_label'){
+    const wire=await eda.sch_PrimitiveWire.get(p.wireId);
+    if(!wire||wire.getState_Net()!==p.net)return {status:'failed',code:'JUNCTION_WIRE_CHANGED'};
+    const attrs=(await eda.sch_PrimitiveAttribute.getAll(p.wireId)).filter(a=>['Name','NET'].includes(a.getState_Key())&&a.getState_Value()===p.net);
+    if(attrs.length!==1)return {status:'failed',code:'JUNCTION_LABEL_UNCONFIRMED'};
+    if(!await sameTarget())return changed();
+    const id=attrs[0].getState_PrimitiveId(),[x,y]=p.labelAt;
+    if(attrs[0].getState_X()===x&&attrs[0].getState_Y()===y&&Number(attrs[0].getState_Rotation())===0)
+      return {status:'ok',wireId:p.wireId,labelId:id,x,y,reused:true};
+    const updated=await eda.sch_PrimitiveAttribute.modify(id,{x,y,rotation:0,alignMode:6});
+    if(!updated||!await sameTarget())return {status:'unknown',code:'JUNCTION_LABEL_MOVE_UNCONFIRMED'};
+    const observed=await eda.sch_PrimitiveAttribute.get(id);
+    if(!observed||observed.getState_Value()!==p.net||observed.getState_X()!==x||observed.getState_Y()!==y||Number(observed.getState_Rotation())!==0)
+      return {status:'unknown',code:'JUNCTION_LABEL_POSITION_UNCONFIRMED'};
+    return {status:'ok',wireId:p.wireId,labelId:id,x,y};
+  }
+  if(p.operation==='junction'){
+    for(const a of p.anchors){
+      const pins=await eda.sch_PrimitiveComponent.getAllPinsByPrimitiveId(a.componentId);
+      const match=pins.filter(pin=>pin.getState_PinNumber()===a.pin);
+      if(match.length!==1||Math.abs(match[0].getState_X()-a.x)>1e-6||Math.abs(match[0].getState_Y()-a.y)>1e-6||match[0].getState_Rotation()!==a.rotation)
+        return {status:'failed',code:'JUNCTION_PIN_CHANGED'};
+    }
+    if(!await sameTarget())return changed();
+    const wire=await eda.sch_PrimitiveWire.create(p.lines,p.net);
+    if(!wire||!await sameTarget())return {status:'unknown',code:'JUNCTION_CREATE_UNCONFIRMED'};
+    const wireId=wire.getState_PrimitiveId(),read=await eda.sch_PrimitiveWire.get(wireId);
+    if(!read||read.getState_Net()!==p.net)return {status:'unknown',code:'JUNCTION_NET_UNCONFIRMED',wireId};
+    return {status:'ok',wireId,net:p.net,lines:read.getState_Line()};
   }
   if(p.operation==='connect'){
     const e=p.endpoint,cs=(await eda.sch_PrimitiveComponent.getAll()).filter(c=>state(c,'getState_Designator')===e.designator);

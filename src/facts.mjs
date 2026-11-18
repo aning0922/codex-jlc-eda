@@ -187,6 +187,11 @@ export function summarizeSourceModel(result) {
   const terminals = of(pcb ? 'PAD' : 'PIN'), parts = of('PART');
   if (!terminals.length || terminals.length > 1000) return reject('MODEL_PIN_COUNT_UNSUPPORTED','unsupported');
   if (!pcb && (parts.length !== 1 || !parts[0].header.id)) return reject('MODEL_MULTIPART_UNSUPPORTED','unsupported');
+  // Pin numbering is usable for schematic review even when a pad's physical geometry is unsupported.
+  const terminalNumbers=pcb?terminals.map(row=>row.body?.num):[];
+  const padIds=pcb?terminals.map(row=>row.header.id):[];
+  const numberedPads=pcb&&terminalNumbers.length>0&&terminalNumbers.every(n=>typeof n==='string'&&n.length>0)
+    &&new Set(terminalNumbers).size===terminalNumbers.length&&padIds.every(id=>typeof id==='string'&&id)&&new Set(padIds).size===padIds.length;
   const pins = [], ids = new Set(), numbers = new Set();
   const attr = (id, key) => {
     const found = of('ATTR').filter(r => r.body?.parentId === id && r.body.key === key);
@@ -209,7 +214,7 @@ export function summarizeSourceModel(result) {
           || !(roundThrough || b.hole === null && [1,2].includes(b.layerId))
           || !Array.isArray(b.specialPad) || b.specialPad.length
           || d.padType === 'RECT' && (!Number.isFinite(d.radius) || d.radius < 0))
-        return reject('MODEL_PAD_GEOMETRY_UNSUPPORTED','unsupported');
+        return {...reject('MODEL_PAD_GEOMETRY_UNSUPPORTED','unsupported'),...(numberedPads?{terminalNumbers,padGeometryVerified:false}:{})};
       pins.push({id:header.id,number,name:null,x:b.centerX,y:b.centerY,rotation:b.padAngle,layer:b.layerId,
         padShape:d.padType === 'RECT' ? [d.padType,d.width,d.height,d.radius] : [d.padType,d.width,d.height],
         padOffset:{x:b.padOffsetX,y:b.padOffsetY},relativeAngle:b.relativeAngle ?? null,

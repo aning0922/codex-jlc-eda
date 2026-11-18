@@ -53,3 +53,11 @@ test('standard connector round plated through holes retain drill dimensions and 
  const f=make(),r=f.read();assert.equal(r.status,'ok');assert.deepEqual(r.pins[0].hole,['ROUND',20]);assert.equal(r.pins[0].plated,true);assert.equal(r.pins[0].sourceHole.width,20);
  for(const change of [p=>p.plated=false,p=>p.hole.holeType='SLOT',p=>p.hole.height=21,p=>p.hole.width=-1,p=>p.hole.width=p.hole.height=40,p=>p.padOffsetY=1,p=>p.layerId=1]){const bad=make();change(bad.records[2].body);assert.notEqual(bad.read().status,'ok');}
 });
+
+test('unsupported physical pad geometry still reports verified pad numbers separately',()=>{
+ const f=fixture('footprint');f.records[2].body.specialPad=[{}];
+ const result=f.read();assert.equal(result.status,'unsupported');assert.equal(result.padGeometryVerified,false);
+ assert.deepEqual(result.terminalNumbers,[f.records[2].body.num]);assert.equal(result.pins,undefined);
+ f.records.push({...f.records[2],header:{...f.records[2].header,id:'another'}});
+ assert.equal(f.read().terminalNumbers,undefined);
+});

@@ -43,3 +43,40 @@ test('tidy validates all owned sources before writing and only changes text pres
  p.notes=[];assert.equal((await run()).status,'ok');assert.deepEqual(writes,[{id:'label',property:{x:112,y:112.5,rotation:0,alignMode:2}}]);
  p.wires[0].net='WRONG';assert.equal((await run()).code,'TIDY_WIRE_SOURCE_MISMATCH');assert.equal(writes.length,1);
 });
+
+test('deferred pins must read back open without a no-connect marker',()=>{
+ const input=circuitSchema.parse({...circuit,nc:[],openPins:[{ref:'r',pin:'2'}]});
+ const {netlist,doc}=snapshot();doc.components[0].pins[1].noConnected=false;
+ assert.equal(compareCircuit(input,netlist,doc).status,'matched');
+ doc.components[0].pins[1].noConnected=true;
+ assert.equal(compareCircuit(input,netlist,doc).status,'mismatch');
+ doc.components[0].pins[1].noConnected=false;netlist.components[0].pins[1].net='VCC';
+ assert.equal(compareCircuit(input,netlist,doc).status,'mismatch');
+ assert.equal(circuitSchema.safeParse({...circuit,openPins:input.openPins}).success,false);
+});
+
+import {planJunctions} from '../src/schematic-junction.mjs';
+test('direct wires branch at explicit endpoints and reject a wrong pin, reversed route or crossing',()=>{
+ const part=(ref,x,y,rotation)=>({uniqueId:ref,id:ref,pins:[{number:'1',x,y,rotation}]});
+ const doc={truncated:false,components:[part('left',0,0,0),part('right',20,0,180),part('bottom',10,-10,90)]};
+ const net={name:'SIGNAL',junction:[10,0],endpoints:doc.components.map(c=>({ref:c.uniqueId,pin:'1'}))};
+ const plans=()=>planJunctions({nets:[net]},doc);
+ assert.deepEqual(plans().get('SIGNAL').lines,[[0,0,10,0],[20,0,10,0],[10,-10,10,0]]);
+ doc.components.push(part('extra',5,0,0));assert.throws(plans,/OTHER_PIN/);doc.components.pop();
+ doc.components[0].pins[0].rotation=180;assert.throws(plans,/BEHIND_PIN/);doc.components[0].pins[0].rotation=0;
+ doc.components.push(part('supply',5,-5,90));
+ assert.throws(()=>planJunctions({nets:[net,{name:'VCC',endpoints:[{ref:'supply',pin:'1',stubLength:10}]}]},doc),/NET_CROSSING/);
+});
+
+test('junction label edits verify the owning wire and leave other attributes untouched',async()=>{
+ const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+ let x=0,y=0,writes=0;
+ const attr={getState_Key:()=> 'Name',getState_Value:()=> 'ADC',getState_PrimitiveId:()=> 'attr',getState_X:()=>x,getState_Y:()=>y,getState_Rotation:()=>0};
+ const eda={dmt_Project:{getCurrentProjectInfo:async()=>({uuid:'p'})},dmt_SelectControl:{getCurrentDocumentInfo:async()=>({uuid:'page',parentProjectUuid:'p',documentType:1})},
+  sch_PrimitiveWire:{get:async id=>id==='wire'?{getState_Net:()=> 'ADC'}:null},
+  sch_PrimitiveAttribute:{getAll:async()=>[attr],get:async()=>attr,modify:async(id,pos)=>{assert.equal(id,'attr');writes++;({x,y}=pos);return attr;}}};
+ const params={expectedProjectUuid:'p',schematicPageUuid:'page',operation:'junction_label',wireId:'wire',net:'ADC',labelAt:[30,18]};
+ const run=p=>new AsyncFunction('eda','return await '+drawingScript(p))(eda);
+ assert.equal((await run({...params,wireId:'foreign'})).code,'JUNCTION_WIRE_CHANGED');
+ assert.equal((await run(params)).status,'ok');assert.equal((await run(params)).reused,true);assert.equal(writes,1);
+});

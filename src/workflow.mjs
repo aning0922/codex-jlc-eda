@@ -3,6 +3,7 @@ import {constants} from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {ensureTaskContext,checkRenderMode} from './task-session.mjs';
+import {planJunctions} from './schematic-junction.mjs';
 import {drawingScript,compareCircuit,fingerprint,enrichModelSources,mergeConnectivityComparison} from './drawing.mjs';
 import {scripts} from './native-scripts.mjs';
 import {factsScript} from './native-facts.mjs';
@@ -93,6 +94,18 @@ export const workflow={
   if(ctx.r.drawRequestId!==p.requestId)fail('REQUEST_CONFLICT');
   if(p.phase==='tidy'){
    if(ctx.r.pcbSyncBaseline||Object.keys(ctx.r.pcbSyncActions??{}).length||Object.values(ctx.r.actions).some(a=>a.state!=='completed'))fail('TIDY_COMPLETED_DRAW_REQUIRED');
+   if(p.circuit.nets.some(n=>n.junction)){
+    const document=await this.jlc_eda_read_document({...p,documentUuid:p.schematicPageUuid,kind:'schematic',includePins:true,limit:200});
+    if(document.status!=='ok')return document;
+    for(const [name,plan] of planJunctions(p.circuit,document)){
+     const wire=ctx.r.actions[p.requestId+'/junction/'+name];
+     if(wire?.state!=='completed'||!wire.result?.wireId)fail('TIDY_COMPLETED_DRAW_REQUIRED');
+     if(!plan.labelAt)continue;
+     const result=await action(this,p,ctx,p.requestId+'/tidy-junction/'+name,{operation:'junction_label',net:name,wireId:wire.result.wireId,labelAt:plan.labelAt});
+     if(result.status!=='ok')return result;
+    }
+    return this.jlc_eda_verify_schematic(p);
+   }
    const wires=[];for(const net of p.circuit.nets)for(const e of net.endpoints){const a=ctx.r.actions[p.requestId+'/net/'+e.ref+'/'+e.pin];if(a?.state!=='completed'||!a.result?.wireId)fail('TIDY_COMPLETED_DRAW_REQUIRED');wires.push({...a.result,net:net.name});}
    const top=Math.max(...p.circuit.components.map(c=>c.pose.y))+100,left=Math.min(...p.circuit.components.map(c=>c.pose.x))-20;
    const notes=p.circuit.notes.map((n,i)=>{if(ctx.r.actions[p.requestId+'/note/'+i]?.state!=='completed')fail('TIDY_COMPLETED_DRAW_REQUIRED');return {...n,toX:left,toY:top-i*18};});
@@ -106,10 +119,26 @@ export const workflow={
   if(p.phase==='place')return {status:'ok',phase:'placed',document:d};
   // Validate the full endpoint topology before making any wires.
   for(const e of p.circuit.components){const instances=d.components.filter(x=>x.designator===e.designator),actual=instances.flatMap(x=>x.pins.map(p=>p.number));
-   const requested=[...p.circuit.nets.flatMap(n=>n.endpoints),...p.circuit.nc].filter(x=>x.ref===e.ref).map(x=>x.pin);
-   if(actual.length!==new Set(actual).size||actual.length!==requested.length||actual.some(x=>!requested.includes(x)))fail('PIN_TOPOLOGY_UNVERIFIED','Every actual pin must have exactly one net or explicit NC.');}
-  for(const net of p.circuit.nets)for(const endpoint of net.endpoints){const e={...endpoint,designator:p.circuit.components.find(c=>c.ref===endpoint.ref).designator};
-   const r=await action(this,p,ctx,p.requestId+'/net/'+endpoint.ref+'/'+endpoint.pin,{operation:'connect',endpoint:e,net:net.name});if(r.status!=='ok')return r;}
+   const requested=[...p.circuit.nets.flatMap(n=>n.endpoints),...p.circuit.nc,...(p.circuit.openPins??[])].filter(x=>x.ref===e.ref).map(x=>x.pin);
+   if(actual.length!==new Set(actual).size||actual.length!==requested.length||actual.some(x=>!requested.includes(x)))fail('PIN_TOPOLOGY_UNVERIFIED','Account for every actual pin as a net, explicit NC or deferred open pin.');}
+  const junctions=planJunctions(p.circuit,d);
+  for(const net of p.circuit.nets){
+   if(junctions.has(net.name)){
+    const {anchors,lines,labelAt}=junctions.get(net.name);
+    const result=await action(this,p,ctx,p.requestId+'/junction/'+net.name,{operation:'junction',net:net.name,anchors,lines});
+    if(result.status!=='ok')return result;
+    if(labelAt){
+     const labelKey=p.requestId+'/junction-label/'+net.name;
+     const originalPosition=ctx.r.actions[labelKey]?.input?.labelAt??labelAt;
+     const placed=await action(this,p,ctx,labelKey,{operation:'junction_label',net:net.name,wireId:result.wireId,labelAt:originalPosition});
+     if(placed.status!=='ok')return placed;
+    }
+   }else for(const endpoint of net.endpoints){
+    const e={...endpoint,designator:p.circuit.components.find(c=>c.ref===endpoint.ref).designator};
+    const result=await action(this,p,ctx,p.requestId+'/net/'+endpoint.ref+'/'+endpoint.pin,{operation:'connect',endpoint:e,net:net.name});
+    if(result.status!=='ok')return result;
+   }
+  }
   for(const endpoint of p.circuit.nc){const e={...endpoint,designator:p.circuit.components.find(c=>c.ref===endpoint.ref).designator};const r=await action(this,p,ctx,p.requestId+'/nc/'+endpoint.ref+'/'+endpoint.pin,{operation:'connect',endpoint:e,nc:true});if(r.status!=='ok')return r;}
   for(let i=0;i<p.circuit.notes.length;i++){const r=await action(this,p,ctx,p.requestId+'/note/'+i,{operation:'note',note:p.circuit.notes[i]});if(r.status!=='ok')return r;}
   const verification=await this.jlc_eda_verify_schematic(p);ctx.r.lastVerification=verification;await persist(ctx.dir,ctx.r);return verification;

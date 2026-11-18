@@ -1,5 +1,10 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a12 · 2026-11-18
+
+- A schematic may record deferred pins and verify them as electrically open with no NC flags after reopen. Named wire junctions use connected native segments resolved against actual placed pins. Existing net-port drawings keep their original inputs.
+- Footprints with unsupported physical geometry can still report unambiguous pad numbers for schematic review.
+
 ## 0.11.0-dev.a11 · 2026-11-18
 
 - Open new working copies in a hidden native session by default. Select `renderMode: "visible"` for interactive workflows. macOS CLI helper launches use LaunchServices in the background.

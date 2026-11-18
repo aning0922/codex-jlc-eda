@@ -118,6 +118,7 @@
     "src/rule-recovery.mjs",
     "src/rules.mjs",
     "src/saved-stage.mjs",
+    "src/schematic-junction.mjs",
     "src/schematic-notes-input.mjs",
     "src/schematic-notes.mjs",
     "src/server.mjs",

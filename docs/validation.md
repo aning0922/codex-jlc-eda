@@ -1,6 +1,10 @@
 # Validation record / 验证记录
 
-## Current source · 0.11.0-dev.a11
+## Current source · 0.11.0-dev.a12
+
+On EDA Pro 4.1.105, a staged seven-part schematic was saved and independently reopened. All 13 wired pins matched the intended six nets, and the other 99 MCU pins remained open without NC flags. The active PCB design records matched the empty template. The packaged MCP exposes 35 tools. The local offline suite passed 202 cases and the captured-fixture suite passed 44.
+
+## A11 qualification · 0.11.0-dev.a11
 
 On macOS with EDA 4.1.105, the local candidate ran in isolated Codex app-server processes using the public MCP catalog. The RC notes case covered background creation, host reconnection, native save, independent disk reopen, PCB preservation, session cleanup and reuse of the completed request. macOS activation events were observed passively. The native picker remains an interactive step.
 
