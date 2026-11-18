@@ -13,7 +13,7 @@ async function nativeImport(p){
  try{
   const project=await eda.sys_FileManager.importProjectByProjectFile(file,'JLCEDA Pro',
    {importOption:'ImportDocument',schematicObjectStyle:'custom'},
-   {operation:'Offline Client Local Path',folderPath:p.folderPath});
+   {operation:'Offline Client Local Path',folderPath:p.folderPath,fileFormat:'eprj2'});
   return {status:project?'returned':'unknown',project:project??null,nativeMutationRequested:true};
  }catch(e){return {status:'unknown',code:'PROJECT_IMPORT_NATIVE_ERROR',message:e?.message??String(e),nativeMutationRequested:true};}
 }

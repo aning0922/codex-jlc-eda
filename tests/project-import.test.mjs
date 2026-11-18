@@ -21,6 +21,20 @@ test('import input excludes native database containers and existing unknown outp
 test('local import script rejects changed context before creating a File or invoking import',async()=>{
  const r=await new AsyncFunction('eda','return await '+projectImportScript({expectedProjectUuid:'expected'}))({dmt_Project:{getCurrentProjectInfo:async()=>({uuid:'other'})}});assert.equal(r.nativeMutationRequested,false);assert.equal(r.code,'PROJECT_IMPORT_CONTEXT_CHANGED');
 });
+test('offline import explicitly requests the single-file eprj2 format', async () => {
+ let destination;
+ const eda = {
+  dmt_Project: {getCurrentProjectInfo: async () => ({uuid: 'target'})},
+  sys_FileManager: {importProjectByProjectFile: async (_file, _type, _options, saveTo) => {
+   destination = saveTo;
+   return {uuid: 'imported'};
+  }}
+ };
+ const script = projectImportScript({expectedProjectUuid: 'target', folderPath: '/output', fileName: 'board.epro2', data: 'UEs='});
+ const result = await new AsyncFunction('eda', 'return await ' + script)(eda);
+ assert.equal(result.status, 'returned');
+ assert.deepEqual(destination, {operation: 'Offline Client Local Path', folderPath: '/output', fileFormat: 'eprj2'});
+});
 test('create tool keeps legacy inputs but requires exactly one source mode',async()=>{
  const a=new JlcEdaAdapter();for(const args of [{outputDirectory:'/out',requestId:'r'},{outputDirectory:'/out',requestId:'r',blankTemplatePath:'/template',projectImport:{sessionId:'s',expectedProjectUuid:'p',sourcePath:'/s.epro'}}])assert.equal((await a.dispatch('jlc_eda_create_work_project',args)).code,'INVALID_INPUT');
 });

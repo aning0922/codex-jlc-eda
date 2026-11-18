@@ -31,7 +31,7 @@ export async function ensureTaskContext(a,dir,r,{allowOpen=true}={}){
    let opened;try{opened=await a.call(['open','--path',file],35000);}catch(e){r.taskOpenAttempt.state='unknown';r.taskOpenAttempt.error={code:e.code,message:e.message};await persist(dir,r);return problem(e.code??'TASK_OPEN_OUTCOME_UNKNOWN',{path:file,openAttempt:r.taskOpenAttempt});}
    r.taskOpenAttempt.state='returned';r.taskOpenAttempt.response=opened.value;
    const v=opened.value;if(!v?.sessionId||v.path!==file||alive.some(x=>x.sessionId===v.sessionId)){r.taskOpenAttempt.state='unknown';await persist(dir,r);return problem('TASK_OPEN_IDENTITY_UNCONFIRMED',{path:file,response:v});}
-   openedThisCall=true;session={sessionId:v.sessionId,path:v.path,headless:false,status:'alive'};r.sessionId=v.sessionId;r.openPathConfirmed=true;await persist(dir,r);
+   openedThisCall=true;session={sessionId:v.sessionId,path:v.path,headless:v.headless===true,status:'alive'};r.sessionId=v.sessionId;r.openPathConfirmed=true;await persist(dir,r);
    identity=await exactContext(a,session,file);if(!identity)return problem('TASK_OPEN_PATH_UNCONFIRMED',{path:file,sessionId:session.sessionId});
   }
  }
@@ -39,7 +39,7 @@ export async function ensureTaskContext(a,dir,r,{allowOpen=true}={}){
  const mustMatchProject=reused&&r.kind==='task_work_project'&&!!r.projectUuid&&(r.bindingStatus==='verified'||r.taskOpenAttempt?.response?.sessionId!==session.sessionId);
  r.sessionId=session.sessionId;r.openPathConfirmed=true;
  r.bindingStatus='verification_pending';await persist(dir,r);
- await a.registerWorkSession({sessionId:session.sessionId,path:file,workDirectory:dir,recoveredFromSession:oldBinding.sessionId,renderMode:'visible'});
+ await a.registerWorkSession({sessionId:session.sessionId,path:file,workDirectory:dir,recoveredFromSession:oldBinding.sessionId,renderMode:session.headless===true?'headless':'visible'});
  let project;
  for(let i=0;i<5;i++){project=await a.jlc_eda_inspect_project({sessionId:session.sessionId});if(!['NO_CURRENT_PROJECT','PROJECT_TREE_NOT_READY_OR_EMPTY'].includes(project.code))break;if(i<4)await new Promise(resolve=>setTimeout(resolve,300));}
  if(project.status!=='ok'){await persist(dir,r);return {...project,code:project.code??'TASK_DOCUMENT_NOT_READY',target:{path:file,sessionId:session.sessionId},openedAgain:false};}

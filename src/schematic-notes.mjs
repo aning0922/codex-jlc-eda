@@ -118,7 +118,7 @@ export async function notesWorkflow(p){
   if(s.uiAdoption)return{status:s.state==='applied'&&notesActionsResolved(r)?'ok':'unknown',code:s.state==='applied'?undefined:'NOTES_ADOPTION_SAVE_UNRESOLVED',reused:true,proof:s.uiAdoption,nativeMutationRequested:false};
   if(!notesUiFallbackEligible(r)||s.plan.edits.some(e=>s.uiPreparations?.[e.id]?.result?.status!=='ok'))fail('NOTES_NATIVE_UI_PREPARATION_REQUIRED','unknown');
   const after=await snapshot(),proof=notesPreservation(r.baseline,after,q.schematicPageUuid,s.plan.edits);await writeFile(path.join(ctx.dir,'notes-ui-adoption-'+Date.now()+'.json'),JSON.stringify({after,proof},null,2));if(proof.status!=='matched')return{status:'unknown',code:'NOTES_NATIVE_UI_NOT_MATCHED',proof};
-  s.uiAdoption={...proof,at:new Date().toISOString(),method:'Native property panel; exact frozen text plan and full non-target archives',firstApiOutcomeRetained:true,design:after.design,schematic:after.schematic};await persist(ctx.dir,r);await save('schematic');s.state='applied';await persist(ctx.dir,r);return{status:'ok',proof:s.uiAdoption,verificationRequired:true};
+  s.uiAdoption={...proof,at:new Date().toISOString(),method:'Native readback of the exact frozen text plan and full non-target archives',firstApiOutcomeRetained:true,design:after.design,schematic:after.schematic};await persist(ctx.dir,r);await save('schematic');s.state='applied';await persist(ctx.dir,r);return{status:'ok',proof:s.uiAdoption,verificationRequired:true};
  }
  if(p.phase==='complete'){
   if(s.firstTextCommit)return{...s.firstTextCommit,reused:true,nativeMutationRequested:false};
