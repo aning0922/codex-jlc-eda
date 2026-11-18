@@ -4,6 +4,8 @@ function check(condition,code){
   if(!condition)throw Object.assign(new Error(code),{code,status:'failed'});
 }
 const key=p=>p.ref+'.'+p.pin;
+const modelFields=['deviceUuid','libraryUuid','subPartName','supplierId','manufacturerPart','footprintUuid','properties'];
+const sameModel=(a,b)=>modelFields.every(k=>equal(a[k],b[k]));
 
 // Extend only a previously established digital rail. Every changed endpoint is
 // either one released MCU pin or one of the two pins of a copy of its decoupler.
@@ -29,7 +31,7 @@ export function digitalPowerDelta(before,after,pairs){
   check(supply&&ground,'DIGITAL_POWER_EXISTING_RAILS_REQUIRED');
   const seed=before.components.find(c=>c.properties?.Value==='100nF'&&
     supply.endpoints.some(p=>p.ref===c.ref&&p.pin==='1')&&ground.endpoints.some(p=>p.ref===c.ref&&p.pin==='2')&&
-    caps.every(cap=>['deviceUuid','libraryUuid','subPartName','supplierId','manufacturerPart','footprintUuid','properties'].every(k=>equal(c[k],cap[k]))));
+    caps.every(cap=>sameModel(c,cap)));
   check(seed,'DIGITAL_POWER_MATCH_EXISTING_100NF');
   const assignments=released.map(p=>({...p,name:vdds.has(p.pin)?'VDD':'VSS',net:vdds.has(p.pin)?supply.name:ground.name}));
   const expected=new Map(assignments.map(p=>[key(p),p.net]));
@@ -44,6 +46,42 @@ export function digitalPowerDelta(before,after,pairs){
   check(seen.size===expected.size&&equal(oldNets,before.nets),'DIGITAL_POWER_EXISTING_NET_CHANGED');
   const extraGround=after.nets.find(n=>n.name===ground.name).endpoints.filter(p=>p.ref===owner&&selected.has(p.pin)&&!vdds.has(p.pin)&&!vsses.has(p.pin));
   return {caps,owner,pairs,assignments,supply,extraGround,seed:seed.ref};
+}
+// The H563VI LDO uses two local capacitors on a single VCAP rail.
+export function vcapDelta(before,after,vcapPairs){
+  const oldRefs=new Set(before.components.map(c=>c.ref));
+  const caps=after?.components.filter(c=>!oldRefs.has(c.ref))??[];
+  check(caps.length===2 && vcapPairs.length===2 && new Set(vcapPairs.map(p=>p.capacitor)).size===2 &&
+    caps.every(c=>/^C\d+$/.test(c.ref)&&c.ref===c.designator&&vcapPairs.some(p=>p.capacitor===c.ref)) &&
+    sameModel(caps[0],caps[1]) && /^2\.2[uµμ]F$/.test(caps[0].properties.Value),'VCAP_TWO_MATCHING_2U2_CAPACITORS_REQUIRED');
+  check(equal(before.components,after.components.filter(c=>oldRefs.has(c.ref))) &&
+    equal(before.notes,after.notes) && equal(before.nc,after.nc),'VCAP_OLD_CIRCUIT_CHANGED');
+  const numbers=vcapPairs.map(p=>p.pin).sort();
+  check(equal(numbers,['48','98']),'VCAP_H563VI_PINS_REQUIRED');
+  const oldOpen=before.openPins??[],remaining=new Set((after.openPins??[]).map(key));
+  const released=oldOpen.filter(p=>!remaining.has(key(p))),owner=released[0]?.ref;
+  check(equal(oldOpen.filter(p=>remaining.has(key(p))),after.openPins) && equal(released.map(p=>p.pin).sort(),numbers) &&
+    released.every(p=>p.ref===owner) && before.components.find(c=>c.ref===owner)?.manufacturerPart==='STM32H563VIT6','VCAP_OPEN_PIN_SCOPE');
+  const supply=after.nets.find(n=>n.name==='VCAP'),ground=after.nets.find(n=>n.name==='GND');
+  const expected=[...released.map(key),...caps.map(c=>c.ref+'.1')].sort();
+  check(!before.nets.some(n=>n.name==='VCAP') && supply && !supply.junction && equal(supply.endpoints.map(key).sort(),expected),'VCAP_COMMON_RAIL_REQUIRED');
+  check(ground&&!ground.junction,'VCAP_DIGITAL_GROUND_REQUIRED');
+  const extraGround=ground.endpoints.filter(p=>caps.some(c=>c.ref===p.ref));
+  check(equal(extraGround.map(key).sort(),caps.map(c=>c.ref+'.2').sort()),'VCAP_DIGITAL_GROUND_REQUIRED');
+  const prior=after.nets.filter(n=>n!==supply).map(n=>n===ground?{...n,endpoints:n.endpoints.filter(p=>!extraGround.includes(p))}:n);
+  check(equal(before.nets,prior),'VCAP_EXISTING_NET_CHANGED');
+  return {caps,owner,vcapPairs,supply,extraGround,assignments:released.map(p=>({...p,name:'VCAP',net:'VCAP'}))};
+}
+export function verifyVcapPins(delta,pins){
+  const native=pins.filter(p=>p.name==='VCAP');
+  check(equal(native.map(p=>p.number).sort(),delta.assignments.map(p=>p.pin).sort()) &&
+    native.every(p=>p.net===''),'VCAP_NATIVE_PINS_OR_NET');
+}
+export function verifyVcapCapacitor(device){
+  const p=device.parameters;
+  check(device.subPartNames.length===1 && /^2\.2[uµμ]F$/.test(p.Value) && p['Temperature Coefficient']==='X7R' &&
+    p['Supplier Footprint']==='0603' && /^\d+(?:\.\d+)?V$/.test(p['Voltage Rating']) && parseFloat(p['Voltage Rating'])>=10 &&
+    /^±(5|10|20)%$/.test(p.Tolerance),'VCAP_CAPACITOR_SPECIFICATION');
 }
 export function verifyDigitalPins(delta,pins){
   const domain=pins.filter(p=>['VDD','VSS'].includes(p.name));
@@ -81,18 +119,21 @@ export function digitalPowerRoutes(delta,doc,oldLines){
     }
     occupied.push(...lines);
   }
-  for(const pair of delta.pairs){
-    const vdd=pins.get(delta.owner+'.'+pair.vdd),vss=pins.get(delta.owner+'.'+pair.vss);
+  for(const pair of delta.pairs??delta.vcapPairs){
+    const vdd=pins.get(delta.owner+'.'+(pair.vdd??pair.pin)),vss=pair.vss&&pins.get(delta.owner+'.'+pair.vss);
     const positive=pins.get(pair.capacitor+'.1'),negative=pins.get(pair.capacitor+'.2');
-    check(vdd&&vss&&positive&&negative&&[0,180].includes(vdd.rotation)&&vss.rotation===vdd.rotation&&
+    check(vdd&&positive&&negative&&[0,180].includes(vdd.rotation)&&(!pair.vss||vss?.rotation===vdd.rotation)&&
       positive.rotation===(vdd.rotation+180)%360&&negative.rotation===vdd.rotation,'DIGITAL_POWER_CAP_ORIENTATION');
     const side=vdd.rotation===0?1:-1;
     check((positive.x-vdd.x)*side>10&&(negative.x-positive.x)*side>0&&positive.y===negative.y,'DIGITAL_POWER_CAP_POSITION');
-    for(const [from,to,net,lane] of [[vdd,positive,delta.supply.name,(vdd.x+positive.x)/2],[vss,negative,'GND',negative.x+side*20]]){
+    const branches=[[vdd,positive,delta.supply.name,(vdd.x+positive.x)/2]];
+    if(vss)branches.push([vss,negative,'GND',negative.x+side*20]);
+    for(const [from,to,net,lane] of branches){
       const lines=from.y===to.y?[[from.x,from.y,to.x,to.y]]:[
         [from.x,from.y,lane,from.y],[lane,from.y,lane,to.y],[lane,to.y,to.x,to.y]];
       const anchors=[from,to];reserve(lines,anchors);
-      const labelY=from.y+(from.y>(from===vdd?vss:vdd).y?7:-12);
+      const above=vss?from.y>(from===vdd?vss:vdd).y:to.y>=from.y;
+      const labelY=from.y+(above?7:-12);
       wires.push({key:pair.capacitor+'/'+from.pin,net,anchors,lines,labelAt:[(lines[0][0]+lines[0][2])/2,labelY]});
     }
   }

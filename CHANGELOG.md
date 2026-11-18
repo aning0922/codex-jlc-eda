@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a16 · 2026-11-18
+
+- Add the STM32H563VI internal-LDO capacitor pair to a synchronized, unrouted copy. Both VCAP pins share one net, each with a 2.2 µF return to digital ground.
+
 ## 0.11.0-dev.a15 · 2026-11-18
 
 - Complete a digital supply on an already synchronized unrouted PCB. Each new MLCC is paired with an actual VDD/VSS pin pair on the existing rail. The importer checks every affected original pad, the original component poses and the stored footprint models.

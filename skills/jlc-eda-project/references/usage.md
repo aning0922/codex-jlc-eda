@@ -71,3 +71,5 @@ V4.1.71 实测：TEXT.modify 可以改变界面对象但未进入完整存储档
 查询焊盘或符号几何时，read_library_model 使用 `view=geometry`。工程内模型使用当前项目库身份和本地模型 UUID。省略 view 时保留原有源码和指纹读法。
 
 已有数字电源网可在同一 unrouted_decoupling 模式提供 digitalPowerPairs。各项指定新电容位号 capacitor、数字电源脚 vdd 和对应地脚 vss。沿用工程中已核实的同款 100 nF 去耦电容，新增器件与连接写入 unroutedCircuit。额外的 VSS 可单独接入 GND。先按厂家封装资料核对脚号，再以原生网表验证所有 VDD/VSS 和原有连接。已有电源网、PCB 规则和原有封装逐项保持。
+
+STM32H563VI 采用片内 LDO 时，先核对 ST 引脚表和供电图，使用同一模式的 `vcapPairs` 指定两组 `{capacitor,pin}`。48、98 脚共用 VCAP，每脚各配一颗 2.2 µF，两个回流端接数字 GND。该操作核实原生引脚、同款电容和工程内封装，保存后逐脚比较。

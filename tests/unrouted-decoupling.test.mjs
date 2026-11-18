@@ -35,7 +35,7 @@ test('native library geometry reads the requested scope and exposes mismatched/i
  delete eda.lib_Footprint.getGeometry;assert.equal((await run(script,eda)).status,'unsupported');
 });
 
-import {digitalPowerDelta,digitalPowerRoutes,verifyDigitalPins} from '../src/digital-power.mjs';
+import {digitalPowerDelta,digitalPowerRoutes,verifyDigitalPins,vcapDelta,verifyVcapPins,verifyVcapCapacitor} from '../src/digital-power.mjs';
 function bankFixture(){
  const template={deviceUuid:'cap-model',libraryUuid:'lib',footprintUuid:'fp',subPartName:'MLCC.1',supplierId:'C1',manufacturerPart:'MLCC',properties:{Value:'100nF'}};
  const before={components:[{ref:'U1'},{ref:'C1',designator:'C1',...template}],openPins:['2','3','4','5'].map(n=>pin('U1',n)),
@@ -70,4 +70,30 @@ test('each decoupler gets two independently named wires between actual facing pi
  assert.deepEqual(routes.map(x=>x.anchors.map(a=>a.pin)),[['2','1'],['3','2']]);
  assert.throws(()=>digitalPowerRoutes(d,doc,[[50,37,65,37]]),/COLLISION/);
  doc.components[0].pins.push(terminal('8',55,30,0));assert.throws(()=>digitalPowerRoutes(d,doc,[]),/TOUCHES_ANOTHER_PIN/);
+});
+test('the H563VI LDO pair releases both VCAP pins onto one rail with two grounded capacitors',()=>{
+ const before={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'}],openPins:['48','98','23'].map(n=>pin('U1',n)),
+  nets:[{name:'GND',endpoints:[pin('U1','27')]}],notes:[],nc:[]};
+ const after=structuredClone(before),pairs=[{capacitor:'C8',pin:'48'},{capacitor:'C9',pin:'98'}];
+ const rail={name:'VCAP',endpoints:[]};after.nets.push(rail);after.openPins=[pin('U1','23')];
+ for(const p of pairs){
+  after.components.push({ref:p.capacitor,designator:p.capacitor,properties:{Value:'2.2uF'}});
+  rail.endpoints.push(pin('U1',p.pin),pin(p.capacitor,'1'));after.nets[0].endpoints.push({...pin(p.capacitor,'2'),stubLength:15});
+ }
+ const d=vcapDelta(before,after,pairs),pins=pairs.map(p=>({number:p.pin,name:'VCAP',net:''}));
+ verifyVcapPins(d,pins);assert.throws(()=>verifyVcapPins(d,[pins[0],{...pins[1],net:'+3V3'}]));
+ for(const change of [a=>a.nets[1].name='+3V3',a=>a.nets[0].name='GNDA',a=>a.nets[1].endpoints.pop(),a=>a.nets[0].endpoints.shift(),
+   a=>a.components[1].deviceUuid='other',a=>a.components[1].properties.Value='100nF',a=>a.openPins.pop()]){
+  const wrong=structuredClone(after);change(wrong);assert.throws(()=>vcapDelta(before,wrong,pairs));
+ }
+ const parameters={Value:'2.2uF','Temperature Coefficient':'X7R','Supplier Footprint':'0603','Voltage Rating':'10V',Tolerance:'±10%'};
+ verifyVcapCapacitor({subPartNames:['cap'],parameters});
+ assert.throws(()=>verifyVcapCapacitor({subPartNames:['cap'],parameters:{...parameters,'Voltage Rating':'6.3V'}}));
+ const term=(number,x,y,rotation)=>({number,x,y,rotation});
+ const doc={truncated:false,components:[{id:'m',uniqueId:'U1',pins:[term('48',80,50,180),term('98',120,80,0)]},
+   {id:'a',uniqueId:'C8',pins:[term('1',40,55,0),term('2',10,55,180)]},
+   {id:'b',uniqueId:'C9',pins:[term('1',160,75,180),term('2',190,75,0)]}]};
+ const routes=digitalPowerRoutes(d,doc,[]);assert.deepEqual(routes.map(w=>[w.net,...w.anchors.map(a=>a.componentId+'.'+a.pin)]),
+   [['VCAP','m.48','a.1'],['VCAP','m.98','b.1']]);
+ assert.throws(()=>digitalPowerRoutes(d,doc,[[199,70,199,80]]),/COLLISION/);
 });

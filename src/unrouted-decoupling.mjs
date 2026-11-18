@@ -7,7 +7,7 @@ import {digest} from './facts.mjs';
 import {pcbBound,pcbScript,pcbSnapshot} from './pcb.mjs';
 import {scripts} from './native-scripts.mjs';
 import {planJunctions} from './schematic-junction.mjs';
-import {digitalPowerDelta,digitalPowerRoutes,verifyDigitalPins} from './digital-power.mjs';
+import {digitalPowerDelta,digitalPowerRoutes,verifyDigitalPins,vcapDelta,verifyVcapPins,verifyVcapCapacitor} from './digital-power.mjs';
 import {nativeModelRecords} from './file-model-evidence.mjs';
 import {preserveArchive} from './eco-preservation.mjs';
 import {archiveDesignFingerprint} from './resources.mjs';
@@ -99,11 +99,11 @@ async function applySchematic(a,t,ctx,stage,d){
     requireState(result.status==='ok',result.code??'DECOUPLING_WRITE_UNCONFIRMED');
     receipts.push({input,result});return result;
   };
-  const caps=capacitors(d);
-  for(const cap of caps)await work(d.pairs?'place/'+cap.ref:'place',{operation:'place',component:cap});
+  const caps=capacitors(d),paired=d.pairs||d.vcapPairs;
+  for(const cap of caps)await work(paired?'place/'+cap.ref:'place',{operation:'place',component:cap});
   const doc=await a.jlc_eda_read_document({...t,kind:'schematic',documentUuid:t.schematicPageUuid,includePins:true,limit:200});
   requireState(doc.status==='ok','DECOUPLING_PLACEMENT_UNCONFIRMED');
-  const rails=d.pairs?digitalPowerRoutes(d,doc,oldSchematicLines(stage.beforeSch,t.schematicPageUuid)):
+  const rails=paired?digitalPowerRoutes(d,doc,oldSchematicLines(stage.beforeSch,t.schematicPageUuid)):
     [{...planJunctions(t.circuit,doc).get(d.supply.name),key:'',net:d.supply.name}];
   for(const rail of rails){
     const suffix=rail.key?'/'+rail.key:'';
@@ -112,7 +112,8 @@ async function applySchematic(a,t,ctx,stage,d){
   }
   for(const ground of d.extraGround??[d.ground]){
     const designator=t.circuit.components.find(c=>c.ref===ground.ref).designator;
-    await work(d.pairs?'ground/'+ground.pin:'ground',{operation:'connect',net:'GND',endpoint:{...ground,designator}});
+    const key=d.vcapPairs?'ground/'+ground.ref+'/'+ground.pin:d.pairs?'ground/'+ground.pin:'ground';
+    await work(key,{operation:'connect',net:'GND',endpoint:{...ground,designator}});
   }
   const v=await a.jlc_eda_verify_schematic({...t,pcbDocumentUuid:undefined});
   if(v.status!=='ok'||v.comparison?.status!=='matched')return {...v,status:'unknown',code:'DECOUPLING_SCHEMATIC_NETLIST_MISMATCH'};
@@ -148,7 +149,7 @@ async function verifySync(a,t,ctx,stage,d){
   return {status:'ok',comparison:v.comparison,proof,inventory:v.inventory,originalInstancesRetained:old.length,importReceipt:op.nativeImport};
 }
 export async function decouplingWorkflow(a,p){
-  requireState(!p.addition&&!p.noteChanges&&!p.passiveChanges&&!p.candidateSupplierIds&&!p.candidateSupplierId&&!p.targetDesignator&&!p.noteId,'ECO_MODE_INPUT_CONFLICT');
+  requireState(!p.addition&&!p.noteChanges&&!p.passiveChanges&&!p.candidateSupplierIds&&!p.candidateSupplierId&&!p.targetDesignator&&!p.noteId&&!(p.digitalPowerPairs&&p.vcapPairs),'ECO_MODE_INPUT_CONFLICT');
   const source=await realpath(p.sourcePath),checkpoint=await realpath(p.sourceCheckpointPath);
   const history=JSON.parse(await readFile(checkpoint));
   requireState(history.path===source && (await closedWorkResult(path.dirname(source),history)).status==='ok','DECOUPLING_CLOSED_SOURCE_REQUIRED');
@@ -158,7 +159,8 @@ export async function decouplingWorkflow(a,p){
     if(known?.decoupling){
       requireState(known.requestId===p.requestId && known.derivation?.sourcePath===source &&
         known.derivation?.sourceCheckpoint?.path===checkpoint && known.derivation.sourceCheckpoint.sha256===digest(await readFile(checkpoint)) &&
-        (!p.unroutedCircuit||equal(p.unroutedCircuit,known.decoupling.circuit)) && (!p.digitalPowerPairs||equal(p.digitalPowerPairs,known.decoupling.pairs)),'DECOUPLING_REQUEST_CONFLICT');
+        (!p.unroutedCircuit||equal(p.unroutedCircuit,known.decoupling.circuit)) && (!p.digitalPowerPairs||equal(p.digitalPowerPairs,known.decoupling.pairs)) &&
+        (!p.vcapPairs||equal(p.vcapPairs,known.decoupling.vcapPairs)),'DECOUPLING_REQUEST_CONFLICT');
       if(known.finish?.state==='closed')return closedWorkResult(await realpath(p.outputDirectory),known);
       return {status:'ok',reused:true,path:known.path,sessionId:known.sessionId,completed:!!known.decoupling.completed};
     }
@@ -168,12 +170,13 @@ export async function decouplingWorkflow(a,p){
   requireState(r.requestId===p.requestId && r.renderMode==='headless' && r.derivation?.sourcePath===source &&
     r.derivation?.sourceCheckpoint?.path===checkpoint && r.derivation.sourceCheckpoint.sha256===digest(await readFile(checkpoint)),'DECOUPLING_WORK_BINDING_MISMATCH');
   const pairs=p.digitalPowerPairs??r.decoupling?.pairs,circuit=p.unroutedCircuit??r.decoupling?.circuit;
-  if(r.decoupling)requireState(equal(r.decoupling.pairs,pairs),'DECOUPLING_REQUEST_CONFLICT');
-  const d=pairs?digitalPowerDelta(history.circuit,circuit,pairs):decouplingDelta(history.circuit,circuit);
+  const vcapPairs=p.vcapPairs??r.decoupling?.vcapPairs,paired=pairs||vcapPairs;
+  if(r.decoupling)requireState(equal(r.decoupling.pairs,pairs)&&equal(r.decoupling.vcapPairs,vcapPairs),'DECOUPLING_REQUEST_CONFLICT');
+  const d=vcapPairs?vcapDelta(history.circuit,circuit,vcapPairs):pairs?digitalPowerDelta(history.circuit,circuit,pairs):decouplingDelta(history.circuit,circuit);
   const t={sessionId:r.sessionId,expectedProjectUuid:r.projectUuid,schematicUuid:r.schematicUuid,schematicPageUuid:r.schematicPageUuid,pcbDocumentUuid:r.pcbDocumentUuid,workDirectory:dir,requestId:p.requestId,circuit};
   if(r.decoupling && !equal(r.decoupling.circuit,circuit)){
     // Actual placed symbols can have a different pin orientation from another capacitor of the same size.
-    requireState(!pairs,'DECOUPLING_REQUEST_CONFLICT');
+    requireState(!paired,'DECOUPLING_REQUEST_CONFLICT');
     const previous=structuredClone(r.decoupling.circuit),prior=previous.nets.find(n=>n.name===d.supply.name);
     const oldJunction=prior.junction;prior.junction=d.supply.junction;
     requireState(p.phase==='plan' && equal(previous,circuit) && r.actions['decoupling/place']?.state==='completed' &&
@@ -192,18 +195,23 @@ export async function decouplingWorkflow(a,p){
     requireState(prev.status==='ok'&&prev.comparison.status==='matched'&&Object.values(prev.inventory.standaloneCounts).every(n=>n===0),'DECOUPLING_UNROUTED_BASELINE_REQUIRED');
     const changes=assignments(d),caps=capacitors(d),spec=caps[0];
     const pins=prev.schematicVerification.netlist.components.find(c=>c.uniqueId===changes[0].ref)?.pins??[];
-    if(pairs)verifyDigitalPins(d,pins);
+    if(vcapPairs)verifyVcapPins(d,pins);
+    else if(pairs)verifyDigitalPins(d,pins);
     else requireState(pins.some(pin=>pin.number===d.pin.pin&&pin.name==='VDD'&&pin.net===''),'DECOUPLING_DIGITAL_VDD_REQUIRED');
     const lib=await a.jlc_eda_read_device({...t,deviceUuid:spec.deviceUuid,libraryUuid:spec.libraryUuid});
     const cap=lib.device;
     requireState(lib.status==='ok'&&cap.supplierId===spec.supplierId&&cap.manufacturerPart===spec.manufacturerPart&&cap.footprint.uuid===spec.footprintUuid&&cap.parameters.Value===spec.properties.Value&&['X7R','X5R','C0G','NP0'].includes(cap.parameters['Temperature Coefficient']),'DECOUPLING_MLCC_UNCONFIRMED');
+    if(vcapPairs){
+      verifyVcapCapacitor(cap);
+      requireState(spec.subPartName===cap.subPartNames[0],'VCAP_SYMBOL_PART_MISMATCH');
+    }
     const model=await a.jlc_eda_read_library_model({...t,kind:'footprint',view:'geometry',modelUuid:cap.footprint.uuid,libraryUuid:cap.footprint.libraryUuid});
     requireState(model.status==='ok'&&equal(model.geometry.pads.map(x=>x.padNumber).sort(),['1','2']),'DECOUPLING_TWO_PADS_REQUIRED');
     const symbol=await a.jlc_eda_read_library_model({...t,kind:'symbol',view:'geometry',modelUuid:cap.symbol.uuid,libraryUuid:cap.symbol.libraryUuid});
     requireState(symbol.status==='ok'&&equal(symbol.geometry.pins.map(x=>x.pinNumber).sort(),['1','2']),'DECOUPLING_TWO_SYMBOL_PINS_REQUIRED');
     const beforeSch=await capture(a,t,'schematic'),beforePcb=await capture(a,t,'pcb');
     requireState(equal(archiveDesignFingerprint(beforeSch),history.finish.design.schematic)&&equal(archiveDesignFingerprint(beforePcb),history.finish.design.pcb),'DECOUPLING_BASELINE_ARCHIVE_MISMATCH');
-    if(pairs || (spec.pose.rotation===0&&!spec.pose.mirror)){
+    if(paired || (spec.pose.rotation===0&&!spec.pose.mirror)){
       const doc=prev.schematicVerification.document;
       const projected=caps.map(c=>{
         requireState(!c.pose.mirror&&[0,180].includes(c.pose.rotation),'DIGITAL_POWER_CAP_ORIENTATION');
@@ -211,10 +219,10 @@ export async function decouplingWorkflow(a,p){
         return {id:c.ref,uniqueId:c.ref,pins:symbol.geometry.pins.map(pin=>({number:pin.pinNumber,x:c.pose.x+sign*pin.x,y:c.pose.y+sign*pin.y,rotation:(pin.rotation+c.pose.rotation)%360}))};
       });
       const proposed={...doc,components:[...doc.components,...projected]};
-      if(pairs)digitalPowerRoutes(d,proposed,oldSchematicLines(beforeSch,t.schematicPageUuid));else planJunctions(circuit,proposed);
+      if(paired)digitalPowerRoutes(d,proposed,oldSchematicLines(beforeSch,t.schematicPageUuid));else planJunctions(circuit,proposed);
     }
-    r.decoupling={circuit,beforeSch,beforePcb,...(pairs?{pairs}:{})};await persist(dir,r);
-    return {status:'ok',delta:d,device:cap,footprintGeometry:model,symbolGeometry:symbol,...(pairs?{assignments:changes}:{supplyPin:d.pin})};
+    r.decoupling={circuit,beforeSch,beforePcb,...(pairs?{pairs}:{}),...(vcapPairs?{vcapPairs}:{})};await persist(dir,r);
+    return {status:'ok',delta:d,device:cap,footprintGeometry:model,symbolGeometry:symbol,...(paired?{assignments:changes}:{supplyPin:d.pin})};
   }
   requireState(r.decoupling,'DECOUPLING_PLAN_REQUIRED');
   if(p.phase==='schematic'){
