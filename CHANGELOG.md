@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a13 · 2026-11-18
+
+- First PCB sync recognizes the editor’s default unnamed net when a schematic pin, its native pad assignment and its PCB readback all agree that the pad is open. Named nets and the rest of the native design still undergo the full comparison.
+
 ## 0.11.0-dev.a12 · 2026-11-18
 
 - A schematic may record deferred pins and verify them as electrically open with no NC flags after reopen. Named wire junctions use connected native segments resolved against actual placed pins. Existing net-port drawings keep their original inputs.

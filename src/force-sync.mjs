@@ -1,6 +1,7 @@
 import {nativeModelRecords} from './file-model-evidence.mjs';
 import {archiveDesignFingerprint} from './resources.mjs';
 import {fingerprint} from './drawing.mjs';
+import {defaultEmptyNetBody} from './passive-native-metadata.mjs';
 
 const configTypes = new Set(['META','PRIMITIVE','CANVAS','LAYER','LAYER_PHYS','ACTIVE_LAYER',
   'RULE_TEMPLATE','RULE','RULE_SELECTOR','SILK_OPTS','D3_ATTRIBUTE','PREFERENCE','PANELIZE']);
@@ -49,20 +50,29 @@ export function compareForceImport(before,{pcbData,schematicData,verification}) 
   if (fingerprint(remaining)!==fingerprint(before.pcb.tombstones)) issues.push({code:'PCB_FORCE_DELETION_CHANGED'});
   const components=verification.pcbDocument?.components??[],ids=new Set(components.map(c=>c.id));
   const nets=new Set(before.expected.flatMap(c=>c.pins.map(p=>p.net)).filter(Boolean));
+  let activeEmptyNet=false,verifiedOpenPads=0;
   for (const [key,r] of now) if (!old.has(key)) {
     let authorized=false;
     if(r.type==='COMPONENT') authorized=ids.has(r.id)&&before.expected.some(c=>c.uniqueId===r.body.attrs?.['Unique ID']);
     if(r.type==='ATTR') authorized=ids.has(r.body.parentId);
     if(r.type==='NET') {let id;try{id=JSON.parse(r.id);}catch{}
-      authorized=Array.isArray(id)&&id.length===2&&id[0]==='NET'&&nets.has(id[1]);}
+      authorized=Array.isArray(id)&&id.length===2&&id[0]==='NET'&&nets.has(id[1]);
+      if(r.id==='["NET",""]'&&!paired&&fingerprint(r.body)===fingerprint(defaultEmptyNetBody)){
+        activeEmptyNet=true;
+        authorized=true;
+      }
+    }
     if(r.type==='PAD_NET') {
       let id;try{id=JSON.parse(r.id);}catch{}
       const c=components.find(c=>c.id===id?.[1]),want=before.expected.find(x=>x.uniqueId===c?.uniqueId);
       authorized=Array.isArray(id)&&id.length===4&&id[0]==='PAD_NET'&&!!c&&want?.pins.some(p=>p.number===id[2]&&p.net===r.body.padNet)
         &&c.pins.some(p=>p.id===c.id+id[3]&&p.number===id[2]&&p.net===r.body.padNet);
+      if(authorized&&r.body.padNet==='')verifiedOpenPads++;
     }
     if(!authorized) issues.push({code:'PCB_FORCE_UNEXPECTED_NATIVE_RECORD',key});
   }
+  // 4.1.105 keeps the default unnamed net when an imported pad is actually open.
+  if(activeEmptyNet&&!verifiedOpenPads)issues.push({code:'PCB_FORCE_UNEXPECTED_NATIVE_RECORD',key:transientKeys[0]});
   for(const d of docs.values())if(['DEVICE','SYMBOL','FOOTPRINT'].includes(d.docType)){
     const expected=before.models.find(x=>x.uuid===d.uuid);
     if(!expected||fingerprint(expected)!==fingerprint(d))issues.push({code:'PCB_FORCE_MODEL_CHANGED',uuid:d.uuid});
@@ -70,7 +80,7 @@ export function compareForceImport(before,{pcbData,schematicData,verification}) 
   if (Object.values(verification.inventory?.standaloneCounts??{missing:1}).some(n=>n!==0)) issues.push({code:'PCB_FORCE_NONCOMPONENT_GEOMETRY_ADDED'});
   return {status:issues.length?'mismatch':'matched',issues,expectedInstances:before.expected.length,
     expectedPins:before.expected.reduce((n,c)=>n+c.pins.length,0),expectedNets:[...nets].sort(),
-    initializationTombstones:paired?initializationTombstones:[],
+    initializationTombstones:paired?initializationTombstones:[],verifiedOpenPads,
     rulesAndOriginalRecordsPreserved:!issues.some(x=>x.code==='PCB_FORCE_NON_TARGET_RECORD_CHANGED'),
     coverage:'Full native PCB configuration, original records, deletion identities, imported model records and complete public pin/net/pad comparison'};
 }

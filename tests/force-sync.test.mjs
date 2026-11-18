@@ -71,3 +71,20 @@ test('only the exact paired transient empty-net tombstones are accepted and reco
  f.added.pop();assert.equal(compareForceImport(before,f.post()).status,'mismatch');
  f.added.push({...pair[1],id:'["RULE_SELECTOR",["NET","IN"]]'});assert.equal(compareForceImport(before,f.post()).status,'mismatch');
 });
+
+test('active unnamed net requires exact defaults and a matching open schematic pin, native pad and API pad',()=>{
+ const f=fixture(),before=forcePreflight(f.pre);
+ const empty={type:'NET',id:'["NET",""]',body:{netType:null,specialColor:null,retLine:true,differentialName:null,isPositiveNet:false,equalLengthGroupName:null}};
+ f.added.push(empty);
+ const check=()=>compareForceImport(before,f.post());
+ assert.equal(check().status,'mismatch');
+ before.expected[0].pins.push({number:'2',net:''});
+ const pad={id:'xopen',number:'2',net:''};
+ f.verification.pcbDocument.components[0].pins.push(pad);
+ assert.equal(check().status,'mismatch');
+ f.added.push({type:'PAD_NET',id:'["PAD_NET","x","2","open"]',body:{padNet:''}});
+ const ok=check();assert.equal(ok.status,'matched');assert.equal(ok.verifiedOpenPads,1);assert.deepEqual(ok.expectedNets,['IN']);
+ pad.net='IN';assert.equal(check().status,'mismatch');pad.net='';
+ empty.body.retLine=false;assert.equal(check().status,'mismatch');empty.body.retLine=true;
+ empty.body.extra=true;assert.equal(check().status,'mismatch');
+});

@@ -4,8 +4,9 @@ import {fingerprint} from './drawing.mjs';
 // V4.1.71 bundled pro-pcb 4.1.61.12d72298: cd default net model,
 // CEA reader, NET serializer and display/color serializers. See
 // docs/native-preview-defaults.md for the exact source evidence and limits.
+export const defaultEmptyNetBody = {netType:null,specialColor:null,retLine:true,differentialName:null,isPositiveNet:false,equalLengthGroupName:null};
 const defaults = [
- ['NET','',{netType:null,specialColor:null,retLine:true,differentialName:null,isPositiveNet:false,equalLengthGroupName:null}],
+ ['NET','',defaultEmptyNetBody],
  ['PRIMITIVE','ALL',{layerId:56,display:false,color:null}],
  ['PRIMITIVE','DRC',{layerId:0,color:'#FFCC00'}],
  ['PRIMITIVE','PROHIBITEDREGION',{layerId:0,color:'#9966FF'}],

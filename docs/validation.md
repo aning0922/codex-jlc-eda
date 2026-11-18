@@ -1,6 +1,10 @@
 # Validation record / 验证记录
 
-## Current source · 0.11.0-dev.a12
+## Current source · 0.11.0-dev.a13
+
+The initial import verifier checks the default unnamed net against an open pad in the schematic, the stored PCB and the native API. Regression cases cover a fully wired design, a missing native assignment, a different pad net and modified metadata.
+
+## A12 qualification · 0.11.0-dev.a12
 
 On EDA Pro 4.1.105, a staged seven-part schematic was saved and independently reopened. All 13 wired pins matched the intended six nets, and the other 99 MCU pins remained open without NC flags. The active PCB design records matched the empty template. The packaged MCP exposes 35 tools. The local offline suite passed 202 cases and the captured-fixture suite passed 44.
 
