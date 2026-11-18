@@ -1,6 +1,10 @@
 # Validation record / 验证记录
 
-## Current source · 0.11.0-dev.a14
+## Current source · 0.11.0-dev.a15
+
+The digital supply extension checks existing rail membership, actual MCU pin names, the full set of digital supply and return pins, paired capacitor connections and preservation of an unrouted PCB. Regression cases include analog-ground substitution and collisions with pre-existing wires.
+
+## A14 qualification · 0.11.0-dev.a14
 
 Native readiness and direct geometry have regression coverage for timeouts, project drift and mismatched models. The decoupling extension is scoped to one previously open VDD pin on a synchronized, unrouted board.
 

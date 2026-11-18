@@ -34,3 +34,40 @@ test('native library geometry reads the requested scope and exposes mismatched/i
  geometry.uuid='other';assert.equal((await run(script,eda)).code,'MODEL_GEOMETRY_IDENTITY_UNPROVEN');
  delete eda.lib_Footprint.getGeometry;assert.equal((await run(script,eda)).status,'unsupported');
 });
+
+import {digitalPowerDelta,digitalPowerRoutes,verifyDigitalPins} from '../src/digital-power.mjs';
+function bankFixture(){
+ const template={deviceUuid:'cap-model',libraryUuid:'lib',footprintUuid:'fp',subPartName:'MLCC.1',supplierId:'C1',manufacturerPart:'MLCC',properties:{Value:'100nF'}};
+ const before={components:[{ref:'U1'},{ref:'C1',designator:'C1',...template}],openPins:['2','3','4','5'].map(n=>pin('U1',n)),
+  nets:[{name:'+3V3',endpoints:[pin('U1','1'),pin('C1','1')]},{name:'GND',endpoints:[pin('C1','2')]}],nc:[],notes:[]};
+ const after=structuredClone(before);
+ after.components.push({ref:'C2',designator:'C2',...template});after.openPins=[pin('U1','5')];
+ after.nets[0].endpoints.push(pin('C2','1'),pin('U1','2'));
+ after.nets[1].endpoints.push(pin('C2','2'),pin('U1','3'),{...pin('U1','4'),stubLength:10});
+ const pairs=[{capacitor:'C2',vdd:'2',vss:'3'}];
+ const pins=[['1','VDD','+3V3'],['2','VDD',''],['3','VSS',''],['4','VSS',''],['5','VSSA','']].map(([number,name,net])=>({number,name,net}));
+ return {before,after,pairs,pins};
+}
+test('digital rail completion preserves prior endpoints and checks every digital VDD and VSS against the original silicon pin names',()=>{
+ const f=bankFixture(),d=digitalPowerDelta(f.before,f.after,f.pairs);
+ verifyDigitalPins(d,f.pins);assert.deepEqual(d.extraGround.map(p=>p.pin),['4']);
+ for(const change of [pins=>pins[2].name='VSSA',pins=>pins[1].net='other',pins=>pins[4].name='VSS']){
+  const pins=structuredClone(f.pins);change(pins);assert.throws(()=>verifyDigitalPins(d,pins));
+ }
+ for(const change of [f=>f.after.nets[0].endpoints.pop(),f=>f.after.nets[1].endpoints.shift(),f=>f.after.components.at(-1).properties={Value:'10nF'},f=>f.pairs[0].vss='2']){
+  const changed=bankFixture();change(changed);assert.throws(()=>digitalPowerDelta(changed.before,changed.after,changed.pairs));
+ }
+});
+test('each decoupler gets two independently named wires between actual facing pins; other pins and pre-existing wires are obstacles',()=>{
+ const f=bankFixture(),d=digitalPowerDelta(f.before,f.after,f.pairs);
+ const terminal=(number,x,y,rotation)=>({number,x,y,rotation});
+ const doc={truncated:false,components:[
+  {uniqueId:'U1',id:'mcu',pins:[terminal('2',80,40,180),terminal('3',80,50,180),terminal('4',80,80,180)]},
+  {uniqueId:'C2',id:'cap',pins:[terminal('1',30,20,0),terminal('2',10,20,180)]}
+ ]};
+ const routes=digitalPowerRoutes(d,doc,[]);
+ assert.deepEqual(routes.map(x=>x.net),['+3V3','GND']);
+ assert.deepEqual(routes.map(x=>x.anchors.map(a=>a.pin)),[['2','1'],['3','2']]);
+ assert.throws(()=>digitalPowerRoutes(d,doc,[[50,37,65,37]]),/COLLISION/);
+ doc.components[0].pins.push(terminal('8',55,30,0));assert.throws(()=>digitalPowerRoutes(d,doc,[]),/TOUCHES_ANOTHER_PIN/);
+});

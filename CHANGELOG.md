@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a15 · 2026-11-18
+
+- Complete a digital supply on an already synchronized unrouted PCB. Each new MLCC is paired with an actual VDD/VSS pin pair on the existing rail. The importer checks every affected original pad, the original component poses and the stored footprint models.
+
 ## 0.11.0-dev.a14 · 2026-11-18
 
 - Recognize the qualified macOS 4.1.105 build. Use native project/document readiness when available and support direct symbol/pad geometry queries.

@@ -69,3 +69,5 @@ V4.1.71 实测：TEXT.modify 可以改变界面对象但未进入完整存储档
 在隐藏副本以 `schematic_eco mode=unrouted_decoupling` 提供已关闭的未布线工程、原工作记录、新目录和同一 requestId。按 derive → plan → schematic → sync → verify_sync → finish 推进。unroutedCircuit 在原电路上新增一颗已核实的两脚 MLCC，一端和一个原留空 VDD 脚接新电源网，另一端接已有 GND。新电源网的 junction 按引脚几何给定。既有器件、脚位、工程内封装和零独立铜对象均须在读回时匹配。若原生同步已经返回，可用 verify_sync 只读核对同一次导入。
 
 查询焊盘或符号几何时，read_library_model 使用 `view=geometry`。工程内模型使用当前项目库身份和本地模型 UUID。省略 view 时保留原有源码和指纹读法。
+
+已有数字电源网可在同一 unrouted_decoupling 模式提供 digitalPowerPairs。各项指定新电容位号 capacitor、数字电源脚 vdd 和对应地脚 vss。沿用工程中已核实的同款 100 nF 去耦电容，新增器件与连接写入 unroutedCircuit。额外的 VSS 可单独接入 GND。先按厂家封装资料核对脚号，再以原生网表验证所有 VDD/VSS 和原有连接。已有电源网、PCB 规则和原有封装逐项保持。

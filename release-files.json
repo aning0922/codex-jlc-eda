@@ -72,6 +72,7 @@
     "src/footprint-vias.mjs",
     "src/force-sync.mjs",
     "src/unrouted-decoupling.mjs",
+    "src/digital-power.mjs",
     "src/incremental-allocators.mjs",
     "src/incremental-model.mjs",
     "src/incremental-native.mjs",
