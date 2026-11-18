@@ -72,10 +72,15 @@ async function nativePcb(p){
      return {status:'failed',code:'PCB_FORCE_INVENTORY_CHANGED',kind};
    }
   }
-  const nativeResult=p.importMode==='force_initial_empty'
+  if(p.importMode==='unrouted_decoupling'){
+   const ids=(await eda.pcb_PrimitiveComponent.getAll()).map(c=>c.getState_PrimitiveId());
+   if(!p.priorIds?.length||ids.length!==p.priorIds.length||!p.priorIds.every(x=>ids.includes(x))||!await matches())return {status:'failed',code:'DECOUPLING_NATIVE_TARGET_CHANGED'};
+  }
+  const force=['force_initial_empty','unrouted_decoupling'].includes(p.importMode);
+  const nativeResult=force
    ?await eda.pcb_Document.importChanges(p.schematicUuid,true):await eda.pcb_Document.importChanges(p.schematicUuid);
   if(!await matches())return {status:'unknown',code:'PCB_TARGET_CHANGED_DURING_IMPORT',nativeResult};
-  return {status:'unknown',code:'PCB_IMPORT_REQUIRES_READBACK',nativeResult,sourceApi:'eda.pcb_Document.importChanges',argumentSchematicUuid:p.schematicUuid,force:p.importMode==='force_initial_empty'};
+  return {status:'unknown',code:'PCB_IMPORT_REQUIRES_READBACK',nativeResult,sourceApi:'eda.pcb_Document.importChanges',argumentSchematicUuid:p.schematicUuid,force};
  }
  if(p.operation==='archive'){
   const f=await eda.sys_FileManager.getDocumentFile('models');if(!f||f.size>2*1024*1024)return {status:'unknown',code:'PCB_MODELS_UNAVAILABLE'};

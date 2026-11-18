@@ -29,7 +29,7 @@ import { scripts } from './native-scripts.mjs';
 import { factsScript } from './native-facts.mjs';
 import { normalizeDevice, parseNetlist, matchesSchematicScope, compareAssignments, summarizeModel, summarizeSourceModel } from './facts.mjs';
 
-export const VERSION = '0.11.0-dev.a13';
+export const VERSION = '0.11.0-dev.a14';
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const session = { sessionId: id };
 const target = { ...session, expectedProjectUuid: id };
@@ -62,7 +62,7 @@ export const schemas = {
     limit: z.number().int().min(1).max(25).default(10), page: z.number().int().min(1).max(100).default(1)
   }).strict().refine(v => !!v.query !== !!v.properties, 'Supply query or properties, not both.'),
   jlc_eda_read_device: z.object({ ...target, deviceUuid: id, libraryUuid: id }).strict(),
-  jlc_eda_read_library_model: z.object({ ...target, modelUuid: id, libraryUuid: id, kind: z.enum(['symbol','footprint']) }).strict(),
+  jlc_eda_read_library_model: z.object({ ...target, modelUuid: id, libraryUuid: id, kind: z.enum(['symbol','footprint']), view:z.enum(['source','geometry']).optional() }).strict(),
   jlc_eda_read_connectivity: z.object({ ...target, schematicPageUuid: id, pcbDocumentUuid: id.optional() }).strict(),
   jlc_eda_close_session: z.object({...session,destroy:z.boolean().default(true)}).strict()
 };
@@ -247,16 +247,17 @@ export class JlcEdaAdapter {
     const native = response.value;
     if (typeof native?.connected !== 'boolean') throw new AdapterError('DOCTOR_SCHEMA_UNSUPPORTED', 'Unrecognized CLI doctor response.', 'unknown');
     const routing=await this.routingCapability();
+    const verified105=this.platform==='darwin' && installedVersion==='4.1.105.0339a6cd';
     return { status: native.connected ? 'ok' : 'needs_ui', publicToolCount:Object.keys(schemas).length, executable, installedVersion,
       platform: this.platform, nodeVersion: process.versions.node,
       editorConnected: native.connected, versionMatch: native.versionMatch ?? null,
-      callMetrics:structuredClone(this.callMetrics),backgroundCalling:{transport:this.platform==='darwin'&&executable.includes('.app/Contents/MacOS/')?'macOS LaunchServices background CLI':'official executable',defaultWorkRenderMode:'headless',residentMcpSupportedOnValidatedClient:false},
+      callMetrics:structuredClone(this.callMetrics),backgroundCalling:{transport:this.platform==='darwin'&&executable.includes('.app/Contents/MacOS/')?'macOS LaunchServices background CLI':'official executable',defaultWorkRenderMode:'headless',residentMcpSupportedOnValidatedClient:verified105?null:false},
       diagnosticsPresent: response.diagnosticsPresent,
       compatibility: { validatedClientFamily: 'macOS JLCEDA Pro; qualification is workflow-specific',
-        currentVersionInValidatedFamily: this.platform === 'darwin' && (!!installedVersion?.startsWith('4.1.60.')||installedVersion==='4.1.71.7a7261be'),
-        currentWorkflowQualification:installedVersion==='4.1.71.7a7261be'?'A6/A7 model reads, local project import, initial empty-board sync and full save verified; layout/routing require their own task evidence':'Consult the exact workflow evidence; no general client-family routing guarantee' },
+        currentVersionInValidatedFamily: this.platform === 'darwin' && (!!installedVersion?.startsWith('4.1.60.')||['4.1.71.7a7261be','4.1.105.0339a6cd'].includes(installedVersion)),
+        currentWorkflowQualification:verified105?'Verified local project import, notes, background save/reopen and unrouted PCB workflows with open pads; resident MCP transport not probed by doctor':installedVersion==='4.1.71.7a7261be'?'A6/A7 model reads, local project import, initial empty-board sync and full save verified; layout/routing require their own task evidence':'Consult the exact workflow evidence; no general client-family routing guarantee' },
       capabilities: { projectInspection: true, partsLibrary: true, logicalConnectivity: true,
-        libraryGeometry: 'direct native model source with bounded supported geometry; legacy canvas fallback only when source API is unavailable',
+        libraryGeometry: 'Official getGeometry for geometry view; source view retains the native source fingerprint and legacy canvas fallback',
         designMutation: true, autoRouting: {workflowAvailable:true,sdkDeclared:routing.sdkDeclared??null,installedBridgeRegistered:routing.installedBridgeRegistered??null,executionVerifiedByDoctor:false,qualification:'Static interface/bridge availability only; actual route, keep, copper, DRC and saved result are reported by the task workflow'},
         uiAutomation: 'host-dependent; not detectable or bundled by this MCP server' },
       nextAction: native.connected ? 'List sessions or open the project path requested by the user.'
@@ -322,10 +323,10 @@ export class JlcEdaAdapter {
     // Opening and metadata reading are separate commands; no retry of the open action.
     try {
       const deadline = Date.now() + 15000;
-      let inspected = await this.invoke(sid, scripts.project({}));
+      let inspected = await this.invoke(sid, scripts.project({waitForReady:true}));
       while (['NO_CURRENT_PROJECT', 'PROJECT_TREE_NOT_READY_OR_EMPTY'].includes(inspected.code) && Date.now() < deadline) {
         await new Promise(resolve => setTimeout(resolve, 300));
-        inspected = await this.invoke(sid, scripts.project({}));
+        inspected = await this.invoke(sid, scripts.project({waitForReady:true}));
       }
       if (!fresh && inspected.status === 'ok' && this.ownedSessions.has(sid))
         this.openedPaths.set(sourcePath, { sessionId: sid, projectUuid: inspected.project.uuid, path: projectPath, sourceSha256 });
@@ -364,6 +365,7 @@ export class JlcEdaAdapter {
   }
 
   async jlc_eda_read_library_model(p) {
+    if (p.view === 'geometry') return this.invokeLossless(p.sessionId, factsScript({...p,operation:'model_geometry'}));
     const direct = await this.invoke(p.sessionId, factsScript({ ...p, operation: 'model_source' }));
     if (direct.status === 'ok') return summarizeSourceModel(direct);
     // Only an absent API permits the legacy canvas path. Bad source/identity

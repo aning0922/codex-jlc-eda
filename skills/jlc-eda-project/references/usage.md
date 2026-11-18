@@ -63,3 +63,9 @@ create_work_project 可选择 projectImport 支线，把官方导出的 .epro/.e
 V4.1.71 实测：TEXT.modify 可以改变界面对象但未进入完整存储档案，官方 save 也未提交；单体get与getAll还存在对齐枚举不一致。不能据界面读回或save true放行。本轮保存了这次精确首条失败/零存储变化证据；complete只允许一次限定保存探测，失败不重放。prepare_notes/adopt_notes仅在该已证明条件下准备原生属性面板并采用全冻结计划的完整档案结果；不是任意unknown恢复。read保持设计只读。recover仅在既有工作上下文已确认关闭、文件与已验证closed来源逐字节一致且属于上述精确失败时，允许一次原路径恢复；保留旧open/unknown/保存探测，完整档案与TEXT API旧体重核后才接受新绑定，未知打开不得重试。实测原生文字属性面板已成功提交两处内容更正，但坐标整理及最终闭合尚未完成；不承诺通用自由说明编辑能力。
 
 阶段性原理图可在 circuit.openPins 中逐脚列出后续待接引脚。保存与重开必须验证这些脚的网络为空且无 NC 标记。circuit.nets[].junction 以原理图 API 的 10 mil 坐标指定连接点，插件依据真实实例的引脚位置和朝向生成正交导线。带 junction 的阶段调用 tidy 时，以已记录的导线身份整理分支标签并保留已排好的说明。
+
+### 已同步未布线的首颗 VDD 去耦
+
+在隐藏副本以 `schematic_eco mode=unrouted_decoupling` 提供已关闭的未布线工程、原工作记录、新目录和同一 requestId。按 derive → plan → schematic → sync → verify_sync → finish 推进。unroutedCircuit 在原电路上新增一颗已核实的两脚 MLCC，一端和一个原留空 VDD 脚接新电源网，另一端接已有 GND。新电源网的 junction 按引脚几何给定。既有器件、脚位、工程内封装和零独立铜对象均须在读回时匹配。若原生同步已经返回，可用 verify_sync 只读核对同一次导入。
+
+查询焊盘或符号几何时，read_library_model 使用 `view=geometry`。工程内模型使用当前项目库身份和本地模型 UUID。省略 view 时保留原有源码和指纹读法。

@@ -1,9 +1,17 @@
 // These functions are serialized into the official CLI. Keep them self-contained.
 async function readProject(p) {
-  const first = await eda.dmt_Project.getCurrentProjectInfo();
+  let first = await eda.dmt_Project.getCurrentProjectInfo();
   if (!first?.uuid) return { status: 'unknown', code: 'NO_CURRENT_PROJECT' };
   if (p.expectedProjectUuid && first.uuid !== p.expectedProjectUuid)
     return { status: 'failed', code: 'TARGET_MISMATCH', expected: p.expectedProjectUuid, actual: first.uuid };
+  let projectReadiness;
+  if (p.waitForReady && typeof eda.dmt_Project.waitForReady === 'function') {
+    const uuid = first.uuid;
+    if (!await eda.dmt_Project.waitForReady(uuid, 6000)) return {status:'unknown',code:'PROJECT_WAIT_TIMEOUT'};
+    first = await eda.dmt_Project.getCurrentProjectInfo();
+    if (first?.uuid !== uuid) return {status:'unknown',code:'TARGET_CHANGED_DURING_READ'};
+    projectReadiness = 'dmt_Project.waitForReady';
+  }
   const documents = [], boards = [], visited = new Set();
   function walk(item, boardName) {
     if (!item || typeof item !== 'object') return;
@@ -29,7 +37,7 @@ async function readProject(p) {
   return { status: documents.length ? 'ok' : 'unknown',
     ...(!documents.length ? { code: 'PROJECT_TREE_NOT_READY_OR_EMPTY' } : {}),
     project: { uuid: first.uuid, name: first.name ?? null,
-    friendlyName: first.friendlyName ?? null }, boards, documents };
+    friendlyName: first.friendlyName ?? null }, boards, documents, ...(projectReadiness ? {projectReadiness} : {}) };
 }
 
 async function focusDocument(p) {
@@ -48,9 +56,21 @@ async function focusDocument(p) {
   (project.data ?? []).forEach(walk);
   if (!found || found.itemType !== expectedType)
     return { status: 'failed', code: 'DOCUMENT_NOT_IN_TARGET', documentUuid: p.documentUuid, kind: p.kind };
+  const ready = async (tabId, focusAction) => {
+    if (!tabId) return {status:'unknown',code:'DOCUMENT_TAB_UNAVAILABLE',focusAction};
+    const result = {status:'ok',focusAction,tabId};
+    if (typeof eda.dmt_EditorControl.waitForDocumentReady !== 'function') return result;
+    if (!await eda.dmt_EditorControl.waitForDocumentReady(tabId, 5000))
+      return {status:'unknown',code:'DOCUMENT_WAIT_TIMEOUT',focusAction,tabId};
+    const active = await eda.dmt_SelectControl.getCurrentDocumentInfo();
+    if (active?.uuid !== p.documentUuid || active.parentProjectUuid !== p.expectedProjectUuid ||
+        active.tabId !== tabId || active.documentType !== (p.kind === 'pcb' ? 3 : 1))
+      return {status:'unknown',code:'DOCUMENT_NOT_READY_OR_CHANGED',focusAction,tabId};
+    return {...result,documentReadiness:'dmt_EditorControl.waitForDocumentReady'};
+  };
   const current = await eda.dmt_SelectControl.getCurrentDocumentInfo();
   if (current?.uuid === p.documentUuid && current.parentProjectUuid === p.expectedProjectUuid)
-    return { status: 'ok', focusAction: 'already_active', tabId: current.tabId };
+    return ready(current.tabId, 'already_active');
   const tree = await eda.dmt_EditorControl.getSplitScreenTree();
   const expectedTab = p.documentUuid + '@' + p.expectedProjectUuid;
   let existing;
@@ -61,10 +81,10 @@ async function focusDocument(p) {
   tabs(tree);
   if (existing) {
     const ok = await eda.dmt_EditorControl.activateDocument(existing.tabId);
-    return { status: ok ? 'ok' : 'unknown', focusAction: 'activate_existing', tabId: existing.tabId };
+    return ok ? ready(existing.tabId, 'activate_existing') : {status:'unknown',focusAction:'activate_existing',tabId:existing.tabId};
   }
   const tabId = await eda.dmt_EditorControl.openDocument(p.documentUuid);
-  return { status: tabId ? 'ok' : 'unknown', focusAction: 'open_document', tabId: tabId ?? null };
+  return ready(tabId, 'open_document');
 }
 
 async function readDocument(p) {
@@ -144,5 +164,5 @@ export const scripts = {
   project: p => '(' + readProject.toString() + ')(' + JSON.stringify(p) + ')',
   focus: p => '(' + focusDocument.toString() + ')(' + JSON.stringify(p) + ')',
   document: p => '(' + readDocument.toString() + ')(' + JSON.stringify(p) + ')',
-  focusedDocument: p => `(async()=>{const focusDocument=${focusDocument.toString()};const readDocument=${readDocument.toString()};const p=${JSON.stringify(p)};const focused=await focusDocument(p);if(focused.status!=='ok')return focused;for(let attempt=0;attempt<4;attempt++){const result=await readDocument(p);if(result.code!=='DOCUMENT_NOT_READY_OR_CHANGED')return {...result,focusAction:focused.focusAction};if(attempt<3)await new Promise(r=>setTimeout(r,250));}return {status:'unknown',code:'DOCUMENT_NOT_READY_OR_CHANGED'};})()`
+  focusedDocument: p => `(async()=>{const focusDocument=${focusDocument.toString()};const readDocument=${readDocument.toString()};const p=${JSON.stringify(p)};const focused=await focusDocument(p);if(focused.status!=='ok')return focused;for(let attempt=0;attempt<4;attempt++){const result=await readDocument(p);if(result.code!=='DOCUMENT_NOT_READY_OR_CHANGED')return {...result,focusAction:focused.focusAction,...(focused.documentReadiness?{documentReadiness:focused.documentReadiness}:{})};if(attempt<3)await new Promise(r=>setTimeout(r,250));}return {status:'unknown',code:'DOCUMENT_NOT_READY_OR_CHANGED'};})()`
 };

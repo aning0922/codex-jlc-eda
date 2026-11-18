@@ -37,7 +37,7 @@ export async function bound(a,p,{focusSchematic=true}={}){
  if(focus.status!=='ok')fail(focus.code,'Target focus failed',focus.status);}
  return {dir,r};
 }
-async function action(a,p,context,key,input){
+export async function action(a,p,context,key,input){
  const {dir,r}=context;r.actions??={};const hash=fingerprint(input),old=r.actions[key];
  if(old){if(old.hash!==hash)fail('REQUEST_CONFLICT');if(old.state==='completed')return old.result;
    if(!old.retryable)fail('ACTION_OUTCOME_UNKNOWN','Inspect recorded target and readback; this action is not replayed.','unknown');}

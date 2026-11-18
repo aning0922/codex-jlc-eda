@@ -65,7 +65,7 @@ export async function ensureTaskContext(a,dir,r,{allowOpen=true,renderMode:reque
  const mustMatchProject=reused&&!!r.projectUuid;
 
  let project;
- for(let i=0;i<5;i++){project=await a.jlc_eda_inspect_project({sessionId:session.sessionId});if(!['NO_CURRENT_PROJECT','PROJECT_TREE_NOT_READY_OR_EMPTY'].includes(project.code))break;if(i<4)await new Promise(resolve=>setTimeout(resolve,300));}
+ for(let i=0;i<5;i++){project=await a.jlc_eda_inspect_project({sessionId:session.sessionId,waitForReady:true});if(!['NO_CURRENT_PROJECT','PROJECT_TREE_NOT_READY_OR_EMPTY'].includes(project.code))break;if(i<4)await new Promise(resolve=>setTimeout(resolve,300));}
  if(project.status!=='ok'){await persist(dir,r);return {...project,code:project.code??'TASK_DOCUMENT_NOT_READY',target:{path:file,sessionId:session.sessionId},openedAgain:false};}
  if(mustMatchProject&&r.projectUuid!==project.project.uuid)return problem('TASK_ACTIVE_PROJECT_MISMATCH',{project});
  const expected=[['schematicPageUuid','Schematic Page'],['schematicUuid','Schematic'],['pcbDocumentUuid','PCB']];

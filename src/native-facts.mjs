@@ -25,6 +25,20 @@ async function readFacts(p) {
       return { status: 'unknown', code: 'LIBRARY_TARGET_MISMATCH' };
     return { status: 'ok', device, source: 'eda.lib_Device.get; native library metadata' };
   }
+  if (p.operation === 'model_geometry') {
+    const pcb = p.kind === 'footprint', api = pcb ? eda.lib_Footprint : eda.lib_Symbol;
+    if (typeof api?.getGeometry !== 'function') return {status:'unsupported',code:'MODEL_GEOMETRY_API_UNAVAILABLE'};
+    const geometry = await api.getGeometry(p.modelUuid,p.libraryUuid);
+    if (!await sameProject()) return changed();
+    if (!geometry || geometry.uuid !== p.modelUuid) return {status:'unknown',code:'MODEL_GEOMETRY_IDENTITY_UNPROVEN'};
+    const bounds = b => b && [b.minX,b.minY,b.maxX,b.maxY].every(Number.isFinite) && b.minX<=b.maxX && b.minY<=b.maxY;
+    const pins = pcb ? geometry.pads : geometry.pins, id = pcb ? 'padId' : 'pinId';
+    if (!bounds(geometry.bodyBBox) || !bounds(geometry.fullBBox) || !Array.isArray(pins) || pins.length>1000 ||
+        pins.some(v=>!v?.[id] || ![v.x,v.y,v.rotation].every(Number.isFinite) || pcb && !([v.width,v.height].every(Number.isFinite)&&v.width>0&&v.height>0)) ||
+        new Set(pins.map(v=>v[id])).size!==pins.length) return {status:'unknown',code:'MODEL_GEOMETRY_INCOMPLETE'};
+    return {status:'ok',kind:p.kind,modelUuid:p.modelUuid,libraryUuid:p.libraryUuid,projectUuid:p.expectedProjectUuid,
+      geometry,sourceApi:pcb?'eda.lib_Footprint.getGeometry':'eda.lib_Symbol.getGeometry',coordinates:pcb?'mil':'10mil',focusAction:'none'};
+  }
   if (p.operation === 'model_source') {
     const api = p.kind === 'footprint' ? eda.lib_Footprint : eda.lib_Symbol;
     if (typeof api?.getDocumentSource !== 'function')

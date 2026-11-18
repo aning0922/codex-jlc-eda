@@ -40,8 +40,8 @@ const definitions = [
   ['jlc_eda_read_device', '按搜索或实例返回的真实器件与库 UUID 读取详细参数、符号/封装关联、子部件和数据表链接。链接存在不代表已核对数据表。', {
     ...targetProperties, deviceUuid: identifier, libraryUuid: identifier
   }, ['sessionId','expectedProjectUuid','deviceUuid','libraryUuid'], true],
-  ['jlc_eda_read_library_model', '打开或激活指定符号/封装库文档并读取原生端子几何、焊盘形状、原点和源指纹。官方 API 无法打开时返回 needs_ui，不制造模型数据。端子边界不是机械外形。', {
-    ...targetProperties, modelUuid: identifier, libraryUuid: identifier, kind: { type: 'string', enum: ['symbol','footprint'] }
+  ['jlc_eda_read_library_model', '按 view=geometry 直接读取官方符号引脚或封装焊盘几何。默认 source 保留原生档案、原点和源指纹。图形边界不代表机械尺寸。', {
+    ...targetProperties, modelUuid: identifier, libraryUuid: identifier, kind: { type: 'string', enum: ['symbol','footprint'] }, view:{type:'string',enum:['source','geometry']}
   }, ['sessionId','expectedProjectUuid','modelUuid','libraryUuid','kind'], false],
   ['jlc_eda_read_connectivity', '读取官方原理图逻辑网表及符号引脚；可与同板 PCB 焊盘的网络归属核对，按唯一 ID 合并多单元符号。comparison.status 才是核对结论；匹配不代表已布通、DRC 或功能通过。只支持单个原理图树，最多 8 页，每页 200 个实例。', {
     ...targetProperties, schematicPageUuid: identifier, pcbDocumentUuid: identifier
@@ -67,7 +67,7 @@ for(const [name,schema] of Object.entries(manufacturingSchemas))tools.push({name
 for(const [name,schema] of Object.entries(incrementalSchemas))tools.push({name,description:'从已有完成PCB正式派生新的增量工作副本，自动发现实际关联；局部孔/线/位号/工程内钢网封装的结构化计划、单次执行、非目标保持、严格DRC/铜连通、完整保存重开与关闭。源工程和原journal保持，不恢复已finish源或重放未知。',inputSchema:zodToJsonSchema(schema,{$refStrategy:'none'}),annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false}});
 
 const server = new Server({ name: 'jlc-eda', version: VERSION }, { capabilities: { tools: {} } });
-for(const [name,schema] of Object.entries(ecoSchemas))tools.push({name,description:'从完成工程正式派生单页已有PCB的受限原理图增量任务，默认单脚SMT或passives模式常规两脚R/C新增、真实兼容换料与有创建来源的一脚局部改接；原生器件管理器/导入复核、局部连接、完整非目标与工程内封装保持及保存重开。notes模式仅更正已有单页独立TEXT的内容和位置，完整旧体绑定与非目标保持，不同步PCB；已证明旧TEXT API不持久化时可限定准备原生属性面板并采用冻结计划的完整读回。来源保持、参数冲突拒绝、未知动作不重放。',inputSchema:zodToJsonSchema(schema,{$refStrategy:'none'}),annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false}});
+for(const [name,schema] of Object.entries(ecoSchemas))tools.push({name,description:'unrouted_decoupling 在已同步未布线副本添加单个数字电源去耦，逐项核对其他引脚、原封装、板上档案并保存重开。从完成工程正式派生单页已有PCB的受限原理图增量任务，默认单脚SMT或passives模式常规两脚R/C新增、真实兼容换料与有创建来源的一脚局部改接；原生器件管理器/导入复核、局部连接、完整非目标与工程内封装保持及保存重开。notes模式仅更正已有单页独立TEXT的内容和位置，完整旧体绑定与非目标保持，不同步PCB；已证明旧TEXT API不持久化时可限定准备原生属性面板并采用冻结计划的完整读回。来源保持、参数冲突拒绝、未知动作不重放。',inputSchema:zodToJsonSchema(schema,{$refStrategy:'none'}),annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false}});
 for(const [name,schema] of Object.entries(repairSchemas))tools.push({name,description:'来源完整的已知部分阶段局部补线：显式路径与通孔，plan/apply/verify、当前障碍规则预检、原内容完整保存；每请求写一次，未知不重放。',inputSchema:zodToJsonSchema(schema,{$refStrategy:'none'}),annotations:{readOnlyHint:false,destructiveHint:false,openWorldHint:false}});
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
 server.setRequestHandler(CallToolRequestSchema, async request => {

@@ -1,5 +1,10 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a14 · 2026-11-18
+
+- Recognize the qualified macOS 4.1.105 build. Use native project/document readiness when available and support direct symbol/pad geometry queries.
+- Extend a closed, synchronized, unrouted working copy with one digital VDD decoupling capacitor. The workflow verifies the existing design, imports once, and compares the changed assignments and stored footprints before the final disk check.
+
 ## 0.11.0-dev.a13 · 2026-11-18
 
 - First PCB sync recognizes the editor’s default unnamed net when a schematic pin, its native pad assignment and its PCB readback all agree that the pad is open. Named nets and the rest of the native design still undergo the full comparison.
