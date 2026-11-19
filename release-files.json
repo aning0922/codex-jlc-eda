@@ -78,6 +78,8 @@
     "src/lse.mjs",
     "src/boot-reset.mjs",
     "src/crystal-land.mjs",
+    "src/swd-connector.mjs",
+    "src/switch-land.mjs",
     "src/holder-land.mjs",
     "src/incremental-allocators.mjs",
     "src/incremental-model.mjs",

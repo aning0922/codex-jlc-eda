@@ -1,8 +1,22 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
+import {mkdtemp,mkdir,writeFile,readFile,realpath,rm} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
+import {retainedLandFile} from '../src/holder-land.mjs';
+import {digest} from '../src/facts.mjs';
 import {importLocalProject,projectImportScript} from '../src/project-import.mjs';
 import {JlcEdaAdapter} from '../src/adapter.mjs';
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+test('land preparation can inspect the identified settled import without replaying it',async()=>{
+ const dir=await realpath(await mkdtemp(path.join(os.tmpdir(),'retained-land-')));
+ try{
+  const folder=path.join(dir,'native-output'),file=path.join(folder,'work.eprj2'),source=path.join(dir,'input.epro2');
+  await mkdir(folder);await writeFile(file,'settled');const rec={kind:'local_project_import',state:'unknown',folder,requestId:'land',source,sourceSha256:'exchange',
+   native:{status:'returned',nativeMutationRequested:true,project:{uuid:digest(file)}},entries:[{name:'work.eprj2',file:true,directory:false}],
+   readback:{status:'ok',sourcePath:file,sourceSha256:digest('settled'),path:path.join(dir,'inspection.eprj2'),inspectionCopy:true,freshDiskContext:true,resourceCleanup:{sessionNoLongerAlive:true}}};
+  const v=await retainedLandFile(dir,rec,source,'exchange','land');assert.equal(v.file,file);assert.equal(v.retainedImport.replayed,false);assert.equal(rec.state,'unknown');
+  await assert.rejects(retainedLandFile(dir,{...rec,native:{status:'unknown'}},source,'exchange','land'),/RECEIPT/);
+  await writeFile(file,'edited');await assert.rejects(retainedLandFile(dir,rec,source,'exchange','land'),/DISK_IDENTITY/);
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
 test('local import unknown is durable and cannot repeat or change source/request within its directory',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'jlc-import-'));try{
   const source=path.join(root,'source.epro2');await writeFile(source,'PK fixture');const p={outputDirectory:path.join(root,'output'),requestId:'once',projectImport:{sourcePath:source,sessionId:'s',expectedProjectUuid:'p'}};let calls=0;

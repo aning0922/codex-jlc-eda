@@ -4,6 +4,19 @@ import {JlcEdaAdapter} from '../src/adapter.mjs';
 import {circuitSchema,compareCircuit,drawingScript,drawingSchemas} from '../src/drawing.mjs';
 const component={ref:'r',designator:'R1',deviceUuid:'dev',libraryUuid:'lib',supplierId:'part',manufacturerPart:'mpn',footprintUuid:'fp',pose:{x:50,y:50,rotation:90,mirror:false},properties:{Value:'4k7'}};
 const circuit=circuitSchema.parse({components:[component],nets:[{name:'VCC',endpoints:[{ref:'r',pin:'1'}]}],nc:[{ref:'r',pin:'2'}]});
+test('SWCLK reshape supplies the net explicitly and its blank native Name attribute can be recovered separately',async()=>{
+ let value='SWCLK',edits=0;
+ const wire={getState_Net:()=>value,getState_PrimitiveId:()=>'w',getState_Line:()=>[1005,510,985,510]};
+ const attr={getState_ParentPrimitiveId:()=>'w',getState_Key:()=>'Name',getState_Value:()=>value};
+ const eda={dmt_Project:{getCurrentProjectInfo:async()=>({uuid:'p'})},dmt_SelectControl:{getCurrentDocumentInfo:async()=>({uuid:'sch',parentProjectUuid:'p',documentType:1})},
+  sch_PrimitiveWire:{get:async()=>wire,modify:async(id,prop)=>{assert.equal(id,'w');assert.equal(prop.net,'SWCLK');edits++;return wire;}},
+  sch_PrimitiveAttribute:{get:async()=>attr,modify:async(id,p)=>{assert.equal(id,'label');value=p.value;edits++;}}};
+ const run=params=>new Function('eda','return '+drawingScript({expectedProjectUuid:'p',schematicPageUuid:'sch',wireId:'w',...params}))(eda);
+ const move={operation:'swd_clock_shape',previousLines:[[985,510,1005,510]],lines:[[985,510,989,510],[989,510,989,541],[989,541,1028,541]]};
+ assert.equal((await run(move)).status,'ok');assert.equal((await run({...move,previousLines:[[0,0,1,1]]})).status,'failed');
+ assert.equal((await run({operation:'restore_swd_clock_name',labelId:'label'})).status,'failed');value='';
+ assert.equal((await run({operation:'restore_swd_clock_name',labelId:'label'})).status,'ok');assert.equal(edits,2);
+});
 test('existing designs can exceed 30 parts while a new drawing retains its original batch limit',()=>{
  const parts=Array.from({length:201},(_,i)=>i?{...component,ref:'r'+i,designator:'R'+(i+1)}:component);
  const input=n=>({...circuit,components:parts.slice(0,n)});

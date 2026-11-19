@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a21 · 2026-11-20
+
+- Verify a five-pin H563 SWD header against the ST pin data and the connector drawing. Qualify both instances of the Hanxia boot/reset switch after changing their shared project footprint to the recommended lands.
+
 ## 0.11.0-dev.a20 · 2026-11-19
 
 - Qualify the H563 LQFP100 BOOT0 and NRST network with a 10 kΩ pull-down, 100 nF filter and normally open boot and reset switches. Set both gaps between the SSP-T7-F pad rows to 0.300 mm and verify the exported top copper.

@@ -177,6 +177,23 @@ async function nativeDraw(p){
     if(!read||read.getState_Net()!==p.net)return {status:'unknown',code:'JUNCTION_NET_UNCONFIRMED',wireId};
     return {status:'ok',wireId,net:p.net,lines:read.getState_Line()};
   }
+  if(p.operation==='swd_clock_shape'){
+    const w=await eda.sch_PrimitiveWire.get(p.wireId),s=w?.getState_Line();
+    if(!w||w.getState_Net()!=='SWCLK'||!Array.isArray(s))return {status:'failed',code:'SWD_CLOCK_WIRE_IDENTITY'};
+    const flat=Array.isArray(s[0])?s.flat():s,old=p.previousLines[0],reverse=[old[2],old[3],old[0],old[1]];
+    if(![old,reverse].some(row=>row.length===flat.length&&row.every((v,i)=>Math.abs(v-flat[i])<.000001))||!await sameTarget())return {status:'failed',code:'SWD_CLOCK_ORIGINAL_SEGMENT'};
+    const wire=await eda.sch_PrimitiveWire.modify(p.wireId,{line:p.lines,net:'SWCLK'});
+    if(wire?.getState_PrimitiveId()!==p.wireId||wire.getState_Net()!=='SWCLK'||!await sameTarget())return {status:'unknown',code:'SWD_CLOCK_SHAPE_UNCONFIRMED'};
+    return {status:'ok',wireId:p.wireId};
+  }
+  if(p.operation==='restore_swd_clock_name'){
+    const attr=await eda.sch_PrimitiveAttribute.get(p.labelId);
+    if(!attr||attr.getState_ParentPrimitiveId()!==p.wireId||!['Name','NET'].includes(attr.getState_Key())||attr.getState_Value()!==''||!await sameTarget())
+      return {status:'failed',code:'SWD_EMPTY_LABEL_IDENTITY'};
+    await eda.sch_PrimitiveAttribute.modify(p.labelId,{value:'SWCLK'});
+    const read=await eda.sch_PrimitiveAttribute.get(p.labelId);
+    return read?.getState_Value()==='SWCLK'&&read.getState_ParentPrimitiveId()===p.wireId&&await sameTarget()?{status:'ok',wireId:p.wireId}:{status:'unknown',code:'SWD_NAME_REQUIRES_READBACK'};
+  }
   if(p.operation==='connect'){
     const e=p.endpoint,cs=(await eda.sch_PrimitiveComponent.getAll()).filter(c=>state(c,'getState_Designator')===e.designator);
     if(cs.length!==1)return {status:'failed',code:'COMPONENT_AMBIGUOUS'};

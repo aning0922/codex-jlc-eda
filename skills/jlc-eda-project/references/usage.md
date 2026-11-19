@@ -81,3 +81,5 @@ STM32H563VI 的 `usbBackupSupply` 可在同一类副本上添加 VDDUSB 与一�
 STM32H563VI 的 `lse` 增量指定 `crystal`、`loadIn`、`loadOut` 和已有的 `holder`。先按厂家俯视图修正唯一使用的 BS-08 工程封装的 2 号焊盘外侧两个角，通过正式工程交换文件导入并核对完整原理图及 PCB 来源。确认 8、9 脚及 SSP-T7-F 的 1、4 振荡端，为 2、3 脚保留外部不连接。
 
 STM32H563VI 的 `bootReset` 增量使用 `crystal` 指定 SSP-T7-F，`pullDown`、`filter`、`resetSwitch` 和 `bootSwitch` 指定启动、复位元件。仅从已验收的 LSE 副本派生，按精工焊盘图对称调整两排焊盘，核对真实铜面。两路常开触点分别将 BOOT0 接至 +3V3、将 NRST 接至 GND。
+
+STM32H563VI 的 `swdConnector` 增量用 `header` 指定五针直排针，`resetSwitch`、`bootSwitch` 指定仅有的两处韩下轻触开关实例。两处工程铜面均与厂家推荐尺寸核对。J201 从 1 到 5 依次接目标 +3V3 参考、SWDIO、SWCLK、GND、NRST。这个单排接口按信号接转接线。

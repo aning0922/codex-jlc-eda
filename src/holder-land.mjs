@@ -1,5 +1,5 @@
 import path from 'node:path';
-import {mkdir,readFile,writeFile,realpath,rename} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,realpath,rename,readdir} from 'node:fs/promises';
 import {isDeepStrictEqual as equal} from 'node:util';
 import {unzipSync,zipSync,strFromU8,strToU8} from 'fflate';
 import {digest} from './facts.mjs';
@@ -13,6 +13,7 @@ import {manufactureScript} from './manufacturing.mjs';
 import {parseCam} from './manufacturing-files.mjs';
 import {camGeometry} from './manufacturing-geometry.mjs';
 import {crystalLandPlan,crystalBoardCopper,verifyCrystalCam} from './crystal-land.mjs';
+import {switchLandPlan,switchBoardCopper,verifySwitchCam} from './switch-land.mjs';
 
 const need=(ok,code)=>{if(!ok)throw Object.assign(Error(code),{code,status:'unknown'});};
 const mm=.0254,near=(a,b,t=.005)=>Math.abs(a-b)<t;
@@ -74,8 +75,13 @@ export function verifyHolderCam(beforeBytes,afterBytes,copper){
     const v=parseCam(strFromU8(f[keys[0]]));need(v.done&&v.units==='mm','HOLDER_TOP_COPPER_FORMAT');return v;};
   const source=camGeometry(top(before)).shapes.filter(s=>s.kind==='rect'&&near(s.x,x,.001)&&near(s.y,y,.001)&&near(s.w,w,.001)&&near(s.h,h,.001));
   need(source.length===1,'HOLDER_SOURCE_CAM_RECTANGLE');
+  return {sourceCenterMm:[source[0].x,source[0].y],region:holderCamRegion(top(after),copper),drillFiles,holeCount,unchangedDrillProgram:true,drillHitsInLand:0};
+}
+export function holderCamRegion(top,copper){
+  const [x,y]=copper.centerMm,w=copper.widthMm,h=copper.heightMm;
+  need(top.done&&top.units==='mm','HOLDER_TOP_COPPER_FORMAT');
   const regions=[];let region=null,mode;
-  for(const c of top(after).commands){
+  for(const c of top.commands){
     if(c.type==='set'&&c.prop==='mode')mode=c.value;
     if(c.type==='set'&&c.prop==='region'){if(c.value)region=[];else if(region){regions.push(region);region=null;}}
     if(region&&c.type==='op')region.push({mode,op:c.op,...c.coord});
@@ -89,7 +95,7 @@ export function verifyHolderCam(beforeBytes,afterBytes,copper){
       (m!=='cw'||near(p.i,ix,.00003)&&near(p.j,iy,.00003));
   }));
   need(matches.length===1,'HOLDER_CAM_OUTLINE_MISMATCH');
-  return {sourceCenterMm:[source[0].x,source[0].y],region:matches[0],drillFiles,holeCount,unchangedDrillProgram:true,drillHitsInLand:0};
+  return matches[0];
 }
 
 // Keep every other native line and every other exchange member byte-for-byte.
@@ -133,10 +139,24 @@ async function exportExchange(uuid){
   let s='';for(const b of new Uint8Array(await f.arrayBuffer()))s+=String.fromCharCode(b);
   return (await eda.dmt_Project.getCurrentProjectInfo())?.uuid===uuid?{status:'ok',data:btoa(s)}:{status:'failed'};
 }
+// A native import may finish writing between its first hash and its isolated disk read.
+// Reuse only that exact output. The caller still compares every document to the frozen edit.
+export async function retainedLandFile(dir,record,file,hash,requestId){
+  need(record?.kind==='local_project_import'&&record.state==='unknown'&&record.requestId===requestId&&record.source===file&&record.sourceSha256===hash&&
+    record.native?.status==='returned'&&record.native.nativeMutationRequested===true&&record.entries?.length===1,'LAND_IMPORT_RECEIPT_REQUIRED');
+  const folder=await realpath(path.join(dir,'native-output')),entries=await readdir(folder,{withFileTypes:true}),entry=entries[0],r=record.readback;
+  need(record.folder===folder&&entries.length===1&&entry.isFile()&&/\.eprj2$/i.test(entry.name)&&
+    equal(record.entries,[{name:entry.name,directory:false,file:true}]),'LAND_IMPORT_OUTPUT_IDENTITY');
+  const candidate=await realpath(path.join(folder,entry.name)),current=digest(await readFile(candidate));
+  need(path.dirname(candidate)===folder&&record.native.project?.uuid===digest(candidate)&&r?.status==='ok'&&r.sourcePath===candidate&&
+    r.inspectionCopy&&r.freshDiskContext&&r.path!==candidate&&r.resourceCleanup?.sessionNoLongerAlive&&r.sourceSha256===current,'LAND_IMPORT_DISK_IDENTITY');
+  return {file:candidate,hash:current,retainedImport:{stateAtImport:record.state,startedAt:record.startedAt,nativeProjectUuid:record.native.project.uuid,firstReadSha256:r.sourceSha256,replayed:false}};
+}
 export async function prepareLandCopy(a,p,source,history){
-  const crystal=!!p.bootReset;
+  const crystal=!!p.bootReset,switches=p.swdConnector;
   const binding={source,sourceSha256:digest(await readFile(source)),checkpoint:await realpath(p.sourceCheckpointPath),checkpointSha256:digest(await readFile(p.sourceCheckpointPath)),
-    output:path.resolve(p.outputDirectory),requestId:p.requestId,ref:crystal?p.bootReset.crystal:p.lse.holder,contour:crystal?'SSP-T7-F-0.300mm':'footprint-right-R1.3'};
+    output:path.resolve(p.outputDirectory),requestId:p.requestId,...(switches?{switches:[switches.resetSwitch,switches.bootSwitch],contour:'HX-1.05x2.00-4.45'}:
+      {ref:crystal?p.bootReset.crystal:p.lse.holder,contour:crystal?'SSP-T7-F-0.300mm':'footprint-right-R1.3'})};
   const dir=path.join(path.dirname(binding.output),'.jlc-footprint-preparation',fingerprint(binding));
   await mkdir(dir,{recursive:true});const proofPath=path.join(dir,'proof.json'),inputPath=path.join(dir,'inputs.json');
   const optional=name=>readJson(name).catch(e=>{if(e.code==='ENOENT')return null;throw e;});
@@ -144,16 +164,16 @@ export async function prepareLandCopy(a,p,source,history){
   const withCam=async proof=>{
     const original=await readFile(path.join(dir,'copper-before.zip')),after=await readFile(path.join(dir,'copper-after.zip'));
     need(digest(original)===proof.camBefore&&digest(after)===proof.camAfter,'HOLDER_CAPTURE_CHANGED');
-    proof.cam=(crystal?verifyCrystalCam:verifyHolderCam)(original,after,proof.copper);await writeJson(proofPath,proof);return proof;
+    proof.cam=(switches?verifySwitchCam:crystal?verifyCrystalCam:verifyHolderCam)(original,after,proof.copper);await writeJson(proofPath,proof);return proof;
   };
   if(known){need(equal(known.binding,binding)&&digest(await readFile(known.path))===known.fileSha256,'HOLDER_PREPARED_FILE_CHANGED');return withCam(known);}
   const prepared=await withFreshRead(a,source,async o=>{
     const t=target(o);need(o.sourceSha256===binding.sourceSha256,'HOLDER_SOURCE_CHANGED');
-    let frozen=await optional(inputPath);const file=path.join(dir,crystal?'crystal-gap.epro2':'rounded.epro2');
+    let frozen=await optional(inputPath);const file=path.join(dir,switches?'switch-lands.epro2':crystal?'crystal-gap.epro2':'rounded.epro2');
     if(!frozen){
       const doc=await a.jlc_eda_read_document({...t,kind:'pcb',documentUuid:t.pcbDocumentUuid,includePins:true,includeGeometry:true,limit:200});
       need(doc.status==='ok'&&!doc.truncated,'HOLDER_BOARD_UNCONFIRMED');
-      const data=await archives(a,t),plan=(crystal?crystalLandPlan:holderLandPlan)(data.pcb,doc.components,binding.ref),design={};
+      const data=await archives(a,t),plan=switches?switchLandPlan(data.pcb,doc.components,switches):(crystal?crystalLandPlan:holderLandPlan)(data.pcb,doc.components,binding.ref),design={};
       for(const [kind,raw] of Object.entries(data)){
         need(equal(archiveDesignFingerprint(raw),history.finish.design[kind]),'HOLDER_CLOSED_SOURCE_ARCHIVE_CHANGED');
         const patched=patchHolderArchive(Buffer.from(raw,'base64'),plan,kind==='pcb');design[kind]=archiveDesignFingerprint(patched.toString('base64'));
@@ -165,10 +185,15 @@ export async function prepareLandCopy(a,p,source,history){
       await writeFile(file,patched);frozen={binding,plan,design,camBefore,exchangeSha256:digest(patched),originalExchangeSha256:digest(original)};await writeJson(inputPath,frozen);
     }
     need(equal(binding,frozen.binding)&&digest(await readFile(file))===frozen.exchangeSha256,'HOLDER_PREPARATION_CONFLICT');
-    const importDir=path.join(dir,'import'),last=await optional(path.join(importDir,'project-import.json'));
+    const importDir=path.join(dir,'import'),recordPath=path.join(importDir,'project-import.json'),id=p.requestId+'-land';
+    let last=await optional(recordPath);
     let imported;
-    if(last){need(last.state==='completed'&&last.source===file&&last.sourceSha256===frozen.exchangeSha256&&digest(await readFile(last.path))===last.outputSha256,'HOLDER_RETAINED_IMPORT');imported=last.result;}
-    else imported=await importLocalProject(a,{outputDirectory:importDir,requestId:p.requestId+'-land',projectImport:{sourcePath:file,sessionId:t.sessionId,expectedProjectUuid:t.expectedProjectUuid}});
+    if(!last){
+      imported=await importLocalProject(a,{outputDirectory:importDir,requestId:id,projectImport:{sourcePath:file,sessionId:t.sessionId,expectedProjectUuid:t.expectedProjectUuid}});
+      if(imported.code==='PROJECT_IMPORT_READBACK_UNVERIFIED')last=await readJson(recordPath);
+    }
+    if(last?.state==='unknown')return {status:'ok',frozen,...await retainedLandFile(importDir,last,file,frozen.exchangeSha256,id)};
+    if(last){need(last.state==='completed'&&last.requestId===id&&last.source===file&&last.sourceSha256===frozen.exchangeSha256&&digest(await readFile(last.path))===last.outputSha256,'HOLDER_RETAINED_IMPORT');imported=last.result;}
     need(imported.status==='ok'&&imported.importOnly&&imported.readback?.resourceCleanup?.status==='ok','HOLDER_OFFICIAL_IMPORT_UNCONFIRMED');
     return {status:'ok',frozen,file:imported.path,hash:imported.outputSha256};
   });
@@ -179,13 +204,14 @@ export async function prepareLandCopy(a,p,source,history){
     need(equal(design,prepared.frozen.design),'HOLDER_IMPORTED_NON_TARGET_CHANGED');
     const doc=await a.jlc_eda_read_document({...t,kind:'pcb',documentUuid:t.pcbDocumentUuid,includePins:true,includeGeometry:true,limit:200}),plan=prepared.frozen.plan;
     const part=doc.components?.find(c=>c.uniqueId===plan.ref&&c.id===plan.componentId&&c.footprint.uuid===plan.modelUuid);
-    need(doc.status==='ok'&&part,'LAND_IMPORTED_INSTANCE_MISSING');
-    const pin=crystal?undefined:part.pins.find(v=>v.id===part.id+plan.padId&&v.number==='2'&&v.net==='VBAT_CELL');
-    const copper=crystal?crystalBoardCopper(plan,part):checkHolderCopper(plan,part,pin);
+    need(doc.status==='ok'&&!doc.truncated&&(switches||part),'LAND_IMPORTED_INSTANCE_MISSING');
+    const pin=crystal||switches?undefined:part.pins.find(v=>v.id===part.id+plan.padId&&v.number==='2'&&v.net==='VBAT_CELL');
+    const copper=switches?switchBoardCopper(plan,doc.components):crystal?crystalBoardCopper(plan,part):checkHolderCopper(plan,part,pin);
     const camAfter=await exportLandCam(a,t,path.join(dir,'copper-after.zip'));
     return {status:'ok',pcbPadShape:pin?.padShape,pcbPadHole:pin?.hole,copper,camAfter,design};
   });
   need(check.status==='ok'&&check.resourceCleanup?.status==='ok',check.code??'HOLDER_IMPORTED_INSPECTION');
-  const proof={...prepared.frozen,path:prepared.file,fileSha256:prepared.hash,pcbPadShape:check.pcbPadShape,pcbPadHole:check.pcbPadHole,copper:check.copper,camAfter:check.camAfter,proofPath};
+  need(digest(await readFile(prepared.file))===prepared.hash,'LAND_IMPORTED_FILE_CHANGED_DURING_VERIFICATION');
+  const proof={...prepared.frozen,...(prepared.retainedImport?{retainedImport:prepared.retainedImport}:{}),path:prepared.file,fileSha256:prepared.hash,pcbPadShape:check.pcbPadShape,pcbPadHole:check.pcbPadHole,copper:check.copper,camAfter:check.camAfter,proofPath};
   return withCam(proof);
 }

@@ -291,7 +291,7 @@ export const pcbWorkflow={
   const prepared=p.preparedLand;
   if(prepared&&(prepared.binding.source!==source||prepared.binding.sourceSha256!==hash||prepared.binding.output!==dir||prepared.binding.requestId!==p.requestId))fail('HOLDER_PREPARED_FILE_BINDING');
   await copyFile(prepared?.path??source,file,constants.COPYFILE_EXCL);
-  const land=prepared?{[p.bootReset?'crystalLand':'holderLand']:prepared}:{};
+  const land=prepared?{[p.swdConnector?'switchLand':p.bootReset?'crystalLand':'holderLand']:prepared}:{};
   r={kind:'derivation_pending',renderMode:p.renderMode??'headless',requestId:p.requestId,path:file,circuit:p.circuit,actions:{},derivation:{sourcePath:source,sourcePcbState:p.sourcePcbState,sourceSha256:hash,copiedSha256:digest(await readFile(file)),...land,at:new Date().toISOString()}};await persist(dir,r);
   if(r.derivation.copiedSha256!==(prepared?.fileSha256??hash)||digest(await readFile(source))!==hash)fail('SOURCE_CHANGED_DURING_COPY',undefined,'unknown');
   }
@@ -340,6 +340,20 @@ export const pcbWorkflow={
      const pad=part.pins.find(v=>v.id===part.id+p.padId&&v.number===p.number);
      if(!pad||Math.abs(pad.y*.0254-p.beforeY)>.00131||Math.abs(pad.x*.0254-p.beforeX)>.00131)fail('CRYSTAL_BASELINE_LAND_CHANGED');
      pad.y=p.nativeY;
+    }
+   }
+   if(r.derivation.switchLand){
+    const {plan,copper,cam,binding,fileSha256}=r.derivation.switchLand;
+    if(fileSha256!==r.derivation.copiedSha256||binding.output!==dir||binding.sourceSha256!==hash||binding.requestId!==r.requestId||
+      !cam.unchangedDrillProgram||cam.pairs.length!==2||copper.length!==4||
+      !cam.pairs.every(p=>Math.abs(p.innerGapMm-3.4)<.00003&&Math.abs(p.outerWidthMm-5.5)<.00003))fail('SWITCH_COPPER_PROOF_REQUIRED');
+    baseline=structuredClone(baseline);
+    for(const p of copper){
+     const part=baseline.after.components.find(c=>c.id===p.componentId&&c.uniqueId===p.ref&&c.footprint.uuid===plan.modelUuid);
+     const pad=part?.pins.find(v=>v.id===p.componentId+p.padId&&v.number===p.number);
+     if(!pad||pad.padShape[0]!=='RECT'||Math.abs(pad.x*.0254-p.beforeX)>.00131||Math.abs(pad.y*.0254-p.beforeY)>.00131||
+       Math.abs(pad.padShape[1]*.0254-p.beforeW)>.00131||Math.abs(pad.padShape[2]*.0254-p.beforeH)>.00131)fail('SWITCH_BASELINE_LAND_CHANGED');
+     pad.x=p.nativeX;pad.padShape=p.nativeShape;
     }
    }
    if(actual.status!=='ok'||actual.comparison?.status!=='matched'||positionDiff(baseline.after,pcbSnapshot(actual.pcbDocument)).length||fingerprint(baseline.after.components.map(x=>[x.uniqueId,x.id,x.device?.uuid,x.footprint?.uuid,x.pins.map(p=>Object.fromEntries(['id','number','x','y','rotation','net','noConnected','name','pinType','layer','padShape','hole'].map(k=>[k,p[k]])))]))!==fingerprint(pcbSnapshot(actual.pcbDocument).components.map(x=>[x.uniqueId,x.id,x.device?.uuid,x.footprint?.uuid,x.pins.map(p=>Object.fromEntries(['id','number','x','y','rotation','net','noConnected','name','pinType','layer','padShape','hole'].map(k=>[k,p[k]])))])))fail('DERIVE_SYNC_BASELINE_MISMATCH');

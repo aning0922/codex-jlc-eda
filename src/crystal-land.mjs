@@ -44,20 +44,25 @@ export function crystalBoardCopper(plan,part){
 }
 
 // A rectangular Gerber aperture may be stored with its own orientation. Compare its actual copper extents.
-export function crystalCamPads(bytes,pads,before=false){
+export function rectangularPadCam(bytes,pads,before=false){
   const files=unzipSync(bytes),top=Object.keys(files).filter(k=>/\.gtl$/i.test(k));check(top.length===1,'CRYSTAL_TOP_CAM_MISSING');
   const parsed=parseCam(strFromU8(files[top[0]]));check(parsed.done&&parsed.units==='mm','CRYSTAL_TOP_CAM_FORMAT');
   const flashes=camGeometry(parsed).shapes.filter(s=>s.anchor),selected=pads.map(p=>{
     const x=before?p.beforeX:p.x,y=before?p.beforeY:p.y;
-    const hits=flashes.filter(s=>s.kind==='rect'&&near(s.x,x,.00003)&&near(s.y,y,.00003)&&near(s.w,p.w,.00003)&&near(s.h,p.h,.00003));
+    const w=before?(p.beforeW??p.w):p.w,h=before?(p.beforeH??p.h):p.h;
+    const hits=flashes.filter(s=>s.kind==='rect'&&near(s.x,x,.00003)&&near(s.y,y,.00003)&&near(s.w,w,.00003)&&near(s.h,h,.00003));
     check(hits.length===1,'CRYSTAL_PHYSICAL_LAND_UNCONFIRMED');return hits[0];
   });
-  check(new Set(selected).size===4,'CRYSTAL_CAM_PAD_IDENTITY');
-  const gaps=[[0,3],[1,2]].map(([low,high])=>selected[high].y-selected[low].y-(selected[high].h+selected[low].h)/2);
-  check(gaps.every(g=>near(g,before ? .25 : .300,before ? .001 : .00003)),'CRYSTAL_CAM_EDGE_GAP');
+  check(new Set(selected).size===pads.length,'CAM_RECT_PAD_IDENTITY');
   const other=flashes.filter(s=>!selected.includes(s)).map(s=>JSON.stringify([s.anchor,s.tool.shape,s.tool.params,s.tool.hole??null])).sort();
   const drill=Object.fromEntries(Object.keys(files).filter(k=>/\.drl$/i.test(k)).sort().map(k=>[k,strFromU8(files[k]).split(/\r?\n/).filter(l=>!l.startsWith(';')).join('\n')]));
-  return {gaps,lands:selected.map((s,i)=>({number:pads[i].number,x:s.x,y:s.y,w:s.w,h:s.h})),other,drill};
+  return {lands:selected.map((s,i)=>({number:pads[i].number,x:s.x,y:s.y,w:s.w,h:s.h})),other,drill};
+}
+export function crystalCamPads(bytes,pads,before=false){
+  const view=rectangularPadCam(bytes,pads,before);
+  const gaps=[[0,3],[1,2]].map(([low,high])=>view.lands[high].y-view.lands[low].y-(view.lands[high].h+view.lands[low].h)/2);
+  check(gaps.every(g=>near(g,before ? .25 : .300,before ? .001 : .00003)),'CRYSTAL_CAM_EDGE_GAP');
+  return {...view,gaps};
 }
 export function verifyCrystalCam(before,after,pads){
   const a=crystalCamPads(before,pads,true),b=crystalCamPads(after,pads);

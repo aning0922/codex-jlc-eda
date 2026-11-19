@@ -7,6 +7,36 @@ import {lseDelta,lseRoutes,verifyLsePins} from '../src/lse.mjs';
 import {checkHolderCopper,holderLandPlan,patchHolderArchive,verifyHolderCam} from '../src/holder-land.mjs';
 import {bootResetDelta,bootResetRoutes} from '../src/boot-reset.mjs';
 import {crystalLandPlan,crystalBoardCopper} from '../src/crystal-land.mjs';
+import {swdDelta,swdRoutes} from '../src/swd-connector.mjs';
+import {switchLandPlan,switchBoardCopper} from '../src/switch-land.mjs';
+
+test('the five-pin SWD header reuses NRST and only releases the two debug GPIOs',()=>{
+ const p=(ref,pin)=>({ref,pin}),cfg={header:'J1',resetSwitch:'SW1',bootSwitch:'SW2'};
+ const old={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'},{ref:'SW1'},{ref:'SW2'}],notes:[],nc:[],openPins:['72','76','77'].map(n=>p('U1',n)),
+   nets:[{name:'+3V3',endpoints:[p('SW2','2')]},{name:'GND',endpoints:[p('SW1','2')]},{name:'NRST',endpoints:[p('SW1','1'),p('U1','14')]},{name:'BOOT0',endpoints:[p('SW2','1')]}]};
+ const next=structuredClone(old);next.components.push({ref:'J1',designator:'J1'});next.nets[0].endpoints.push(p('J1','1'));next.nets[1].endpoints.push(p('J1','4'));next.nets[2].endpoints.push(p('J1','5'));
+ next.nets.push({name:'SWDIO',endpoints:[p('J1','2'),p('U1','72')]},{name:'SWCLK',endpoints:[p('J1','3'),p('U1','76')]});next.openPins=[p('U1','77')];
+ const d=swdDelta(old,next,cfg),pn=(number,x,y,rotation)=>({number,x,y,rotation});
+ const doc={truncated:false,components:[{uniqueId:'U1',id:'u',pins:[pn('72',100,400,0),pn('76',100,440,0)]},
+   {uniqueId:'J1',id:'j',pins:['1','2','3','4','5'].map((n,i)=>pn(n,200,300-10*i,180))}]};
+ assert.deepEqual(swdRoutes(d,doc,[]).map(r=>r.net),['+3V3','SWDIO','SWCLK','GND','NRST','SWDIO','SWCLK']);
+ assert.throws(()=>swdRoutes(d,doc,[[110,390,110,410]]),/COLLISION/);
+ next.nets[4].endpoints[0].pin='3';assert.throws(()=>swdDelta(old,next,cfg),/PINOUT/);
+});
+test('one Hanxia model is edited only when its complete user set is the two authorized switches',()=>{
+ const line=(type,id,body)=>JSON.stringify({type,id})+'||'+JSON.stringify(body)+'|';
+ const source='dc3f8cc7ecf7413e8a301cb9514090a5|0819f05c4eef4c71ace90d822a990e87',xs=[-80.12,80.12];
+ const pads=xs.map((centerX,i)=>line('PAD','p'+i,{num:String(i+1),centerX,centerY:0,layerId:1,hole:null,specialPad:[],padAngle:0,padOffsetX:.002,padOffsetY:0,defaultPad:{padType:'RECT',width:60.236,height:53.543,radius:0}}));
+ const lines=[line('DOCHEAD','m',{docType:'FOOTPRINT',uuid:'m'}),line('META','meta',{source}),...pads,line('SILK','s',{width:4})];
+ const data=Buffer.from(zipSync({'board.epru':strToU8(lines.join('\n'))})),cfg={resetSwitch:'SW1',bootSwitch:'SW2'};
+ const parts=['SW1','SW2'].map((ref,i)=>({id:ref,uniqueId:ref,designator:ref,x:i*500,y:0,rotation:0,layer:1,footprint:{uuid:'m'},supplierId:'C36498961',manufacturerPart:'HX 3x4x2-2P-2.5N',
+   pins:xs.map((x,k)=>({id:ref+'p'+k,number:String(k+1),x:i*500+x,y:0,layer:1,hole:null,padShape:['RECT',60.2,53.5,0],net:(i?['BOOT0','+3V3']:['NRST','GND'])[k]}))}));
+ const plan=switchLandPlan(data.toString('base64'),parts,cfg);assert.throws(()=>switchLandPlan(data.toString('base64'),[...parts,{...parts[0],uniqueId:'SW3'}],cfg),/OTHER_USERS/);
+ assert.equal(strFromU8(unzipSync(patchHolderArchive(data,plan))['board.epru']).split('\n').at(-1),lines.at(-1));
+ for(const c of parts)for(const [i,p]of plan.pads.entries()){c.pins[i].x=c.x+p.after.centerX;c.pins[i].padShape=['RECT',41.3,78.7,0];}
+ const physical=switchBoardCopper(plan,parts);assert.equal(physical.length,4);assert.ok(Math.abs(physical[1].x-physical[0].x-physical[0].w-3.4)<1e-7);
+ parts[0].pins[1].net='+3V3';assert.throws(()=>switchBoardCopper(plan,parts),/UNCONFIRMED/);
+});
 
 test('H563 reset discharges to ground and a separate momentary boot key asserts the pulled-down input',()=>{
  const cfg={crystal:'Y1',pullDown:'R1',filter:'C1',resetSwitch:'SW1',bootSwitch:'SW2'};
