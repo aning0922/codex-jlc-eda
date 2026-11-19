@@ -1,6 +1,6 @@
 # Development status / 开发进展
 
-2026-11-18 · Local source / 本地源码 `0.11.0-dev.a18`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
+2026-11-18 · Local source / 本地源码 `0.11.0-dev.a19`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
 
 The RC qualification used EDA 4.1.71 for A6–A9 and 4.1.105 on macOS for the A10 closeout and A11 background lifecycle. Project files and native evidence are retained locally.
 

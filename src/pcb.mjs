@@ -288,9 +288,11 @@ export const pcbWorkflow={
   }
   const dir=await realpath(p.outputDirectory),file=path.join(dir,'work.eprj2'),hash=r?.derivation.sourceSha256??digest(await readFile(source));
   if(!r){
-  await copyFile(source,file,constants.COPYFILE_EXCL);
-  r={kind:'derivation_pending',renderMode:p.renderMode??'headless',requestId:p.requestId,path:file,circuit:p.circuit,actions:{},derivation:{sourcePath:source,sourcePcbState:p.sourcePcbState,sourceSha256:hash,copiedSha256:digest(await readFile(file)),at:new Date().toISOString()}};await persist(dir,r);
-  if(r.derivation.copiedSha256!==hash||digest(await readFile(source))!==hash)fail('SOURCE_CHANGED_DURING_COPY',undefined,'unknown');
+  const prepared=p.preparedHolder;
+  if(prepared&&(prepared.binding.source!==source||prepared.binding.sourceSha256!==hash||prepared.binding.output!==dir||prepared.binding.requestId!==p.requestId))fail('HOLDER_PREPARED_FILE_BINDING');
+  await copyFile(prepared?.path??source,file,constants.COPYFILE_EXCL);
+  r={kind:'derivation_pending',renderMode:p.renderMode??'headless',requestId:p.requestId,path:file,circuit:p.circuit,actions:{},derivation:{sourcePath:source,sourcePcbState:p.sourcePcbState,sourceSha256:hash,copiedSha256:digest(await readFile(file)),...(prepared?{holderLand:prepared}:{}),at:new Date().toISOString()}};await persist(dir,r);
+  if(r.derivation.copiedSha256!==(prepared?.fileSha256??hash)||digest(await readFile(source))!==hash)fail('SOURCE_CHANGED_DURING_COPY',undefined,'unknown');
   }
   // Older journals used openAttempt for the same one-shot open intent.
   if(!r.taskOpenAttempt&&r.openAttempt){r.taskOpenAttempt=r.openAttempt;r.renderMode??=r.openAttempt.response?.headless?'headless':'visible';}
@@ -314,9 +316,22 @@ export const pcbWorkflow={
    const sourceInventory={...inv,standaloneCounts:{...inv.standaloneCounts,Via:inv.standaloneCounts?.Via-(inv.objects??[]).filter(x=>x.kind==='Via'&&ownedIds.has(x.id)).length}};
    if(native.status!=='ok'||!emptyInventory(sourceInventory)||native.objects.some(x=>!isOwnedFootprintVia(x))||doc.status!=='ok'||doc.truncated!==false||!doc.counts.components)fail('DERIVE_SYNC_SOURCE_HAS_CONTENT','Only already synchronized, unrouted PCB with no standalone content is supported.','unsupported');
    const actual=await this.jlc_eda_verify_pcb(target);
-   if(actual.status!=='ok'||actual.comparison?.status!=='matched'||positionDiff(history.pcbSyncBaseline.after,pcbSnapshot(actual.pcbDocument)).length||fingerprint(history.pcbSyncBaseline.after.components.map(x=>[x.uniqueId,x.id,x.device?.uuid,x.footprint?.uuid,x.pins.map(p=>Object.fromEntries(['id','number','x','y','rotation','net','noConnected','name','pinType','layer','padShape','hole'].map(k=>[k,p[k]])))]))!==fingerprint(pcbSnapshot(actual.pcbDocument).components.map(x=>[x.uniqueId,x.id,x.device?.uuid,x.footprint?.uuid,x.pins.map(p=>Object.fromEntries(['id','number','x','y','rotation','net','noConnected','name','pinType','layer','padShape','hole'].map(k=>[k,p[k]])))])))fail('DERIVE_SYNC_BASELINE_MISMATCH');
+   let baseline=history.pcbSyncBaseline;
+   if(r.derivation.holderLand){
+    const holder=p.preparedHolder??r.derivation.holderLand;
+    if(holder.fileSha256!==r.derivation.copiedSha256||holder.binding.output!==dir||holder.binding.sourceSha256!==hash||holder.binding.requestId!==r.requestId||
+      holder.cam?.unchangedDrillProgram!==true||holder.cam.drillHitsInLand!==0)fail('HOLDER_COPPER_AND_DRILL_PROOF_REQUIRED');
+    r.derivation.holderLand=holder;
+    const {plan,pcbPadShape,pcbPadHole}=holder;baseline=structuredClone(baseline);
+    const part=baseline.after.components.find(c=>c.id===plan.componentId&&c.uniqueId===plan.ref);
+    const pad=part?.pins.find(p=>p.id===part.id+plan.padId&&p.number==='2'&&p.net==='VBAT_CELL');
+    if(!pad||pad.padShape?.[0]!=='RECT'||pad.hole!==null)fail('HOLDER_SOURCE_PAD_BINDING');pad.padShape=pcbPadShape;
+    // The custom SMD pad's native getter projects a hole even when both Excellon programs prove there is none.
+    pad.hole=pcbPadHole;
+   }
+   if(actual.status!=='ok'||actual.comparison?.status!=='matched'||positionDiff(baseline.after,pcbSnapshot(actual.pcbDocument)).length||fingerprint(baseline.after.components.map(x=>[x.uniqueId,x.id,x.device?.uuid,x.footprint?.uuid,x.pins.map(p=>Object.fromEntries(['id','number','x','y','rotation','net','noConnected','name','pinType','layer','padShape','hole'].map(k=>[k,p[k]])))]))!==fingerprint(pcbSnapshot(actual.pcbDocument).components.map(x=>[x.uniqueId,x.id,x.device?.uuid,x.footprint?.uuid,x.pins.map(p=>Object.fromEntries(['id','number','x','y','rotation','net','noConnected','name','pinType','layer','padShape','hole'].map(k=>[k,p[k]])))])))fail('DERIVE_SYNC_BASELINE_MISMATCH');
    r.derivation.sourceCheckpoint={path:checkpoint,sha256:digest(bytes),history};
-   r.derivation.synchronizedVerification=actual;r.pcbSyncBaseline=history.pcbSyncBaseline;
+   r.derivation.synchronizedVerification=actual;r.pcbSyncBaseline=baseline;
   }
   if(digest(await readFile(source))!==hash)fail('DERIVE_SOURCE_CHANGED',undefined,'unknown');
   Object.assign(r,{kind:'task_work_project',createdAt:new Date().toISOString(),bindingStatus:'verified',boardName:link.boardName,derivationVerified:true,initialPcb:{inventory:inv,document:doc}});await persist(dir,r);

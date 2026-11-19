@@ -77,3 +77,5 @@ STM32H563VI 采用片内 LDO 时，先核对 ST 引脚表和供电图，使用�
 STM32H563VI 使用滤波后的 3.3 V 作为外部 ADC 基准时，`analogSupply` 指定磁珠 `bead`、0 Ω 地连接 `groundLink`、按 1 µF/100 nF/10 nF 排列的 `vddaCaps` 和按 1 µF/100 nF 排列的 `vrefCaps`。一只磁珠从 +3V3 馈电，21、22 脚共用 +3V3A，19、20 脚共用 GNDA。先核实官方引脚和器件参数，再在已同步、未布线副本上规划和验证。
 
 STM32H563VI 的 `usbBackupSupply` 可在同一类副本上添加 VDDUSB 与一次电池后备电源。指定电池座 `holder`、串联隔离二极管 `diode`、USB 的 `usbBulk` 与 `usbBypass`、VBAT 的 `backupBypass`。第 73 脚用数字 +3V3，6 脚用隔离后的 VBAT。工程采用经过触点、符号和焊盘核对的固定料号，CR2032 充电功能保持关闭。
+
+STM32H563VI 的 `lse` 增量指定 `crystal`、`loadIn`、`loadOut` 和已有的 `holder`。先按厂家俯视图修正唯一使用的 BS-08 工程封装的 2 号焊盘外侧两个角，通过正式工程交换文件导入并核对完整原理图及 PCB 来源。确认 8、9 脚及 SSP-T7-F 的 1、4 振荡端，为 2、3 脚保留外部不连接。

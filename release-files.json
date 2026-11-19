@@ -75,6 +75,8 @@
     "src/digital-power.mjs",
     "src/analog-power.mjs",
     "src/usb-backup.mjs",
+    "src/lse.mjs",
+    "src/holder-land.mjs",
     "src/incremental-allocators.mjs",
     "src/incremental-model.mjs",
     "src/incremental-native.mjs",

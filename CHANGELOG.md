@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a19 · 2026-11-19
+
+- Verify the H563 LSE crystal terminals, load capacitors and open support leads. The working copy incorporates the BS-08 holder’s two outer pad radii through a single-record local footprint edit and a qualified native project import.
+
 ## 0.11.0-dev.a18 · 2026-11-19
 
 - Qualify VDDUSB and the primary-cell VBAT branch on the STM32H563VI. Check the two supply pins, battery holder land polarity, diode direction and original PCB when adding the two rails and local decoupling. Small two-terminal symbol source reads include their body strokes for polarity checks.

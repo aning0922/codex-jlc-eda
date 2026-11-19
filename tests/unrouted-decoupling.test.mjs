@@ -3,10 +3,58 @@ import assert from 'node:assert/strict';
 import {decouplingDelta} from '../src/unrouted-decoupling.mjs';
 import {analogPowerDelta,analogPowerRoutes,verifyAnalogDevice,verifyAnalogPins} from '../src/analog-power.mjs';
 import {usbBackupDelta,usbBackupRoutes,verifyUsbBackupPins,verifyUsbBackupDevice,verifyHolderSymbol,verifyPolarizedFootprint} from '../src/usb-backup.mjs';
+import {lseDelta,lseRoutes,verifyLsePins} from '../src/lse.mjs';
+import {checkHolderCopper,holderLandPlan,patchHolderArchive,verifyHolderCam} from '../src/holder-land.mjs';
+import {zipSync,unzipSync,strToU8,strFromU8} from 'fflate';
 import {scripts} from '../src/native-scripts.mjs';
 import {factsScript} from '../src/native-facts.mjs';
 const run=(source,eda)=>new (Object.getPrototypeOf(async function(){}).constructor)('eda','return await '+source)(eda);
 const pin=(ref,number)=>({ref,pin:number});
+test('the LSE uses crystal leads 1/4; both support leads stay externally open',()=>{
+ const config={crystal:'Y1',loadIn:'C1',loadOut:'C2',holder:'BT1'};
+ const before={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'},{ref:'BT1',supplierId:'C5377561'}],notes:[],nc:[],
+  openPins:['8','9','10'].map(n=>pin('U1',n)),nets:[{name:'GND',endpoints:[pin('BT1','1')]}]};
+ const after=structuredClone(before);after.openPins=[pin('U1','10')];after.nc=['2','3'].map(n=>pin('Y1',n));
+ for(const ref of ['Y1','C1','C2'])after.components.push({ref,designator:ref});
+ after.nets[0].endpoints.push(pin('C1','2'),pin('C2','2'));
+ for(const [name,n,x,c] of [['LSE_IN','8','1','C1'],['LSE_OUT','9','4','C2']])after.nets.push({name,endpoints:[pin('U1',n),pin('Y1',x),pin(c,'1')]});
+ const d=lseDelta(before,after,config),native=[{number:'8',name:'PC14-OSC32_IN',net:''},{number:'9',name:'PC15-OSC32_OUT',net:''}];verifyLsePins(d,native);
+ for(const change of [a=>a.nets[2].endpoints[1].pin='2',a=>a.nc.pop(),a=>a.nets[0].endpoints.shift(),a=>a.nets[0].name='GNDA',a=>a.openPins.pop()]){
+  const wrong=structuredClone(after);change(wrong);assert.throws(()=>lseDelta(before,wrong,config));
+ }
+ const pn=(number,x,y,rotation)=>({number,x,y,rotation}),part=(id,pins)=>({id,uniqueId:id,pins});
+ const doc={truncated:false,components:[part('Y1',[pn('1',100,100,180),pn('4',160,100,0)]),part('C1',[pn('1',50,90,90),pn('2',50,55,270)]),
+   part('C2',[pn('1',210,90,90),pn('2',210,55,270)]),part('U1',[pn('8',400,120,180),pn('9',400,110,180)])]};
+ assert.deepEqual(lseRoutes(d,doc,[]).map(x=>x.net),['LSE_IN','LSE_OUT','GND','LSE_IN','LSE_OUT']);
+ assert.throws(()=>lseRoutes(d,doc,[[73,94,73,106]]),/COLLISION/);
+});
+test('BS-08 pad 2 preserves its anchor, mask, offsets and rotation while rounding only the two outward corners',()=>{
+ const pad=(num,w,h,x,angle)=>({num,layerId:1,centerX:x,centerY:0,padAngle:angle,padOffsetX:.001,padOffsetY:-.005,hole:null,specialPad:[],defaultPad:{padType:'RECT',width:w/.0254,height:h/.0254,radius:0}});
+ const source='2dd9463ac7dc49cb95299c9c9e798fbe|0819f05c4eef4c71ace90d822a990e87',line=(type,id,body)=>JSON.stringify({type,id})+'||'+JSON.stringify(body)+'|';
+ const lines=[line('DOCHEAD','m',{uuid:'m',docType:'FOOTPRINT'}),line('META','meta',{source}),line('PAD','p1',pad('1',4.5,2.4,0,0)),line('PAD','p2',pad('2',3.05,3.4,21.175/.0254,180))];
+ const zip=Buffer.from(zipSync({'design.epru':strToU8(lines.join('\n')),'other':strToU8('unchanged')}));
+ const c={uniqueId:'BT1',designator:'BT1',id:'bt',supplierId:'C5377561',manufacturerPart:'BS08A3B0J001-TP',rotation:0,layer:1,footprint:{uuid:'m'},pins:[{id:'btp1',number:'1',net:'GND'},{id:'btp2',number:'2',net:'VBAT_CELL'}]};
+ const p=holderLandPlan(zip.toString('base64'),[c],'BT1'),edited=unzipSync(patchHolderArchive(zip,p)),out=strFromU8(edited['design.epru']).split('\n');
+ assert.deepEqual(out.slice(0,3),lines.slice(0,3));assert.equal(strFromU8(edited.other),'unchanged');assert.equal(p.after.defaultPad.path.filter(x=>x==='ARC').length,2);
+ assert.deepEqual({...p.after,defaultPad:p.before.defaultPad},p.before);assert.ok(Math.abs(p.endFlatMm-.8)<.000001);
+ const center=p.before.centerX+p.before.padOffsetX,top=p.before.centerY+p.before.padOffsetY+p.before.defaultPad.height/2;
+ const [left,y,,rightTangent]=p.after.defaultPad.path;
+ assert.ok(Math.abs(left-(center-p.before.defaultPad.width/2))<1e-7&&y===top&&rightTangent>center);
+ const live={x:center,y:p.before.centerY,padShape:['POLYGON',p.after.defaultPad.path]};
+ const copper=checkHolderCopper(p,{x:0,y:0},live);assert.ok(copper.outerRadiiMm.every(r=>Math.abs(r-1.3)<1e-6));
+ assert.throws(()=>checkHolderCopper(p,{x:100,y:0},live),/CONTOUR/);
+ assert.throws(()=>holderLandPlan(zip.toString('base64'),[c,{...c,uniqueId:'BT2'}],'BT1'));
+});
+test('the holder CAM comparison requires the two physical clockwise corners and an unchanged drill file',()=>{
+ const headers='G04 Land*\n%FSLAX45Y45*%\n%MOMM*%\n%ADD10R,3.05X3.4*%\nG75*\n';
+ const original='D10*\nG01X152500Y170000D03*\n',region='G36*\nG01X0Y340000D02*\nG01X175000Y340000D01*\nG02X305000Y210000I0J-130000D01*\nG01X305000Y130000D01*\nG02X175000Y0I-130000J0D01*\nG01X0Y0D01*\nG01X0Y340000D01*\nG37*\n';
+ const drill='M48\nMETRIC,LZ,0000.00000\nT01C0.9\n%\nG05\nG90\nT01\nX8.0Y8.0\nM30';
+ const archive=(top,d=drill)=>zipSync({'top.gtl':strToU8(headers+top+'M02*'),'pth.drl':strToU8(d)});
+ const facts={centerMm:[1.525,1.7],widthMm:3.05,heightMm:3.4},before=archive(original);
+ assert.equal(verifyHolderCam(before,archive(region),facts).holeCount,1);
+ assert.throws(()=>verifyHolderCam(before,archive(region.replace('G02','G03')),facts),/OUTLINE/);
+ assert.throws(()=>verifyHolderCam(before,archive(region,drill.replace('X8.0Y8.0','X1.5Y1.7')),facts),/DRILL_PROGRAM/);
+});
 test('VDDUSB uses the existing digital rail; the two distinct VBAT nets meet at the qualified diode',()=>{
  const config={holder:'BT1',diode:'D1',usbBulk:'C1',usbBypass:'C2',backupBypass:'C3'};
  const before={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'}],notes:[],nc:[],openPins:['6','73','23'].map(n=>pin('U1',n)),
