@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a23 · 2026-11-20
+
+- Add a pair of 4.7 µF bulk capacitors to the existing H563 digital rails. Verify every original connection and pad, including shared-number shield slots, after PCB synchronization and disk reopen.
+
 ## 0.11.0-dev.a22 · 2026-11-20
 
 - Add a self-powered H563 USB-C data port to a synchronized, unrouted copy. Verify both plug orientations, the two ESD channels, independent CC pull-downs, VBUS sensing and four grounded shield slots.

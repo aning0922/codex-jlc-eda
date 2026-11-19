@@ -147,3 +147,44 @@ export function digitalPowerRoutes(delta,doc,oldLines){
   }
   return wires;
 }
+
+// Two bulk capacitors on an established digital rail release no MCU pins.
+export function bulkDecouplingDelta(before,after,refs){
+  const caps=after.components.filter(c=>refs.includes(c.ref));
+  check(refs.length===2&&new Set(refs).size===2&&caps.length===2&&refs.every(r=>caps.some(c=>c.ref===r))&&
+    caps.every(c=>/^C\d+$/.test(c.ref)&&c.ref===c.designator)&&sameModel(caps[0],caps[1])&&
+    /^4\.7[uµμ]F$/.test(caps[0].properties.Value),'BULK_TWO_4U7_CAPACITORS_REQUIRED');
+  check(!before.components.some(c=>refs.includes(c.ref))&&equal(before.components,after.components.filter(c=>!refs.includes(c.ref)))&&
+    equal(before.notes,after.notes)&&equal(before.nc,after.nc)&&equal(before.openPins,after.openPins),'BULK_OLD_CIRCUIT_CHANGED');
+  const mcu=before.components.filter(c=>c.manufacturerPart==='STM32H563VIT6');
+  check(mcu.length===1,'BULK_H563VI_REQUIRED');
+  const supply=before.nets.find(n=>n.name==='+3V3'),ground=before.nets.find(n=>n.name==='GND');
+  const has=(net,ref,pin)=>net?.endpoints.some(e=>e.ref===ref&&e.pin===pin);
+  check(['11','28','50','75','100'].every(n=>has(supply,mcu[0].ref,n))&&
+    ['10','27','49','74','99'].every(n=>has(ground,mcu[0].ref,n))&&
+    before.components.filter(c=>c.properties?.Value==='100nF'&&has(supply,c.ref,'1')&&has(ground,c.ref,'2')).length>=5,'BULK_DIGITAL_SUPPLY_REQUIRED');
+  const expected=new Map(caps.flatMap(c=>[[c.ref+'.1','+3V3'],[c.ref+'.2','GND']]));
+  const prior=after.nets.map(n=>({...n,endpoints:n.endpoints.filter(p=>{
+    if(!refs.includes(p.ref))return true;
+    check(expected.get(key(p))===n.name,'BULK_CAPACITOR_PIN_NET');expected.delete(key(p));return false;
+  })}));
+  check(!expected.size&&equal(before.nets,prior),'BULK_EXISTING_NET_CHANGED');
+  return {bulkDecoupling:refs,caps,owner:mcu[0].ref,supply,assignments:[],newNetNames:[],terminals:[]};
+}
+export function verifyBulkCapacitor(device,spec){
+  const p=device.parameters,rating=p['Voltage Rating']??p['Voltage Rated'];
+  check(device.subPartNames.length===1&&spec.subPartName===device.subPartNames[0]&&p['Supplier Footprint']==='0805'&&
+    p['Temperature Coefficient']==='X7R'&&/^4\.7[uµμ]F$/.test(p.Value)&&/^\d+(?:\.\d+)?V$/.test(rating)&&parseFloat(rating)>3.3,'BULK_CAPACITOR_SPECIFICATION');
+}
+export function bulkDecouplingRoutes(d,doc,oldLines){
+  const {pins,reserve}=powerWireSpace(doc,oldLines);
+  return [['1','+3V3',90,1],['2','GND',270,-1]].map(([number,net,rotation,sign])=>{
+    const anchors=d.bulkDecoupling.map(ref=>pins.get(ref+'.'+number));
+    check(anchors.every(p=>p?.rotation===rotation),'BULK_CAP_ORIENTATION');
+    const [a,b]=anchors;
+    check(a.y===b.y&&Math.abs(b.x-a.x)>=40,'BULK_CAP_ALIGNMENT');
+    const y=a.y+sign*12,lines=[[a.x,a.y,a.x,y],[a.x,y,b.x,y],[b.x,y,b.x,b.y]];
+    reserve(lines,anchors);
+    return {key:'bulk-'+number,net,anchors,lines,labelAt:[(a.x+b.x)/2,y+5]};
+  });
+}

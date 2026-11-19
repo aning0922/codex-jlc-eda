@@ -9,6 +9,28 @@ import {bootResetDelta,bootResetRoutes} from '../src/boot-reset.mjs';
 import {crystalLandPlan,crystalBoardCopper} from '../src/crystal-land.mjs';
 import {swdDelta,swdRoutes} from '../src/swd-connector.mjs';
 import {switchLandPlan,switchBoardCopper} from '../src/switch-land.mjs';
+import {bulkDecouplingDelta,bulkDecouplingRoutes,verifyBulkCapacitor} from '../src/digital-power.mjs';
+
+test('a bulk pair adds four endpoints to existing digital nets and releases no old pin',()=>{
+ const pin=(ref,pin)=>({ref,pin}),refs=['C206','C207'],locals=['C201','C202','C203','C204','C205'];
+ const before={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'},...locals.map(ref=>({ref,properties:{Value:'100nF'}}))],
+   openPins:[pin('U1','12')],notes:[],nc:[],nets:[
+   {name:'+3V3',endpoints:[...['11','28','50','75','100'].map(n=>pin('U1',n)),...locals.map(r=>pin(r,'1'))]},
+   {name:'GND',endpoints:[...['10','27','49','74','99'].map(n=>pin('U1',n)),...locals.map(r=>pin(r,'2'))]}]};
+ const after=structuredClone(before);
+ for(const ref of refs){after.components.push({ref,designator:ref,properties:{Value:'4.7uF'}});after.nets[0].endpoints.push(pin(ref,'1'));after.nets[1].endpoints.push(pin(ref,'2'));}
+ const d=bulkDecouplingDelta(before,after,refs);assert.deepEqual(d.assignments,[]);assert.deepEqual(d.newNetNames,[]);
+ for(const edit of [c=>c.nets[0].endpoints.unshift(c.nets[1].endpoints.pop()),c=>c.nets[0].endpoints.shift(),
+   c=>c.nets.push({name:'GNDA',endpoints:[]}),c=>c.openPins.pop(),c=>c.components.at(-1).properties.Value='1uF']){
+   const bad=structuredClone(after);edit(bad);assert.throws(()=>bulkDecouplingDelta(before,bad,refs));
+ }
+ const doc={truncated:false,components:refs.map((ref,i)=>({id:ref,uniqueId:ref,pins:[
+   {number:'1',x:100+i*80,y:120,rotation:90},{number:'2',x:100+i*80,y:90,rotation:270}]}))};
+ const rails=bulkDecouplingRoutes(d,doc,[]);assert.deepEqual(rails.map(w=>w.net),['+3V3','GND']);assert(rails.every(w=>w.anchors.length===2&&w.lines.length===3));
+ assert.throws(()=>bulkDecouplingRoutes(d,doc,[[130,125,130,140]]),/COLLISION/);
+ const device={subPartNames:['cap'],parameters:{'Supplier Footprint':'0805','Temperature Coefficient':'X7R','Voltage Rating':'16V',Value:'4.7uF'}};
+ verifyBulkCapacitor(device,{subPartName:'cap'});assert.throws(()=>verifyBulkCapacitor({...device,parameters:{...device.parameters,'Voltage Rating':'2.5V'}},{subPartName:'cap'}));
+});
 
 test('the five-pin SWD header reuses NRST and only releases the two debug GPIOs',()=>{
  const p=(ref,pin)=>({ref,pin}),cfg={header:'J1',resetSwitch:'SW1',bootSwitch:'SW2'};

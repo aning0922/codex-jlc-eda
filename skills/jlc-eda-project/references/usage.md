@@ -85,3 +85,5 @@ STM32H563VI 的 `bootReset` 增量使用 `crystal` 指定 SSP-T7-F，`pullDown`�
 STM32H563VI 的 `swdConnector` 增量用 `header` 指定五针直排针，`resetSwitch`、`bootSwitch` 指定仅有的两处韩下轻触开关实例。两处工程铜面均与厂家推荐尺寸核对。J201 从 1 到 5 依次接目标 +3V3 参考、SWDIO、SWCLK、GND、NRST。这个单排接口按信号接转接线。
 
 `usbData` 用于 STM32H563VI 自供电的 USB 2.0 从设备。指定汉博 MC-121-L119 母座 `jack`、USBLC6-2SC6 `esd`、两颗 5.1 kΩ 下拉 `cc1`、`cc2`、33 kΩ 和 47 kΩ 分压 `senseTop`、`senseBottom` 以及端口电容 `bulk`。PA11、PA12 分别接 D−、D+，PD13 读 VBUS。A8、B8 标为 NC。一个 EH 符号脚对应四个接地镀槽，验收分别计算逻辑引脚与物理焊盘。
+
+`bulkDecoupling` 接受两个新电容位号，在已有的 +3V3 和数字 GND 间并联两颗同型号 4.7 µF、0805、X7R 电容。先核实 H563VI 的五组数字供电和已有局部去耦。新电容 1 脚接 +3V3，2 脚接 GND。只在已同步、未布线副本使用。
