@@ -12,6 +12,7 @@ import {importLocalProject} from './project-import.mjs';
 import {manufactureScript} from './manufacturing.mjs';
 import {parseCam} from './manufacturing-files.mjs';
 import {camGeometry} from './manufacturing-geometry.mjs';
+import {crystalLandPlan,crystalBoardCopper,verifyCrystalCam} from './crystal-land.mjs';
 
 const need=(ok,code)=>{if(!ok)throw Object.assign(Error(code),{code,status:'unknown'});};
 const mm=.0254,near=(a,b,t=.005)=>Math.abs(a-b)<t;
@@ -93,24 +94,24 @@ export function verifyHolderCam(beforeBytes,afterBytes,copper){
 
 // Keep every other native line and every other exchange member byte-for-byte.
 export function patchHolderArchive(bytes,plan,required=true){
-  const files=unzipSync(bytes);let count=0;
+  const files=unzipSync(bytes),edits=new Map((plan.pads??[plan]).map(p=>[p.padId,p])),seen=new Set();
   for(const name of Object.keys(files).filter(n=>n.endsWith('.epru'))){
     let current=null,changed=false;
     const lines=strFromU8(files[name]).split('\n').map(line=>{
       if(!line.trim())return line;
       const sep=line.indexOf('||');need(sep>=0,'HOLDER_EXCHANGE_FORMAT');
       const h=JSON.parse(line.slice(0,sep));
-      if(h.type!=='DOCHEAD'&&!(current===plan.modelUuid&&h.type==='PAD'&&h.id===plan.padId))return line;
+      if(h.type!=='DOCHEAD'&&!(current===plan.modelUuid&&h.type==='PAD'&&edits.has(h.id)))return line;
       const raw=line.slice(sep+2).replace(/\r$/,'').replace(/\|$/,'');const body=JSON.parse(raw);
       if(h.type==='DOCHEAD'){current=body.docType==='FOOTPRINT'?body.uuid:null;return line;}
-      need(equal(body,plan.before),'HOLDER_LAND_INPUT_CHANGED');
-      changed=true;count++;
-      return line.slice(0,sep+2)+JSON.stringify(plan.after)+'|'+(line.endsWith('\r')?'\r':'');
+      const edit=edits.get(h.id);need(!seen.has(h.id)&&equal(body,edit.before),'LAND_INPUT_CHANGED');
+      changed=true;seen.add(h.id);
+      return line.slice(0,sep+2)+JSON.stringify(edit.after)+'|'+(line.endsWith('\r')?'\r':'');
     });
     if(changed)files[name]=strToU8(lines.join('\n'));
   }
-  need(count===1||(!required&&count===0),'HOLDER_EXCHANGE_TARGET_COUNT');
-  return count?Buffer.from(zipSync(files)):Buffer.from(bytes);
+  need(seen.size===edits.size||(!required&&!seen.size),'LAND_EXCHANGE_TARGET_COUNT');
+  return seen.size?Buffer.from(zipSync(files)):Buffer.from(bytes);
 }
 
 async function archives(a,t){
@@ -132,9 +133,10 @@ async function exportExchange(uuid){
   let s='';for(const b of new Uint8Array(await f.arrayBuffer()))s+=String.fromCharCode(b);
   return (await eda.dmt_Project.getCurrentProjectInfo())?.uuid===uuid?{status:'ok',data:btoa(s)}:{status:'failed'};
 }
-export async function prepareHolderCopy(a,p,source,history){
+export async function prepareLandCopy(a,p,source,history){
+  const crystal=!!p.bootReset;
   const binding={source,sourceSha256:digest(await readFile(source)),checkpoint:await realpath(p.sourceCheckpointPath),checkpointSha256:digest(await readFile(p.sourceCheckpointPath)),
-    output:path.resolve(p.outputDirectory),requestId:p.requestId,ref:p.lse.holder,contour:'footprint-right-R1.3'};
+    output:path.resolve(p.outputDirectory),requestId:p.requestId,ref:crystal?p.bootReset.crystal:p.lse.holder,contour:crystal?'SSP-T7-F-0.300mm':'footprint-right-R1.3'};
   const dir=path.join(path.dirname(binding.output),'.jlc-footprint-preparation',fingerprint(binding));
   await mkdir(dir,{recursive:true});const proofPath=path.join(dir,'proof.json'),inputPath=path.join(dir,'inputs.json');
   const optional=name=>readJson(name).catch(e=>{if(e.code==='ENOENT')return null;throw e;});
@@ -142,16 +144,16 @@ export async function prepareHolderCopy(a,p,source,history){
   const withCam=async proof=>{
     const original=await readFile(path.join(dir,'copper-before.zip')),after=await readFile(path.join(dir,'copper-after.zip'));
     need(digest(original)===proof.camBefore&&digest(after)===proof.camAfter,'HOLDER_CAPTURE_CHANGED');
-    proof.cam=verifyHolderCam(original,after,proof.copper);await writeJson(proofPath,proof);return proof;
+    proof.cam=(crystal?verifyCrystalCam:verifyHolderCam)(original,after,proof.copper);await writeJson(proofPath,proof);return proof;
   };
   if(known){need(equal(known.binding,binding)&&digest(await readFile(known.path))===known.fileSha256,'HOLDER_PREPARED_FILE_CHANGED');return withCam(known);}
   const prepared=await withFreshRead(a,source,async o=>{
     const t=target(o);need(o.sourceSha256===binding.sourceSha256,'HOLDER_SOURCE_CHANGED');
-    let frozen=await optional(inputPath);const file=path.join(dir,'rounded.epro2');
+    let frozen=await optional(inputPath);const file=path.join(dir,crystal?'crystal-gap.epro2':'rounded.epro2');
     if(!frozen){
       const doc=await a.jlc_eda_read_document({...t,kind:'pcb',documentUuid:t.pcbDocumentUuid,includePins:true,includeGeometry:true,limit:200});
       need(doc.status==='ok'&&!doc.truncated,'HOLDER_BOARD_UNCONFIRMED');
-      const data=await archives(a,t),plan=holderLandPlan(data.pcb,doc.components,binding.ref),design={};
+      const data=await archives(a,t),plan=(crystal?crystalLandPlan:holderLandPlan)(data.pcb,doc.components,binding.ref),design={};
       for(const [kind,raw] of Object.entries(data)){
         need(equal(archiveDesignFingerprint(raw),history.finish.design[kind]),'HOLDER_CLOSED_SOURCE_ARCHIVE_CHANGED');
         const patched=patchHolderArchive(Buffer.from(raw,'base64'),plan,kind==='pcb');design[kind]=archiveDesignFingerprint(patched.toString('base64'));
@@ -176,12 +178,12 @@ export async function prepareHolderCopy(a,p,source,history){
     const design=Object.fromEntries(Object.entries(data).map(([k,v])=>[k,archiveDesignFingerprint(v)]));
     need(equal(design,prepared.frozen.design),'HOLDER_IMPORTED_NON_TARGET_CHANGED');
     const doc=await a.jlc_eda_read_document({...t,kind:'pcb',documentUuid:t.pcbDocumentUuid,includePins:true,includeGeometry:true,limit:200}),plan=prepared.frozen.plan;
-    const holder=doc.components?.find(c=>c.uniqueId===plan.ref&&c.id===plan.componentId&&c.footprint.uuid===plan.modelUuid);
-    const pin=holder?.pins.find(v=>v.id===holder.id+plan.padId&&v.number==='2'&&v.net==='VBAT_CELL');
-    need(doc.status==='ok'&&pin,'HOLDER_OUTLINE_NOT_ACTIVE');
-    const copper=checkHolderCopper(plan,holder,pin);
+    const part=doc.components?.find(c=>c.uniqueId===plan.ref&&c.id===plan.componentId&&c.footprint.uuid===plan.modelUuid);
+    need(doc.status==='ok'&&part,'LAND_IMPORTED_INSTANCE_MISSING');
+    const pin=crystal?undefined:part.pins.find(v=>v.id===part.id+plan.padId&&v.number==='2'&&v.net==='VBAT_CELL');
+    const copper=crystal?crystalBoardCopper(plan,part):checkHolderCopper(plan,part,pin);
     const camAfter=await exportLandCam(a,t,path.join(dir,'copper-after.zip'));
-    return {status:'ok',pcbPadShape:pin.padShape,pcbPadHole:pin.hole,copper,camAfter,design};
+    return {status:'ok',pcbPadShape:pin?.padShape,pcbPadHole:pin?.hole,copper,camAfter,design};
   });
   need(check.status==='ok'&&check.resourceCleanup?.status==='ok',check.code??'HOLDER_IMPORTED_INSPECTION');
   const proof={...prepared.frozen,path:prepared.file,fileSha256:prepared.hash,pcbPadShape:check.pcbPadShape,pcbPadHole:check.pcbPadHole,copper:check.copper,camAfter:check.camAfter,proofPath};

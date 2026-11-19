@@ -1,9 +1,16 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,readFile,realpath} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
 import {JlcEdaAdapter} from '../src/adapter.mjs';
-import {circuitSchema,compareCircuit,drawingScript} from '../src/drawing.mjs';
+import {circuitSchema,compareCircuit,drawingScript,drawingSchemas} from '../src/drawing.mjs';
 const component={ref:'r',designator:'R1',deviceUuid:'dev',libraryUuid:'lib',supplierId:'part',manufacturerPart:'mpn',footprintUuid:'fp',pose:{x:50,y:50,rotation:90,mirror:false},properties:{Value:'4k7'}};
 const circuit=circuitSchema.parse({components:[component],nets:[{name:'VCC',endpoints:[{ref:'r',pin:'1'}]}],nc:[{ref:'r',pin:'2'}]});
+test('existing designs can exceed 30 parts while a new drawing retains its original batch limit',()=>{
+ const parts=Array.from({length:201},(_,i)=>i?{...component,ref:'r'+i,designator:'R'+(i+1)}:component);
+ const input=n=>({...circuit,components:parts.slice(0,n)});
+ const draw=n=>drawingSchemas.jlc_eda_draw_schematic.safeParse({sessionId:'sess',expectedProjectUuid:'prj',schematicPageUuid:'sch',workDirectory:'/work',requestId:'req',circuit:input(n)}).success;
+ assert.ok(draw(30));assert.equal(draw(31),false);assert.ok(circuitSchema.safeParse(input(33)).success);
+ assert.ok(circuitSchema.safeParse(input(200)).success);assert.equal(circuitSchema.safeParse(input(201)).success,false);
+});
 function snapshot(){return {netlist:{counts:{components:1,pins:2},issues:[],components:[{designator:'R1',uniqueId:'r',supplierId:'part',manufacturerPart:'mpn',pins:[{number:'1',net:'VCC'},{number:'2',net:''}]}]},doc:{counts:{components:1},truncated:false,components:[{...component,id:'instance',uniqueId:'r',rotation:270,x:50,y:50,mirror:false,deviceSource:{uuid:'dev',libraryUuid:'lib'},footprintSource:{uuid:'fp',libraryUuid:'lib'},pins:[{number:'1',noConnected:false},{number:'2',noConnected:true}],properties:{Value:'4k7'}}]}};}
 test('reserved Name is checked against native name, including missing and stale-property counterexamples',()=>{
  const expected=structuredClone(circuit);expected.components[0].properties.Name='IN';

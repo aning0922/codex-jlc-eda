@@ -5,6 +5,37 @@ import {analogPowerDelta,analogPowerRoutes,verifyAnalogDevice,verifyAnalogPins} 
 import {usbBackupDelta,usbBackupRoutes,verifyUsbBackupPins,verifyUsbBackupDevice,verifyHolderSymbol,verifyPolarizedFootprint} from '../src/usb-backup.mjs';
 import {lseDelta,lseRoutes,verifyLsePins} from '../src/lse.mjs';
 import {checkHolderCopper,holderLandPlan,patchHolderArchive,verifyHolderCam} from '../src/holder-land.mjs';
+import {bootResetDelta,bootResetRoutes} from '../src/boot-reset.mjs';
+import {crystalLandPlan,crystalBoardCopper} from '../src/crystal-land.mjs';
+
+test('H563 reset discharges to ground and a separate momentary boot key asserts the pulled-down input',()=>{
+ const cfg={crystal:'Y1',pullDown:'R1',filter:'C1',resetSwitch:'SW1',bootSwitch:'SW2'};
+ const pin=(ref,pin)=>({ref,pin}),old={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'},{ref:'Y1',supplierId:'C108687'}],
+  notes:[],nc:[pin('Y1','2'),pin('Y1','3')],openPins:['14','94','95'].map(n=>pin('U1',n)),nets:[{name:'GND',endpoints:[pin('U1','10')]},{name:'+3V3',endpoints:[pin('U1','11')]}]};
+ const next=structuredClone(old);next.openPins=[pin('U1','95')];next.components.push(...['C1','R1','SW1','SW2'].map(ref=>({ref,designator:ref})));
+ next.nets[0].endpoints.push(pin('R1','2'),pin('C1','2'),pin('SW1','2'));next.nets[1].endpoints.push(pin('SW2','2'));
+ next.nets.push({name:'BOOT0',endpoints:[pin('U1','94'),pin('R1','1'),pin('SW2','1')]},{name:'NRST',endpoints:[pin('U1','14'),pin('C1','1'),pin('SW1','1')]});
+ const d=bootResetDelta(old,next,cfg);assert.deepEqual(d.assignments.map(p=>p.pin),['14','94']);
+ const pn=(number,x,y,rotation)=>({number,x,y,rotation});
+ const doc={truncated:false,components:[{id:'u',uniqueId:'U1',pins:[pn('14',800,620,180),pn('94',980,690,0)]},
+   ...['SW1','C1','R1','SW2'].map((ref,i)=>({id:ref,uniqueId:ref,pins:[pn('1',90+100*i,120,90),pn('2',90+100*i,70,270)]}))]};
+ assert.equal(bootResetRoutes(d,doc,[]).length,7);assert.throws(()=>bootResetRoutes(d,doc,[[780,610,780,630]]),/COLLISION/);
+ next.nets[0].endpoints.push(next.nets[1].endpoints.pop());assert.throws(()=>bootResetDelta(old,next,cfg),/ASSIGNMENT/);
+});
+test('SSP-T7-F increases the two row gaps symmetrically and limits archive edits to the four bound pad centers',()=>{
+ const source='f9d238b18e8a4114a6eaf8987aa86d60|0819f05c4eef4c71ace90d822a990e87';
+ const line=(type,id,body)=>JSON.stringify({type,id})+'||'+JSON.stringify(body)+'|',co=[[-124.02,-16.735],[124.02,-16.735],[124.02,16.735],[-124.02,16.735]];
+ const rows=co.map(([centerX,centerY],i)=>line('PAD','p'+i,{num:String(i+1),centerX,centerY,layerId:1,hole:null,specialPad:[],padAngle:i%2?90:270,padOffsetX:-.001,padOffsetY:.004,defaultPad:{padType:'RECT',width:23.62,height:47.24,radius:0}}));
+ const lines=[line('DOCHEAD','m',{uuid:'m',docType:'FOOTPRINT'}),line('META','meta',{source}),...rows,line('SILK','s',{width:2})];
+ const archive=Buffer.from(zipSync({'design.epru':strToU8(lines.join('\n'))}));
+ const c={id:'y',uniqueId:'Y1',designator:'Y1',x:10,y:20,rotation:0,layer:1,supplierId:'C108687',manufacturerPart:'SSP-T7-F 32.768kHz 20PPM12.5pF',footprint:{uuid:'m'},
+   pins:co.map(([x,y],i)=>({number:String(i+1),id:'yp'+i,layer:1,hole:null,padShape:['RECT',23.6,47.2,0],net:['LSE_IN','','','LSE_OUT'][i],x:10+x,y:20+y}))};
+ const p=crystalLandPlan(archive.toString('base64'),[c],'Y1'),changed=strFromU8(unzipSync(patchHolderArchive(archive,p))['design.epru']).split('\n');
+ assert.deepEqual(changed.slice(0,2),lines.slice(0,2));assert.equal(changed.at(-1),lines.at(-1));
+ for(const e of p.pads){assert.deepEqual({...e.after,centerY:e.before.centerY},e.before);c.pins.find(pin=>pin.number===e.number).y=c.y+e.after.centerY;}
+ const physical=crystalBoardCopper(p,c);assert.ok(Math.abs(physical[3].y-physical[0].y-physical[0].h-.3)<1e-8);
+ c.pins[0].y+=1;assert.throws(()=>crystalBoardCopper(p,c),/POSITION/);
+});
 import {zipSync,unzipSync,strToU8,strFromU8} from 'fflate';
 import {scripts} from '../src/native-scripts.mjs';
 import {factsScript} from '../src/native-facts.mjs';

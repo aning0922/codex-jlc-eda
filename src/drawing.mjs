@@ -10,7 +10,7 @@ const pendingPin=z.object({ref:id,pin:label}).strict();
 const endpoint=z.object({ref:id,pin:label,stubLength:z.number().min(10).max(80).default(25)}).strict();
 export const componentSchema=z.object({ref:id,designator:label,deviceUuid:id,libraryUuid:id,subPartName:label.optional(),pose,
   properties:z.record(z.string().max(400)).default({}),supplierId:label,manufacturerPart:label,footprintUuid:id}).strict();
-export const circuitSchema=z.object({components:z.array(componentSchema).min(1).max(30),
+const circuitWithLimit=maxComponents=>z.object({components:z.array(componentSchema).min(1).max(maxComponents),
   nets:z.array(z.object({name:label,junction:junction.optional(),endpoints:z.array(endpoint).min(1).max(100)}).strict()).min(1).max(100),
   openPins:z.array(pendingPin).min(1).max(500).optional(),
   nc:z.array(endpoint).default([]),notes:z.array(z.object({x:z.number().finite(),y:z.number().finite(),text:z.string().min(1).max(1000)}).strict()).max(10).default([])
@@ -21,13 +21,15 @@ export const circuitSchema=z.object({components:z.array(componentSchema).min(1).
   for(const e of [...v.nets.flatMap(n=>n.endpoints),...v.nc,...(v.openPins??[])]){const k=e.ref+'.'+e.pin;
     if(!refs.has(e.ref)||used.has(k))c.addIssue({code:'custom',message:'Unknown ref or duplicate endpoint '+k});used.add(k);}
 });
+// Incremental work can grow a verified page to the native read limit. Keep a new bulk drawing bounded.
+export const circuitSchema=circuitWithLimit(200);
 const target={sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,workDirectory:z.string().min(1).max(4096)};
 export const workRenderMode=z.enum(['headless','visible']).describe('New working copies default to headless. Choose visible at creation for native picker or import review. Omit on resume to keep the recorded mode.').optional();
 export const drawingSchemas={
   jlc_eda_create_work_project:z.object({renderMode:workRenderMode,outputDirectory:z.string().min(1).max(4096),blankTemplatePath:z.string().min(1).max(4096).optional(),requestId:id,
     projectImport:z.object({sourcePath:z.string().min(1).max(4096),sessionId:id,expectedProjectUuid:id}).strict().optional()
   }).strict().refine(p=>!!p.blankTemplatePath!==!!p.projectImport,'Choose a blank template or an isolated local project import.').refine(p=>!p.projectImport||!p.renderMode,'Project import uses its existing isolated session.'),
-  jlc_eda_draw_schematic:z.object({...target,requestId:id,phase:z.enum(['place','complete','tidy']).default('complete'),showTitleBlock:z.boolean().default(false),circuit:circuitSchema}).strict(),
+  jlc_eda_draw_schematic:z.object({...target,requestId:id,phase:z.enum(['place','complete','tidy']).default('complete'),showTitleBlock:z.boolean().default(false),circuit:circuitWithLimit(30)}).strict(),
   jlc_eda_verify_schematic:z.object({sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,circuit:circuitSchema}).strict(),
   jlc_eda_save_work_project:z.object({...target,requestId:id,pcbDocumentUuid:id.optional(),schematicUuid:id.optional()}).strict().refine(p=>!!p.pcbDocumentUuid===!!p.schematicUuid,'PCB save requires both pcbDocumentUuid and schematicUuid.'),
   jlc_eda_reopen_work_project:z.object({...target,circuit:circuitSchema}).strict(),

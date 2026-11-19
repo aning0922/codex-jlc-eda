@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a20 · 2026-11-19
+
+- Qualify the H563 LQFP100 BOOT0 and NRST network with a 10 kΩ pull-down, 100 nF filter and normally open boot and reset switches. Set both gaps between the SSP-T7-F pad rows to 0.300 mm and verify the exported top copper.
+
 ## 0.11.0-dev.a19 · 2026-11-19
 
 - Verify the H563 LSE crystal terminals, load capacitors and open support leads. The working copy incorporates the BS-08 holder’s two outer pad radii through a single-record local footprint edit and a qualified native project import.

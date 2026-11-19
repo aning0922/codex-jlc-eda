@@ -76,6 +76,8 @@
     "src/analog-power.mjs",
     "src/usb-backup.mjs",
     "src/lse.mjs",
+    "src/boot-reset.mjs",
+    "src/crystal-land.mjs",
     "src/holder-land.mjs",
     "src/incremental-allocators.mjs",
     "src/incremental-model.mjs",

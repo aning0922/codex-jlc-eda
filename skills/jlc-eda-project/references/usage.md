@@ -79,3 +79,5 @@ STM32H563VI 使用滤波后的 3.3 V 作为外部 ADC 基准时，`analogSupply`
 STM32H563VI 的 `usbBackupSupply` 可在同一类副本上添加 VDDUSB 与一次电池后备电源。指定电池座 `holder`、串联隔离二极管 `diode`、USB 的 `usbBulk` 与 `usbBypass`、VBAT 的 `backupBypass`。第 73 脚用数字 +3V3，6 脚用隔离后的 VBAT。工程采用经过触点、符号和焊盘核对的固定料号，CR2032 充电功能保持关闭。
 
 STM32H563VI 的 `lse` 增量指定 `crystal`、`loadIn`、`loadOut` 和已有的 `holder`。先按厂家俯视图修正唯一使用的 BS-08 工程封装的 2 号焊盘外侧两个角，通过正式工程交换文件导入并核对完整原理图及 PCB 来源。确认 8、9 脚及 SSP-T7-F 的 1、4 振荡端，为 2、3 脚保留外部不连接。
+
+STM32H563VI 的 `bootReset` 增量使用 `crystal` 指定 SSP-T7-F，`pullDown`、`filter`、`resetSwitch` 和 `bootSwitch` 指定启动、复位元件。仅从已验收的 LSE 副本派生，按精工焊盘图对称调整两排焊盘，核对真实铜面。两路常开触点分别将 BOOT0 接至 +3V3、将 NRST 接至 GND。

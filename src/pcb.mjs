@@ -288,10 +288,11 @@ export const pcbWorkflow={
   }
   const dir=await realpath(p.outputDirectory),file=path.join(dir,'work.eprj2'),hash=r?.derivation.sourceSha256??digest(await readFile(source));
   if(!r){
-  const prepared=p.preparedHolder;
+  const prepared=p.preparedLand;
   if(prepared&&(prepared.binding.source!==source||prepared.binding.sourceSha256!==hash||prepared.binding.output!==dir||prepared.binding.requestId!==p.requestId))fail('HOLDER_PREPARED_FILE_BINDING');
   await copyFile(prepared?.path??source,file,constants.COPYFILE_EXCL);
-  r={kind:'derivation_pending',renderMode:p.renderMode??'headless',requestId:p.requestId,path:file,circuit:p.circuit,actions:{},derivation:{sourcePath:source,sourcePcbState:p.sourcePcbState,sourceSha256:hash,copiedSha256:digest(await readFile(file)),...(prepared?{holderLand:prepared}:{}),at:new Date().toISOString()}};await persist(dir,r);
+  const land=prepared?{[p.bootReset?'crystalLand':'holderLand']:prepared}:{};
+  r={kind:'derivation_pending',renderMode:p.renderMode??'headless',requestId:p.requestId,path:file,circuit:p.circuit,actions:{},derivation:{sourcePath:source,sourcePcbState:p.sourcePcbState,sourceSha256:hash,copiedSha256:digest(await readFile(file)),...land,at:new Date().toISOString()}};await persist(dir,r);
   if(r.derivation.copiedSha256!==(prepared?.fileSha256??hash)||digest(await readFile(source))!==hash)fail('SOURCE_CHANGED_DURING_COPY',undefined,'unknown');
   }
   // Older journals used openAttempt for the same one-shot open intent.
@@ -318,7 +319,7 @@ export const pcbWorkflow={
    const actual=await this.jlc_eda_verify_pcb(target);
    let baseline=history.pcbSyncBaseline;
    if(r.derivation.holderLand){
-    const holder=p.preparedHolder??r.derivation.holderLand;
+    const holder=p.preparedLand??r.derivation.holderLand;
     if(holder.fileSha256!==r.derivation.copiedSha256||holder.binding.output!==dir||holder.binding.sourceSha256!==hash||holder.binding.requestId!==r.requestId||
       holder.cam?.unchangedDrillProgram!==true||holder.cam.drillHitsInLand!==0)fail('HOLDER_COPPER_AND_DRILL_PROOF_REQUIRED');
     r.derivation.holderLand=holder;
@@ -328,6 +329,18 @@ export const pcbWorkflow={
     if(!pad||pad.padShape?.[0]!=='RECT'||pad.hole!==null)fail('HOLDER_SOURCE_PAD_BINDING');pad.padShape=pcbPadShape;
     // The custom SMD pad's native getter projects a hole even when both Excellon programs prove there is none.
     pad.hole=pcbPadHole;
+   }
+   if(r.derivation.crystalLand){
+    const land=r.derivation.crystalLand,{plan,copper,cam,binding}=land;
+    if(land.fileSha256!==r.derivation.copiedSha256||binding.output!==dir||binding.sourceSha256!==hash||binding.requestId!==r.requestId||
+      !cam.unchangedDrillProgram||cam.gapsMm.length!==2||!cam.gapsMm.every(v=>Math.abs(v-.3)<.00003))fail('CRYSTAL_COPPER_PROOF_REQUIRED');
+    baseline=structuredClone(baseline);const part=baseline.after.components.find(c=>c.id===plan.componentId&&c.uniqueId===plan.ref&&c.footprint.uuid===plan.modelUuid);
+    if(part?.pins.length!==4||copper.length!==4)fail('CRYSTAL_BASELINE_PAD_COUNT');
+    for(const p of copper){
+     const pad=part.pins.find(v=>v.id===part.id+p.padId&&v.number===p.number);
+     if(!pad||Math.abs(pad.y*.0254-p.beforeY)>.00131||Math.abs(pad.x*.0254-p.beforeX)>.00131)fail('CRYSTAL_BASELINE_LAND_CHANGED');
+     pad.y=p.nativeY;
+    }
    }
    if(actual.status!=='ok'||actual.comparison?.status!=='matched'||positionDiff(baseline.after,pcbSnapshot(actual.pcbDocument)).length||fingerprint(baseline.after.components.map(x=>[x.uniqueId,x.id,x.device?.uuid,x.footprint?.uuid,x.pins.map(p=>Object.fromEntries(['id','number','x','y','rotation','net','noConnected','name','pinType','layer','padShape','hole'].map(k=>[k,p[k]])))]))!==fingerprint(pcbSnapshot(actual.pcbDocument).components.map(x=>[x.uniqueId,x.id,x.device?.uuid,x.footprint?.uuid,x.pins.map(p=>Object.fromEntries(['id','number','x','y','rotation','net','noConnected','name','pinType','layer','padShape','hole'].map(k=>[k,p[k]])))])))fail('DERIVE_SYNC_BASELINE_MISMATCH');
    r.derivation.sourceCheckpoint={path:checkpoint,sha256:digest(bytes),history};
