@@ -230,7 +230,12 @@ export function summarizeSourceModel(result) {
         pinType:attr(header.id,'Pin Type'),noConnected:null});
     }
   }
-  return { ...summary, status:'ok', pins, terminalBounds:null, canvasOrigin:canvas[0].body,
+  // Keep the body strokes with small two-terminal symbols so polarity can be checked against the numbered pins.
+  const outlines=!pcb&&terminals.length===2?of('POLY'):[];
+  const symbolPolylines=outlines.length>0&&outlines.length<=16&&outlines.every(r=>Array.isArray(r.body.points)&&r.body.points.length<=24&&
+    r.body.points.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)))?
+    outlines.map(({body:b})=>({points:b.points.map(p=>[p.x,p.y]),closed:b.closed,strokeWidth:b.strokeWidth})):undefined;
+  return { ...summary, status:'ok', pins, ...(symbolPolylines?{symbolPolylines}:{}),terminalBounds:null, canvasOrigin:canvas[0].body,
     sourceSha256:digest(source),sourceFormat:'native 3.0 pipe records',
     sourceVersion:{version:head[0].body.version ?? null,editVersion:head[0].body.editVersion ?? null},
     recordCounts:Object.fromEntries([...new Set(rows.map(r=>r.header.type))].map(t=>[t,of(t).length])),

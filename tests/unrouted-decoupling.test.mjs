@@ -2,10 +2,50 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {decouplingDelta} from '../src/unrouted-decoupling.mjs';
 import {analogPowerDelta,analogPowerRoutes,verifyAnalogDevice,verifyAnalogPins} from '../src/analog-power.mjs';
+import {usbBackupDelta,usbBackupRoutes,verifyUsbBackupPins,verifyUsbBackupDevice,verifyHolderSymbol,verifyPolarizedFootprint} from '../src/usb-backup.mjs';
 import {scripts} from '../src/native-scripts.mjs';
 import {factsScript} from '../src/native-facts.mjs';
 const run=(source,eda)=>new (Object.getPrototypeOf(async function(){}).constructor)('eda','return await '+source)(eda);
 const pin=(ref,number)=>({ref,pin:number});
+test('VDDUSB uses the existing digital rail; the two distinct VBAT nets meet at the qualified diode',()=>{
+ const config={holder:'BT1',diode:'D1',usbBulk:'C1',usbBypass:'C2',backupBypass:'C3'};
+ const before={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'}],notes:[],nc:[],openPins:['6','73','23'].map(n=>pin('U1',n)),
+   nets:[{name:'+3V3',endpoints:[pin('U1','11')]},{name:'GND',endpoints:[pin('U1','10')]}]};
+ const after=structuredClone(before);after.openPins=[pin('U1','23')];after.nets.push({name:'VBAT_CELL',endpoints:[]},{name:'VBAT',endpoints:[]});
+ const attach=(net,ref,n)=>after.nets.find(v=>v.name===net).endpoints.push({...pin(ref,n),stubLength:15});
+ for(const [ref,a,b] of [['BT1','GND','VBAT_CELL'],['D1','VBAT','VBAT_CELL'],['C1','+3V3','GND'],['C2','+3V3','GND'],['C3','VBAT','GND']]){
+   after.components.push({ref,designator:ref});attach(a,ref,'1');attach(b,ref,'2');
+ }
+ attach('+3V3','U1','73');attach('VBAT','U1','6');
+ const delta=usbBackupDelta(before,after,config),native=[{number:'6',name:'VBAT',net:''},{number:'73',name:'VDDUSB',net:''}];
+ verifyUsbBackupPins(delta,native);assert.throws(()=>verifyUsbBackupPins(delta,[native[0],{...native[1],name:'VDD'}]));
+ for(const change of [a=>a.nets[3].endpoints[0].pin='2',a=>a.nets[2].name='+3V3',a=>a.nets[0].endpoints.shift(),
+   a=>a.nets[3].endpoints.pop(),a=>a.openPins.pop()]){
+   const bad=structuredClone(after);change(bad);assert.throws(()=>usbBackupDelta(before,bad,config));
+ }
+ const term=(number,x,y,rotation)=>({number,x,y,rotation}),m=(ref,pins)=>({id:ref,uniqueId:ref,pins});
+ const doc={truncated:false,components:[m('U1',[term('6',200,130,180),term('73',250,100,0)]),
+   m('BT1',[term('1',0,0,180),term('2',40,0,0)]),m('D1',[term('1',140,0,0),term('2',100,0,180)]),
+   m('C3',[term('1',150,110,0),term('2',120,110,180)]),
+   m('C1',[term('1',310,70,90),term('2',310,40,270)]),m('C2',[term('1',380,70,90),term('2',380,40,270)])]};
+ assert.deepEqual(usbBackupRoutes(delta,doc,[]).map(w=>[w.net,w.anchors.length]),[['VBAT_CELL',2],['VBAT',2],['+3V3',3],['GND',2]]);
+ assert.throws(()=>usbBackupRoutes(delta,doc,[[65,-5,65,5]]),/COLLISION/);
+ const plate=(x,h)=>({points:[[x,-h],[x,h]],closed:false});
+ const symbol={status:'ok',pins:[{number:'1',x:-20},{number:'2',x:20}],symbolPolylines:[plate(-5,3),plate(-2,8),plate(2,3),plate(5,8)]};
+ verifyHolderSymbol(symbol);assert.throws(()=>verifyHolderSymbol({...symbol,pins:symbol.pins.map(p=>({...p,x:-p.x}))}));
+ const part={ref:'BT1',supplierId:'C5377561',manufacturerPart:'BS08A3B0J001-TP',footprintUuid:'fp',subPartName:'holder.1',properties:{Name:'CR2032'}};
+ const pad=(padNumber,x,width,height)=>({padNumber,x:x/.0254,y:0,width:width/.0254,height:height/.0254,shape:'RECT',layerIds:[1]});
+ const facts={device:{...part,parameters:{},subPartNames:['holder.1'],footprint:{uuid:'fp'}},symbolGeometry:{geometry:{pins:[]}},footprintGeometry:{geometry:{pads:[pad('1',0,4.5,2.4),pad('2',21.175,3.05,3.4)]}}};
+ verifyUsbBackupDevice(config,part,facts);
+ const library=facts.footprintGeometry.geometry.pads.map(p=>({...p,rotation:0}));
+ const model={uuid:'local',docType:'FOOTPRINT',rows:[{type:'META',body:{source:'fp|lib'}},...library.map(p=>({type:'PAD',
+   body:{num:p.padNumber,layerId:1,hole:null,centerX:p.x,centerY:p.y,padOffsetX:.004,padOffsetY:-.005,padAngle:0,
+     defaultPad:{padType:'RECT',width:p.width,height:p.height,radius:0},specialPad:[]}}))]};
+ const verify=()=>verifyPolarizedFootprint(delta,{...part,libraryUuid:'lib'},{footprint:{uuid:'local'}},new Map([['local',model]]),library);
+ assert.equal(verify().lands[0].y,-.005);
+ model.rows[2].body.padOffsetX=4;assert.throws(verify,/COPPER_GEOMETRY/);
+ facts.footprintGeometry.geometry.pads[1].x*=-1;assert.throws(()=>verifyUsbBackupDevice(config,part,facts));
+});
 test('H563VI rail and reference share the filtered output and return through one ground link',()=>{
  const config={bead:'FB1',groundLink:'R1',vddaCaps:['C1','C2','C3'],vrefCaps:['C4','C5']};
  const before={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'},{ref:'J1'}],notes:[],nc:[],

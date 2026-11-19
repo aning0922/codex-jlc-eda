@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a18 · 2026-11-19
+
+- Qualify VDDUSB and the primary-cell VBAT branch on the STM32H563VI. Check the two supply pins, battery holder land polarity, diode direction and original PCB when adding the two rails and local decoupling. Small two-terminal symbol source reads include their body strokes for polarity checks.
+
 ## 0.11.0-dev.a17 · 2026-11-19
 
 - Add a filtered analog rail and external ADC reference for the STM32H563VI, including a ferrite bead, local decoupling and a single ground link. The workflow checks all four analog pins and the stored design before and after synchronization.

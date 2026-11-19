@@ -75,3 +75,5 @@ V4.1.71 实测：TEXT.modify 可以改变界面对象但未进入完整存储档
 STM32H563VI 采用片内 LDO 时，先核对 ST 引脚表和供电图，使用同一模式的 `vcapPairs` 指定两组 `{capacitor,pin}`。48、98 脚共用 VCAP，每脚各配一颗 2.2 µF，两个回流端接数字 GND。该操作核实原生引脚、同款电容和工程内封装，保存后逐脚比较。
 
 STM32H563VI 使用滤波后的 3.3 V 作为外部 ADC 基准时，`analogSupply` 指定磁珠 `bead`、0 Ω 地连接 `groundLink`、按 1 µF/100 nF/10 nF 排列的 `vddaCaps` 和按 1 µF/100 nF 排列的 `vrefCaps`。一只磁珠从 +3V3 馈电，21、22 脚共用 +3V3A，19、20 脚共用 GNDA。先核实官方引脚和器件参数，再在已同步、未布线副本上规划和验证。
+
+STM32H563VI 的 `usbBackupSupply` 可在同一类副本上添加 VDDUSB 与一次电池后备电源。指定电池座 `holder`、串联隔离二极管 `diode`、USB 的 `usbBulk` 与 `usbBypass`、VBAT 的 `backupBypass`。第 73 脚用数字 +3V3，6 脚用隔离后的 VBAT。工程采用经过触点、符号和焊盘核对的固定料号，CR2032 充电功能保持关闭。
