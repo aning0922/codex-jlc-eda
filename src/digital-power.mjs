@@ -103,13 +103,13 @@ function intersects(l,m){
     (a===c&&y===v&&between(a,x,u)&&between(y,b,d))||
     (b===d&&x===u&&between(x,a,c)&&between(b,y,v));
 }
-export function digitalPowerRoutes(delta,doc,oldLines){
+export function powerWireSpace(doc,oldLines){
   check(doc.truncated===false,'DIGITAL_POWER_INCOMPLETE_SHEET');
-  const pins=new Map(),wires=[],occupied=[...oldLines];
+  const pins=new Map(),occupied=[...oldLines];
   for(const c of doc.components)for(const p of c.pins){
     const id=c.uniqueId+'.'+p.number;
     check(!pins.has(id)&&[p.x,p.y,p.rotation].every(Number.isFinite),'DIGITAL_POWER_PIN_GEOMETRY');
-    pins.set(id,{componentId:c.id,pin:p.number,x:p.x,y:p.y,rotation:p.rotation});
+    pins.set(id,{componentId:c.id,pin:p.number,x:Math.round(p.x*1e6)/1e6,y:Math.round(p.y*1e6)/1e6,rotation:p.rotation});
   }
   function reserve(lines,anchors){
     for(const line of lines){
@@ -119,6 +119,10 @@ export function digitalPowerRoutes(delta,doc,oldLines){
     }
     occupied.push(...lines);
   }
+  return {pins,reserve};
+}
+export function digitalPowerRoutes(delta,doc,oldLines){
+  const {pins,reserve}=powerWireSpace(doc,oldLines),wires=[];
   for(const pair of delta.pairs??delta.vcapPairs){
     const vdd=pins.get(delta.owner+'.'+(pair.vdd??pair.pin)),vss=pair.vss&&pins.get(delta.owner+'.'+pair.vss);
     const positive=pins.get(pair.capacitor+'.1'),negative=pins.get(pair.capacitor+'.2');

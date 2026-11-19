@@ -5179,7 +5179,7 @@
   },
   {
     "name": "jlc_eda_schematic_eco",
-    "description": "unrouted_decoupling 在已同步未布线副本添加首颗数字电源去耦，或用 digitalPowerPairs 补全已有电源网的配对去耦和 VSS，或用 vcapPairs 为 STM32H563VI 的两个 VCAP 脚各接一颗 2.2 µF 到数字地，逐项核对其他引脚、原封装、板上档案并保存重开。从完成工程正式派生单页已有PCB的受限原理图增量任务，默认单脚SMT或passives模式常规两脚R/C新增、真实兼容换料与有创建来源的一脚局部改接；原生器件管理器/导入复核、局部连接、完整非目标与工程内封装保持及保存重开。notes模式仅更正已有单页独立TEXT的内容和位置，完整旧体绑定与非目标保持，不同步PCB；已证明旧TEXT API不持久化时可限定准备原生属性面板并采用冻结计划的完整读回。来源保持、参数冲突拒绝、未知动作不重放。",
+    "description": "unrouted_decoupling 在已同步未布线副本添加首颗数字电源去耦，或用 digitalPowerPairs 补全已有电源网的配对去耦和 VSS，或用 vcapPairs 为 STM32H563VI 的两个 VCAP 脚各接一颗 2.2 µF 到数字地，或用 analogSupply 补齐 +3V3A 磁珠、模拟去耦、外部 VREF 和单点接地，逐项核对其他引脚、原封装、板上档案并保存重开。从完成工程正式派生单页已有PCB的受限原理图增量任务，默认单脚SMT或passives模式常规两脚R/C新增、真实兼容换料与有创建来源的一脚局部改接；原生器件管理器/导入复核、局部连接、完整非目标与工程内封装保持及保存重开。notes模式仅更正已有单页独立TEXT的内容和位置，完整旧体绑定与非目标保持，不同步PCB；已证明旧TEXT API不持久化时可限定准备原生属性面板并采用冻结计划的完整读回。来源保持、参数冲突拒绝、未知动作不重放。",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -5515,6 +5515,44 @@
           },
           "minItems": 2,
           "maxItems": 2
+        },
+        "analogSupply": {
+          "type": "object",
+          "properties": {
+            "bead": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            },
+            "groundLink": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            },
+            "vddaCaps": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "vrefCaps": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "bead",
+            "groundLink",
+            "vddaCaps",
+            "vrefCaps"
+          ],
+          "additionalProperties": false
         },
         "noteChanges": {
           "type": "array",

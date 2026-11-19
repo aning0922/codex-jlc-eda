@@ -1,10 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {decouplingDelta} from '../src/unrouted-decoupling.mjs';
+import {analogPowerDelta,analogPowerRoutes,verifyAnalogDevice,verifyAnalogPins} from '../src/analog-power.mjs';
 import {scripts} from '../src/native-scripts.mjs';
 import {factsScript} from '../src/native-facts.mjs';
 const run=(source,eda)=>new (Object.getPrototypeOf(async function(){}).constructor)('eda','return await '+source)(eda);
 const pin=(ref,number)=>({ref,pin:number});
+test('H563VI rail and reference share the filtered output and return through one ground link',()=>{
+ const config={bead:'FB1',groundLink:'R1',vddaCaps:['C1','C2','C3'],vrefCaps:['C4','C5']};
+ const before={components:[{ref:'U1',manufacturerPart:'STM32H563VIT6'},{ref:'J1'}],notes:[],nc:[],
+   openPins:['19','20','21','22','23'].map(n=>pin('U1',n)),nets:['+3V3','GNDA','GND'].map((name,i)=>({name,endpoints:[pin('J1',String(i+1))]}))};
+ const after=structuredClone(before);after.openPins=[pin('U1','23')];after.nets.push({name:'+3V3A',endpoints:[]});
+ const attach=(net,ref,n)=>after.nets.find(v=>v.name===net).endpoints.push({...pin(ref,n),stubLength:15});
+ const capRefs=[...config.vddaCaps,...config.vrefCaps];
+ for(const ref of [config.bead,config.groundLink,...capRefs])after.components.push({ref,designator:ref});
+ for(const ref of capRefs){attach('+3V3A',ref,'1');attach('GNDA',ref,'2');}
+ attach('+3V3','FB1','1');attach('+3V3A','FB1','2');attach('GND','R1','1');attach('GNDA','R1','2');
+ for(const n of ['19','20','21','22'])attach(n<'21'?'GNDA':'+3V3A','U1',n);
+ const d=analogPowerDelta(before,after,config),native=['VSSA','VREF-','VREF+','VDDA'].map((name,i)=>({name,number:String(i+19),net:''}));
+ verifyAnalogPins(d,native);assert.throws(()=>verifyAnalogPins(d,native.map(p=>p.number==='20'?{...p,name:'VSSA'}:p)));
+ assert.deepEqual(d.terminals.map(e=>e.net).sort(),['+3V3','GND']);
+ for(const change of [a=>a.nets.at(-1).endpoints.pop(),a=>a.nets[2].endpoints.pop(),a=>a.nets[0].endpoints.push(pin('U1','21')),
+   a=>a.nets[0].endpoints.shift(),a=>a.nets[1].name='GND',a=>a.openPins.pop(),a=>a.components[0].ref='wrong']){
+   const bad=structuredClone(after);change(bad);assert.throws(()=>analogPowerDelta(before,bad,config));
+ }
+ const term=(number,x,y,rotation)=>({number,x,y,rotation}),m=(ref,pins)=>({id:ref,uniqueId:ref,pins});
+ const doc={truncated:false,components:[m('U1',native.map((p,i)=>term(p.number,400,120-i*10,180))),
+   ...[['FB1',100],['R1',20]].map(([ref,y])=>m(ref,[term('1',0,y,180),term('2',40,y,0)])),
+   ...capRefs.map((ref,i)=>m(ref,[term('1',80+i*30,75,90),term('2',80+i*30,45,270)]))]};
+ const rails=analogPowerRoutes(d,doc,[]);assert.deepEqual(rails.map(w=>[w.net,w.anchors.length]),[['+3V3A',6],['GNDA',6],['GNDA',2],['+3V3A',2]]);
+ assert.throws(()=>analogPowerRoutes(d,doc,[[90,95,90,110]]),/COLLISION/);
+ const flipped=structuredClone(doc);
+ for(const c of flipped.components.filter(c=>capRefs.includes(c.uniqueId)))for(const p of c.pins){p.y=120-p.y;p.rotation=(p.rotation+180)%360;}
+ const reverse=analogPowerRoutes(d,flipped,[]);assert.equal(reverse[0].anchors.length,6);
+ assert.throws(()=>analogPowerRoutes(d,flipped,[[221,80,231,80]]),/COLLISION/);
+ const component={ref:'FB1',supplierId:'part',manufacturerPart:'bead',footprintUuid:'fp',subPartName:'bead.1',properties:{Name:'={Impedance @ Frequency}'}};
+ const device={...component,footprint:{uuid:'fp'},subPartNames:['bead.1'],parameters:{'Supplier Footprint':'0603','Impedance @ Frequency':'600Ω@100MHz','Number of Circuits':'1','DC Resistance(DCR)':'380mΩ','Current Rating':'500mA'}};
+ verifyAnalogDevice(config,component,device);device.parameters['DC Resistance(DCR)']='500mΩ';assert.throws(()=>verifyAnalogDevice(config,component,device));
+});
 test('an unrouted decoupling delta releases exactly the named pin and leaves old nets and parts untouched',()=>{
  const original={components:[{ref:'U1'},{ref:'J1'}],openPins:[pin('U1','1'),pin('U1','2')],nets:[{name:'GND',endpoints:[pin('J1','1')]}],nc:[],notes:[]};
  const wanted=structuredClone(original);wanted.components.push({ref:'C1',designator:'C1'});wanted.openPins.shift();

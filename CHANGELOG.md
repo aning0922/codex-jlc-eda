@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a17 · 2026-11-19
+
+- Add a filtered analog rail and external ADC reference for the STM32H563VI, including a ferrite bead, local decoupling and a single ground link. The workflow checks all four analog pins and the stored design before and after synchronization.
+
 ## 0.11.0-dev.a16 · 2026-11-18
 
 - Add the STM32H563VI internal-LDO capacitor pair to a synchronized, unrouted copy. Both VCAP pins share one net, each with a 2.2 µF return to digital ground.

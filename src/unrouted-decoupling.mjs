@@ -8,6 +8,7 @@ import {pcbBound,pcbScript,pcbSnapshot} from './pcb.mjs';
 import {scripts} from './native-scripts.mjs';
 import {planJunctions} from './schematic-junction.mjs';
 import {digitalPowerDelta,digitalPowerRoutes,verifyDigitalPins,vcapDelta,verifyVcapPins,verifyVcapCapacitor} from './digital-power.mjs';
+import {analogPowerDelta,analogPowerRoutes,verifyAnalogDevice,verifyAnalogPins} from './analog-power.mjs';
 import {nativeModelRecords} from './file-model-evidence.mjs';
 import {preserveArchive} from './eco-preservation.mjs';
 import {archiveDesignFingerprint} from './resources.mjs';
@@ -38,7 +39,7 @@ async function capture(a,t,kind){
   requireState(s.status==='ok'&&s.data,'DECOUPLING_ARCHIVE_UNAVAILABLE');return s.data;
 }
 const projectModels=c=>[c.device?.uuid,c.symbol?.uuid,c.footprint?.uuid].filter(Boolean);
-const capacitors=d=>d.caps??[d.cap];
+const addedParts=d=>d.parts??d.caps??[d.cap];
 const assignments=d=>d.assignments??[{...d.pin,name:'VDD',net:d.supply.name}];
 function oldSchematicLines(archive,uuid){
   return nativeModelRecords(archive).get(uuid).rows.filter(r=>r.type==='LINE')
@@ -78,7 +79,7 @@ function pcbProof(before,after,t,d,doc,sch){
   const reorderedOwnerKeys=fingerprint(oldOwner)!==fingerprint(newOwner);
   if(reorderedOwnerKeys)edits.push({type:'COMPONENT',id:owner.id,after:oldOwner.body});
   const newIds=[],models=[];
-  for(const cap of capacitors(d)){
+  for(const cap of addedParts(d)){
     const part=doc.components.find(c=>c.uniqueId===cap.ref),symbol=sch.components.find(c=>c.uniqueId===cap.ref);
     requireState(part&&symbol,'DECOUPLING_CAPACITOR_INSTANCE_MISSING');
     const padRows=current.rows.filter(r=>r.type==='PAD_NET' && JSON.parse(r.id)[1]===part.id);
@@ -99,21 +100,31 @@ async function applySchematic(a,t,ctx,stage,d){
     requireState(result.status==='ok',result.code??'DECOUPLING_WRITE_UNCONFIRMED');
     receipts.push({input,result});return result;
   };
-  const caps=capacitors(d),paired=d.pairs||d.vcapPairs;
+  const caps=addedParts(d),paired=d.pairs||d.vcapPairs||d.analogSupply;
   for(const cap of caps)await work(paired?'place/'+cap.ref:'place',{operation:'place',component:cap});
   const doc=await a.jlc_eda_read_document({...t,kind:'schematic',documentUuid:t.schematicPageUuid,includePins:true,limit:200});
   requireState(doc.status==='ok','DECOUPLING_PLACEMENT_UNCONFIRMED');
-  const rails=paired?digitalPowerRoutes(d,doc,oldSchematicLines(stage.beforeSch,t.schematicPageUuid)):
+  const routePairs=d.analogSupply?analogPowerRoutes:digitalPowerRoutes;
+  const rails=paired?routePairs(d,doc,oldSchematicLines(stage.beforeSch,t.schematicPageUuid)):
     [{...planJunctions(t.circuit,doc).get(d.supply.name),key:'',net:d.supply.name}];
   for(const rail of rails){
     const suffix=rail.key?'/'+rail.key:'';
     const wire=await work('rail'+suffix,{operation:'junction',net:rail.net,anchors:rail.anchors,lines:rail.lines});
     if(rail.labelAt)await work('label'+suffix,{operation:'junction_label',net:rail.net,wireId:wire.wireId,labelAt:rail.labelAt});
   }
-  for(const ground of d.extraGround??[d.ground]){
+  for(const ground of d.terminals??d.extraGround??[d.ground]){
     const designator=t.circuit.components.find(c=>c.ref===ground.ref).designator;
-    const key=d.vcapPairs?'ground/'+ground.ref+'/'+ground.pin:d.pairs?'ground/'+ground.pin:'ground';
-    await work(key,{operation:'connect',net:'GND',endpoint:{...ground,designator}});
+    const key=d.analogSupply?'terminal/'+ground.ref:d.vcapPairs?'ground/'+ground.ref+'/'+ground.pin:d.pairs?'ground/'+ground.pin:'ground';
+    const {net='GND',...endpoint}=ground;
+    await work(key,{operation:'connect',net,endpoint:{...endpoint,designator}});
+  }
+  if(d.analogSupply){
+    const refs=[...d.analogSupply.vddaCaps,...d.analogSupply.vrefCaps];
+    const last=doc.components.filter(c=>refs.includes(c.uniqueId)).sort((a,b)=>b.x-a.x)[0];
+    if(last.pins.find(p=>p.number==='1').rotation===270){
+      requireState(last.id===ctx.r.actions['decoupling/place/'+last.uniqueId].result.primitiveId,'ANALOG_NEW_COMPONENT_REQUIRED');
+      for(const key of ['Name','Designator'])await work('caption/'+last.uniqueId+'/'+key,{operation:'component_caption',componentId:last.id,ref:last.uniqueId,key});
+    }
   }
   const v=await a.jlc_eda_verify_schematic({...t,pcbDocumentUuid:undefined});
   if(v.status!=='ok'||v.comparison?.status!=='matched')return {...v,status:'unknown',code:'DECOUPLING_SCHEMATIC_NETLIST_MISMATCH'};
@@ -123,7 +134,9 @@ async function applySchematic(a,t,ctx,stage,d){
   if(proof.status!=='matched')return {status:'unknown',code:'DECOUPLING_SCHEMATIC_PRESERVATION',proof};
   const saved=await a.invoke(t.sessionId,drawingScript({...t,operation:'save'}));
   requireState(saved.nativeSaveResult===true,'DECOUPLING_SCHEMATIC_SAVE_UNCONFIRMED');
-  stage.schDesign=archiveDesignFingerprint(after);stage.schematicVerified=true;await persist(ctx.dir,ctx.r);
+  stage.schDesign=archiveDesignFingerprint(after);stage.schematicVerified=true;
+  if(d.analogSupply)stage.bankCaptionsChecked=true;
+  await persist(ctx.dir,ctx.r);
   return {status:'ok',comparison:v.comparison,proof,schematicSave:saved};
 }
 async function verifySync(a,t,ctx,stage,d){
@@ -149,7 +162,8 @@ async function verifySync(a,t,ctx,stage,d){
   return {status:'ok',comparison:v.comparison,proof,inventory:v.inventory,originalInstancesRetained:old.length,importReceipt:op.nativeImport};
 }
 export async function decouplingWorkflow(a,p){
-  requireState(!p.addition&&!p.noteChanges&&!p.passiveChanges&&!p.candidateSupplierIds&&!p.candidateSupplierId&&!p.targetDesignator&&!p.noteId&&!(p.digitalPowerPairs&&p.vcapPairs),'ECO_MODE_INPUT_CONFLICT');
+  requireState(!p.addition&&!p.noteChanges&&!p.passiveChanges&&!p.candidateSupplierIds&&!p.candidateSupplierId&&!p.targetDesignator&&!p.noteId&&
+    [p.digitalPowerPairs,p.vcapPairs,p.analogSupply].filter(Boolean).length<=1,'ECO_MODE_INPUT_CONFLICT');
   const source=await realpath(p.sourcePath),checkpoint=await realpath(p.sourceCheckpointPath);
   const history=JSON.parse(await readFile(checkpoint));
   requireState(history.path===source && (await closedWorkResult(path.dirname(source),history)).status==='ok','DECOUPLING_CLOSED_SOURCE_REQUIRED');
@@ -160,7 +174,7 @@ export async function decouplingWorkflow(a,p){
       requireState(known.requestId===p.requestId && known.derivation?.sourcePath===source &&
         known.derivation?.sourceCheckpoint?.path===checkpoint && known.derivation.sourceCheckpoint.sha256===digest(await readFile(checkpoint)) &&
         (!p.unroutedCircuit||equal(p.unroutedCircuit,known.decoupling.circuit)) && (!p.digitalPowerPairs||equal(p.digitalPowerPairs,known.decoupling.pairs)) &&
-        (!p.vcapPairs||equal(p.vcapPairs,known.decoupling.vcapPairs)),'DECOUPLING_REQUEST_CONFLICT');
+        (!p.vcapPairs||equal(p.vcapPairs,known.decoupling.vcapPairs))&&(!p.analogSupply||equal(p.analogSupply,known.decoupling.analogSupply)),'DECOUPLING_REQUEST_CONFLICT');
       if(known.finish?.state==='closed')return closedWorkResult(await realpath(p.outputDirectory),known);
       return {status:'ok',reused:true,path:known.path,sessionId:known.sessionId,completed:!!known.decoupling.completed};
     }
@@ -170,9 +184,10 @@ export async function decouplingWorkflow(a,p){
   requireState(r.requestId===p.requestId && r.renderMode==='headless' && r.derivation?.sourcePath===source &&
     r.derivation?.sourceCheckpoint?.path===checkpoint && r.derivation.sourceCheckpoint.sha256===digest(await readFile(checkpoint)),'DECOUPLING_WORK_BINDING_MISMATCH');
   const pairs=p.digitalPowerPairs??r.decoupling?.pairs,circuit=p.unroutedCircuit??r.decoupling?.circuit;
-  const vcapPairs=p.vcapPairs??r.decoupling?.vcapPairs,paired=pairs||vcapPairs;
-  if(r.decoupling)requireState(equal(r.decoupling.pairs,pairs)&&equal(r.decoupling.vcapPairs,vcapPairs),'DECOUPLING_REQUEST_CONFLICT');
-  const d=vcapPairs?vcapDelta(history.circuit,circuit,vcapPairs):pairs?digitalPowerDelta(history.circuit,circuit,pairs):decouplingDelta(history.circuit,circuit);
+  const vcapPairs=p.vcapPairs??r.decoupling?.vcapPairs,analogSupply=p.analogSupply??r.decoupling?.analogSupply,paired=pairs||vcapPairs||analogSupply;
+  if(r.decoupling)requireState(equal(r.decoupling.pairs,pairs)&&equal(r.decoupling.vcapPairs,vcapPairs)&&equal(r.decoupling.analogSupply,analogSupply),'DECOUPLING_REQUEST_CONFLICT');
+  const d=analogSupply?analogPowerDelta(history.circuit,circuit,analogSupply):vcapPairs?vcapDelta(history.circuit,circuit,vcapPairs):
+    pairs?digitalPowerDelta(history.circuit,circuit,pairs):decouplingDelta(history.circuit,circuit);
   const t={sessionId:r.sessionId,expectedProjectUuid:r.projectUuid,schematicUuid:r.schematicUuid,schematicPageUuid:r.schematicPageUuid,pcbDocumentUuid:r.pcbDocumentUuid,workDirectory:dir,requestId:p.requestId,circuit};
   if(r.decoupling && !equal(r.decoupling.circuit,circuit)){
     // Actual placed symbols can have a different pin orientation from another capacitor of the same size.
@@ -193,40 +208,58 @@ export async function decouplingWorkflow(a,p){
     if(r.decoupling)return {status:'ok',reused:true,delta:d};
     const prev=await a.jlc_eda_verify_pcb({...t,circuit:history.circuit});
     requireState(prev.status==='ok'&&prev.comparison.status==='matched'&&Object.values(prev.inventory.standaloneCounts).every(n=>n===0),'DECOUPLING_UNROUTED_BASELINE_REQUIRED');
-    const changes=assignments(d),caps=capacitors(d),spec=caps[0];
+    const changes=assignments(d),caps=addedParts(d),spec=caps[0];
     const pins=prev.schematicVerification.netlist.components.find(c=>c.uniqueId===changes[0].ref)?.pins??[];
-    if(vcapPairs)verifyVcapPins(d,pins);
+    if(analogSupply)verifyAnalogPins(d,pins);
+    else if(vcapPairs)verifyVcapPins(d,pins);
     else if(pairs)verifyDigitalPins(d,pins);
     else requireState(pins.some(pin=>pin.number===d.pin.pin&&pin.name==='VDD'&&pin.net===''),'DECOUPLING_DIGITAL_VDD_REQUIRED');
-    const lib=await a.jlc_eda_read_device({...t,deviceUuid:spec.deviceUuid,libraryUuid:spec.libraryUuid});
-    const cap=lib.device;
-    requireState(lib.status==='ok'&&cap.supplierId===spec.supplierId&&cap.manufacturerPart===spec.manufacturerPart&&cap.footprint.uuid===spec.footprintUuid&&cap.parameters.Value===spec.properties.Value&&['X7R','X5R','C0G','NP0'].includes(cap.parameters['Temperature Coefficient']),'DECOUPLING_MLCC_UNCONFIRMED');
-    if(vcapPairs){
-      verifyVcapCapacitor(cap);
-      requireState(spec.subPartName===cap.subPartNames[0],'VCAP_SYMBOL_PART_MISMATCH');
+    const library=new Map(),byRef=new Map();
+    for(const part of caps){
+      const id=part.libraryUuid+'/'+part.deviceUuid;
+      if(!library.has(id)){
+        const lib=await a.jlc_eda_read_device({...t,deviceUuid:part.deviceUuid,libraryUuid:part.libraryUuid});
+        requireState(lib.status==='ok'&&lib.device,'DECOUPLING_DEVICE_UNCONFIRMED');
+        const device=lib.device;
+        const model=await a.jlc_eda_read_library_model({...t,kind:'footprint',view:'geometry',modelUuid:device.footprint.uuid,libraryUuid:device.footprint.libraryUuid});
+        requireState(model.status==='ok'&&equal(model.geometry.pads.map(x=>x.padNumber).sort(),['1','2']),'DECOUPLING_TWO_PADS_REQUIRED');
+        const symbol=await a.jlc_eda_read_library_model({...t,kind:'symbol',view:'geometry',modelUuid:device.symbol.uuid,libraryUuid:device.symbol.libraryUuid});
+        requireState(symbol.status==='ok'&&equal(symbol.geometry.pins.map(x=>x.pinNumber).sort(),['1','2']),'DECOUPLING_TWO_SYMBOL_PINS_REQUIRED');
+        library.set(id,{device,footprintGeometry:model,symbolGeometry:symbol});
+      }
+      const facts=library.get(id),cap=facts.device;byRef.set(part.ref,facts);
+      if(analogSupply)verifyAnalogDevice(analogSupply,part,cap);
+      else{
+        requireState(cap.supplierId===part.supplierId&&cap.manufacturerPart===part.manufacturerPart&&cap.footprint.uuid===part.footprintUuid&&cap.parameters.Value===part.properties.Value&&['X7R','X5R','C0G','NP0'].includes(cap.parameters['Temperature Coefficient']),'DECOUPLING_MLCC_UNCONFIRMED');
+        if(vcapPairs){verifyVcapCapacitor(cap);requireState(part.subPartName===cap.subPartNames[0],'VCAP_SYMBOL_PART_MISMATCH');}
+      }
     }
-    const model=await a.jlc_eda_read_library_model({...t,kind:'footprint',view:'geometry',modelUuid:cap.footprint.uuid,libraryUuid:cap.footprint.libraryUuid});
-    requireState(model.status==='ok'&&equal(model.geometry.pads.map(x=>x.padNumber).sort(),['1','2']),'DECOUPLING_TWO_PADS_REQUIRED');
-    const symbol=await a.jlc_eda_read_library_model({...t,kind:'symbol',view:'geometry',modelUuid:cap.symbol.uuid,libraryUuid:cap.symbol.libraryUuid});
-    requireState(symbol.status==='ok'&&equal(symbol.geometry.pins.map(x=>x.pinNumber).sort(),['1','2']),'DECOUPLING_TWO_SYMBOL_PINS_REQUIRED');
     const beforeSch=await capture(a,t,'schematic'),beforePcb=await capture(a,t,'pcb');
     requireState(equal(archiveDesignFingerprint(beforeSch),history.finish.design.schematic)&&equal(archiveDesignFingerprint(beforePcb),history.finish.design.pcb),'DECOUPLING_BASELINE_ARCHIVE_MISMATCH');
     if(paired || (spec.pose.rotation===0&&!spec.pose.mirror)){
       const doc=prev.schematicVerification.document;
       const projected=caps.map(c=>{
-        requireState(!c.pose.mirror&&[0,180].includes(c.pose.rotation),'DIGITAL_POWER_CAP_ORIENTATION');
-        const sign=c.pose.rotation===0?1:-1;
-        return {id:c.ref,uniqueId:c.ref,pins:symbol.geometry.pins.map(pin=>({number:pin.pinNumber,x:c.pose.x+sign*pin.x,y:c.pose.y+sign*pin.y,rotation:(pin.rotation+c.pose.rotation)%360}))};
+        requireState(!c.pose.mirror&&(analogSupply||[0,180].includes(c.pose.rotation)),'DIGITAL_POWER_CAP_ORIENTATION');
+        // Native component creation takes a clockwise angle; geometry and pin readback are counterclockwise.
+        const angle=(360-c.pose.rotation)%360;
+        const pins=byRef.get(c.ref).symbolGeometry.geometry.pins.map(({pinNumber,x,y,rotation})=>{
+          const [dx,dy]=[[x,y],[-y,x],[-x,-y],[y,-x]][angle/90];
+          return {number:pinNumber,x:c.pose.x+dx,y:c.pose.y+dy,rotation:(rotation+angle)%360};
+        });
+        return {id:c.ref,uniqueId:c.ref,pins};
       });
       const proposed={...doc,components:[...doc.components,...projected]};
-      if(paired)digitalPowerRoutes(d,proposed,oldSchematicLines(beforeSch,t.schematicPageUuid));else planJunctions(circuit,proposed);
+      if(paired)(analogSupply?analogPowerRoutes:digitalPowerRoutes)(d,proposed,oldSchematicLines(beforeSch,t.schematicPageUuid));else planJunctions(circuit,proposed);
     }
-    r.decoupling={circuit,beforeSch,beforePcb,...(pairs?{pairs}:{}),...(vcapPairs?{vcapPairs}:{})};await persist(dir,r);
-    return {status:'ok',delta:d,device:cap,footprintGeometry:model,symbolGeometry:symbol,...(paired?{assignments:changes}:{supplyPin:d.pin})};
+    r.decoupling={circuit,beforeSch,beforePcb,...(pairs?{pairs}:{}),...(vcapPairs?{vcapPairs}:{}),...(analogSupply?{analogSupply}:{})};await persist(dir,r);
+    return {status:'ok',delta:d,...(analogSupply?{partModels:Object.fromEntries(byRef)}:byRef.get(spec.ref)),...(paired?{assignments:changes}:{supplyPin:d.pin})};
   }
   requireState(r.decoupling,'DECOUPLING_PLAN_REQUIRED');
   if(p.phase==='schematic'){
-    if(r.decoupling.schematicVerified)return {status:'ok',reused:true,design:r.decoupling.schDesign};
+    if(r.decoupling.schematicVerified){
+      if(!analogSupply||r.decoupling.bankCaptionsChecked||r.decoupling.completed)return {status:'ok',reused:true,design:r.decoupling.schDesign};
+      requireState(!r.pcbSyncActions?.[t.requestId]&&equal(archiveDesignFingerprint(await capture(a,t,'schematic')),r.decoupling.schDesign),'DECOUPLING_TARGET_CHANGED_BEFORE_IMPORT');
+    }
     const ctx=await bound(a,t);
     ctx.r.actions['decoupling/stage']??={state:'pending'};await persist(dir,ctx.r);
     return applySchematic(a,t,ctx,ctx.r.decoupling,d);

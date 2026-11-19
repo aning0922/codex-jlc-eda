@@ -147,6 +147,20 @@ async function nativeDraw(p){
       return {status:'unknown',code:'JUNCTION_LABEL_POSITION_UNCONFIRMED'};
     return {status:'ok',wireId:p.wireId,labelId:id,x,y};
   }
+  if(p.operation==='component_caption'){
+    const component=await eda.sch_PrimitiveComponent.get(p.componentId);
+    if(!component||component.getState_UniqueId()!==p.ref||component.getState_Designator()!==p.ref||
+      !['Name','Designator'].includes(p.key))return {status:'failed',code:'CAPTION_OWNER_CHANGED'};
+    const attrs=(await eda.sch_PrimitiveAttribute.getAll(p.componentId)).filter(a=>a.getState_Key()===p.key);
+    if(attrs.length!==1)return {status:'failed',code:'CAPTION_ATTRIBUTE_UNCONFIRMED'};
+    const attr=attrs[0],id=attr.getState_PrimitiveId(),x=component.getState_X()-28,y=attr.getState_Y();
+    if(attr.getState_X()===x)return {status:'ok',id,x,y};
+    if(!await sameTarget())return changed();
+    await eda.sch_PrimitiveAttribute.modify(id,{x,y});
+    const observed=await eda.sch_PrimitiveAttribute.get(id);
+    if(!observed||observed.getState_X()!==x||observed.getState_Y()!==y||!await sameTarget())return {status:'unknown',code:'CAPTION_POSITION_UNCONFIRMED'};
+    return {status:'ok',id,x,y};
+  }
   if(p.operation==='junction'){
     for(const a of p.anchors){
       const pins=await eda.sch_PrimitiveComponent.getAllPinsByPrimitiveId(a.componentId);
