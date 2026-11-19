@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a22 · 2026-11-20
+
+- Add a self-powered H563 USB-C data port to a synchronized, unrouted copy. Verify both plug orientations, the two ESD channels, independent CC pull-downs, VBUS sensing and four grounded shield slots.
+
 ## 0.11.0-dev.a21 · 2026-11-20
 
 - Verify a five-pin H563 SWD header against the ST pin data and the connector drawing. Qualify both instances of the Hanxia boot/reset switch after changing their shared project footprint to the recommended lands.
