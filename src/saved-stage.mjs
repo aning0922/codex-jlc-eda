@@ -26,13 +26,20 @@ function closedLayoutStage(source,origin){
  const verified=verifyLayoutSnapshot(layout.plan,d.document,d.native,layout.outline);
  if(verified.status!=='matched')fail('CONTINUATION_CLOSED_LAYOUT_UNVERIFIED');
  const mechanical=new Set([...verified.board.outline,...(verified.board.mountingHoles??[])].map(x=>x.primitiveId));
- if(d.native.objects.some(x=>!mechanical.has(x.primitiveId)&&!isOwnedFootprintVia(x)))fail('CONTINUATION_LAYOUT_ALREADY_ROUTED');
- return {kind:'closed_unrouted_layout',sourcePath:origin.sourcePath,sourceSha256:origin.sourceSha256,sourceJournalSha256:origin.sourceJournalSha256,
+ const routing=d.native.objects.filter(x=>!mechanical.has(x.primitiveId)&&!isOwnedFootprintVia(x));
+ const accepted=source.pcbCopperBaseline;
+ if(accepted){
+  if(!routing.length||routing.some(x=>x.kind!=='Line'||![1,2].includes(x.layer)||!x.net)||
+     d.copperCheckpoint?.status!=='matched'||d.fullArchive?.status!=='matched'||
+     !exact(accepted.archives?.pcb,d.design.pcb)||!exact(accepted.archives?.schematic,d.design.schematic)||
+     compareRoutingCheckpoint(accepted.native,d.native).status!=='matched')fail('CONTINUATION_CLOSED_COPPER_UNVERIFIED');
+ }else if(routing.length)fail('CONTINUATION_LAYOUT_ALREADY_ROUTED');
+ return {kind:accepted?'closed_routed_layout':'closed_unrouted_layout',sourcePath:origin.sourcePath,sourceSha256:origin.sourceSha256,sourceJournalSha256:origin.sourceJournalSha256,
   sourceProjectUuid:d.document.projectUuid,sourceSessionId:source.sessionId,document:pcbSnapshot(d.document),native:d.native,design:f.design};
 }
 export function selectSavedStage(source,{sourcePath,sourceSha256,sourceJournalSha256}){
  const failed=Object.entries(source.pcbActions??{}).filter(([key,a])=>key.startsWith('route/')&&a.state==='failed_preserved');
- if(!failed.length&&source.finish?.state==='closed'&&source.pcbLayoutBaseline&&!source.pcbCopperBaseline&&!source.pcbFileRouteBaseline&&!source.pcbRepairBaseline)
+ if(!failed.length&&source.finish?.state==='closed'&&source.pcbLayoutBaseline&&(!source.pcbCopperBaseline||source.continuation?.selectedStage?.kind==='closed_unrouted_layout')&&!source.pcbFileRouteBaseline&&!source.pcbRepairBaseline)
   return closedLayoutStage(source,{sourcePath,sourceSha256,sourceJournalSha256});
  if(!failed.length)return null;
  if(unresolvedActions(source).length)fail('CONTINUATION_STAGE_ACTION_UNRESOLVED');

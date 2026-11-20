@@ -75,7 +75,7 @@ export const continuationWorkflow={async verifyRecoveredTask(r,context){return v
   if(digest(await readFile(file))!==hash||digest(await readFile(sourcePath))!==hash||digest(await readFile(path.join(sourceDir,'work-project.json')))!==checkpointHash)fail('CONTINUATION_SOURCE_CHANGED_DURING_COPY');
   r=structuredClone(source);r.kind='continuation_pending';r.renderMode=p.renderMode??'headless';r.path=file;r.sessionId=null;r.projectUuid=null;r.openPathConfirmed=false;r.bindingStatus='verification_pending';
   r.continuation={requestId:p.requestId,sourceDirectory:sourceDir,sourcePath,sourceSha256:hash,sourceCheckpointSha256:checkpointHash,copiedSha256:hash,sourceBinding:{sessionId:source.sessionId,projectUuid:source.projectUuid,path:sourcePath},sourceJournalCopy:path.join(dir,'source-journal.json'),...(selectedStage?{selectedStage}:{}),startedAt:new Date().toISOString()};
-  if(selectedStage?.kind==='closed_unrouted_layout'){
+  if(['closed_unrouted_layout','closed_routed_layout'].includes(selectedStage?.kind)){
    // The closed finish receipt stays in the immutable source journal. The new copy owns its save lifecycle.
    delete r.finish;delete r.pcbSaveAttempt;delete r.pcbReopen;
    r.pcbRuleBaseline=selectedStage.native.ruleConfiguration;

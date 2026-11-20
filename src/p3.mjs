@@ -258,13 +258,14 @@ export const p3Workflow={
   const drc=await this.invokeLossless(p.sessionId,routingScript({...p,operation:'check'}),60000);
   if(drc.status!=='ok')issues.push({code:'PCB_FRESH_DRC_UNAVAILABLE'});
   const unrouted=!expected.pcbCopperBaseline&&layout.status==='matched'&&native.objects.every(x=>x.layer===11||layout.board?.mountingHoles?.some(h=>h.primitiveId===x.primitiveId));
-  const drcComparison=expected.pcbCheck?(unrouted?comparePlacedPadDrc(expected.pcbCheck.drc?.errors,drc.errors,expected.pcbCheck.document,doc):compareNativeDrc(expected.pcbCheck.drc?.errors,drc.errors)):null;
+  const drcComparison=expected.pcbCheck?(unrouted||expected.addedSheet?.accepted?comparePlacedPadDrc(expected.pcbCheck.drc?.errors,drc.errors,expected.pcbCheck.document,doc):compareNativeDrc(expected.pcbCheck.drc?.errors,drc.errors)):null;
   if(drcConsistencyRequired&&drcComparison&&drcComparison.status!=='matched')issues.push(...drcComparison.issues);
   const fullArchive=await verifyRouteArchiveCheckpoint(this,p,expected);if(fullArchive?.status==='mismatch')issues.push({code:'PCB_FULL_ARCHIVE_CHECKPOINT_CHANGED'});
   return {status:'ok',comparison:{status:issues.length?'mismatch':'matched',issues,mismatches:[],identityComparison:identity.comparison},identity,native,document:doc,layout,copperCheckpoint:copper,copper:auditCopper(doc,native),fullArchive,rulesMatched,drc,drcComparison,drcConsistencyRequired,unresolvedActions:unresolved,preservationOnly,designReadbackOnly:true};
  },
  async jlc_eda_check_pcb(p){
   const recorded=await load(p.workDirectory);
+  if(recorded.addedSheet?.accepted)p={...p,schematicPageUuids:[recorded.schematicPageUuid,recorded.addedSheet.uuid]};
   if(recorded.pcbRepairBaseline){
    if(!sameFileTarget(recorded,p))return {status:'failed',code:'WORK_TARGET_MISMATCH',boardReady:false};
    if(recorded.finish?.state==='closed')return {status:'unknown',code:'WORK_SESSION_CLOSED',boardReady:false};

@@ -91,3 +91,5 @@ STM32H563VI 的 `swdConnector` 增量用 `header` 指定五针直排针，`reset
 `layout_pcb` 的手动首版布局可使用 2 或 4 个铜层，最多 200 个器件。`board.cornerRadius`、`board.mountingHoles` 与其余几何使用同一单位。安装孔为带孔径和螺钉避让直径的独立非镀圆孔，孔心使用 PCB 全局坐标。板框原点是左上角，+Y 向上。验收时读回所有器件的位置、面和角度、板框圆角和孔位，并在新磁盘上下文核对完整设计。未布线阶段保留预期的未连接报告。
 
 已收尾的未布线布局通过 `resume_work_project` 从来源工作目录派生。新副本沿用已验证的板框、安装孔、全部位姿和原生规则，可用 `route_pcb` 的 critical 模式逐支路布线。用 `check_pcb` 和 `finish_work_project` 在磁盘重开后逐网检查铜线与 DRC。
+
+带有已验收局部走线的单页工程可用 `schematic_eco` 的 `add_page` 模式派生工作副本。依次执行 `derive`、`plan`、`place_page`、`schematic`、`sync`、`complete`、`verify` 和 `finish`。新图页使用实际针脚验证正交连线；新器件按 mm 坐标放置。导入回执不确定时，使用同请求的 `verify_sync` 核对既有动作。原图页、两页汇总网表、原生铜线和 DRC 在保存重开时复核。

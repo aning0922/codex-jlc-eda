@@ -30,7 +30,7 @@ export const drawingSchemas={
     projectImport:z.object({sourcePath:z.string().min(1).max(4096),sessionId:id,expectedProjectUuid:id}).strict().optional()
   }).strict().refine(p=>!!p.blankTemplatePath!==!!p.projectImport,'Choose a blank template or an isolated local project import.').refine(p=>!p.projectImport||!p.renderMode,'Project import uses its existing isolated session.'),
   jlc_eda_draw_schematic:z.object({...target,requestId:id,phase:z.enum(['place','complete','tidy']).default('complete'),showTitleBlock:z.boolean().default(false),circuit:circuitWithLimit(30)}).strict(),
-  jlc_eda_verify_schematic:z.object({sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,circuit:circuitSchema}).strict(),
+  jlc_eda_verify_schematic:z.object({sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,schematicPageUuids:z.array(id).min(1).max(8).optional(),circuit:circuitSchema}).strict(),
   jlc_eda_save_work_project:z.object({...target,requestId:id,pcbDocumentUuid:id.optional(),schematicUuid:id.optional()}).strict().refine(p=>!!p.pcbDocumentUuid===!!p.schematicUuid,'PCB save requires both pcbDocumentUuid and schematicUuid.'),
   jlc_eda_reopen_work_project:z.object({...target,circuit:circuitSchema}).strict(),
   jlc_eda_preview_schematic:z.object({...target,format:z.enum(['svg','png']).default('svg')}).strict()
@@ -119,6 +119,14 @@ async function nativeDraw(p){
     return {status:'ok',plan};
   }
   if(p.operation==='title_block'){const r=await eda.dmt_Schematic.modifySchematicPageTitleBlock(p.showTitleBlock);return {status:r?'ok':'unknown'};}
+  if(p.operation==='new_page_pose'){
+    const c=await eda.sch_PrimitiveComponent.get(p.primitiveId);
+    if(!c||c.getState_UniqueId()!==p.ref||c.getState_Designator()!==p.designator||!await sameTarget())return {status:'failed',code:'SHEET_POSE_OWNER_CHANGED'};
+    const pose={...p.pose,rotation:(360-p.pose.rotation)%360};
+    const moved=await eda.sch_PrimitiveComponent.modify(p.primitiveId,pose),read=await eda.sch_PrimitiveComponent.get(p.primitiveId);
+    const verified=read?.getState_UniqueId()===p.ref&&read.getState_X()===pose.x&&read.getState_Y()===pose.y&&read.getState_Rotation()===pose.rotation&&read.getState_Mirror()===pose.mirror;
+    return {status:moved&&verified&&await sameTarget()?'ok':'unknown',primitiveId:p.primitiveId,poseVerified:verified};
+  }
   if(p.operation==='place'){
     const e=p.component,all=await eda.sch_PrimitiveComponent.getAll();
     if(all.some(c=>state(c,'getState_Designator')===e.designator))return {status:'unknown',code:'DESIGNATOR_ALREADY_PRESENT'};

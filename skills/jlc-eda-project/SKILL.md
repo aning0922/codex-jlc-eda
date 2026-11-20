@@ -1,6 +1,6 @@
 ---
 name: jlc-eda-project
-description: 使用嘉立创EDA专业版读取工程、核实真实器件与引脚模型、绘制小型原理图、同步PCB、局部增量修改和保存交付。用于单板单页低压小板及顶层常规两脚R/C新增、兼容换料和有来源的局部改接；不承诺任意ECO、复杂封装或实物合格。
+description: 使用嘉立创EDA专业版读取工程、核实器件和引脚、绘制原理图、同步PCB及保存交付。支持低压单板、常规两脚阻容增量，以及从已验收的单页带铜布局增加第二张原理图页并保留原有铜线。
 ---
 
 # 嘉立创 EDA 工程助手
@@ -13,6 +13,7 @@ description: 使用嘉立创EDA专业版读取工程、核实真实器件与引�
 - 新小型原理图/首次PCB同步：create_work_project 或 derive_work_project → draw_schematic → verify/preview → sync_pcb → 原生复核 → verify → 布局/规则/局部或受限路由 → finish_work_project。已同步板可显式读取官方布局候选并在同一板框下采用约束位置；具体边界见 [日常使用与状态处理](references/usage.md)。
 - 已完成PCB局部孔/线/位号/EP钢网：incremental_pcb，从closed成品派生，plan → apply/verify → finish。工程内独立钢网封装仍有“仅所选实例”原生步骤，不写共享/全局库。
 - 单脚测试点：schematic_eco，默认 single_point 模式，沿已验收P4-D流程。
+- 已验收单页布局新增第二张图页时，使用 schematic_eco 的 add_page 模式，在独立副本上核实两页网表、原有铜线、新器件和两页磁盘存档。步骤见[日常使用](references/usage.md)。
 - 常规两脚R/C新增或兼容换料/改接：schematic_eco，mode=passives；详见 [阻容增量操作](references/passives.md)。
 - 制造交付：从最终成品 export_manufacturing，一次新导出；未知导出仅复核已捕获文件，不重新导出充数。
 

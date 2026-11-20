@@ -10,6 +10,15 @@ export async function archive(a,p){
  const schFocus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.schematicPageUuid,kind:'schematic'}));if(schFocus.status!=='ok')throw Object.assign(new Error('Cannot focus saved task schematic'),schFocus);
  const sch=await a.invoke(p.sessionId,drawingScript({...p,operation:'archive'}));if(sch.status!=='ok')throw Object.assign(new Error('Cannot read full task archive'),sch);
  const result={schematic:archiveDesignFingerprint(sch.data)};
+ if(p.schematicPageUuids?.length>1){
+  result.schematicPages={[p.schematicPageUuid]:result.schematic};
+  for(const uuid of p.schematicPageUuids.filter(id=>id!==p.schematicPageUuid)){
+   const focus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:uuid,kind:'schematic'}));
+   const extra=focus.status==='ok'?await a.invoke(p.sessionId,drawingScript({...p,schematicPageUuid:uuid,operation:'archive'})):focus;
+   if(extra.status!=='ok')throw Object.assign(Error('SHEET_ARCHIVE_UNAVAILABLE'),extra);
+   result.schematicPages[uuid]=archiveDesignFingerprint(extra.data);
+  }
+ }
  if(p.pcbDocumentUuid){const pcbFocus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb'}));if(pcbFocus.status!=='ok')throw Object.assign(new Error('Cannot focus task PCB'),pcbFocus);
   const pcb=await a.invoke(p.sessionId,pcbScript({...p,operation:'archive'}));if(pcb.status!=='ok')throw Object.assign(new Error('Cannot read full PCB archive'),pcb);result.pcb=archiveDesignFingerprint(pcb.data);
  }
@@ -18,6 +27,10 @@ export async function archive(a,p){
 export const finishWorkflow={async jlc_eda_finish_work_project(p){
  // Check unresolved task actions before focusing anything (an import review may be open).
  const dir=await realpath(p.workDirectory);let initial=await load(dir);
+ if(initial.addedSheet){
+  if(!initial.addedSheet.accepted)return {status:'unknown',code:'SHEET_ADDITION_NOT_VERIFIED'};
+  p={...p,schematicPageUuids:[initial.schematicPageUuid,initial.addedSheet.uuid]};
+ }
  if(initial.kind!=='task_work_project'||initial.sessionId!==p.sessionId||initial.projectUuid!==p.expectedProjectUuid||initial.schematicPageUuid!==p.schematicPageUuid)return {status:'failed',code:'WORK_TARGET_MISMATCH'};
  if(unresolved(initial))return {status:'unknown',code:'WORK_ACTION_UNRESOLVED',editorWindowDestroyed:false,nextAction:'Read back the pending action without replay. This work window is retained.'};
  if(fingerprint(initial.circuit)!==fingerprint(p.circuit))return {status:'failed',code:'FINISH_CIRCUIT_CONFLICT',editorWindowDestroyed:false};
@@ -42,6 +55,11 @@ export const finishWorkflow={async jlc_eda_finish_work_project(p){
   const stored=(await this.resources.all()).find(r=>r.sessionId===p.sessionId&&r.path===initial.path&&r.kind==='work');
   if(!stored)return {status:'unknown',code:'WORK_RESOURCE_OWNERSHIP_UNCONFIRMED',editorWindowDestroyed:false};
   await this.registerWorkSession({sessionId:p.sessionId,path:initial.path,workDirectory:dir,renderMode:stored.renderMode,recoveredFromOwner:stored.ownerId});
+ }
+ if(initial.addedSheet){
+  const accepted=initial.addedSheet.accepted,current=await archive(this,p);
+  if(fingerprint(current.schematic)!==fingerprint(accepted.oldSchematic)||fingerprint(current.schematicPages[initial.addedSheet.uuid])!==fingerprint(accepted.newSchematic)||fingerprint(current.pcb)!==fingerprint(accepted.pcb))
+   return {status:'unknown',code:'SHEET_ACCEPTED_ARCHIVES_CHANGED'};
  }
  const saved=await this.jlc_eda_save_work_project(p);
  const live=await verify(p);

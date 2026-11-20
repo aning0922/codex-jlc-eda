@@ -145,17 +145,28 @@ export const workflow={
  },
  async jlc_eda_verify_schematic(p){
   const connectivity=await this.jlc_eda_read_connectivity(p);if(connectivity.status!=='ok')return connectivity;
-  const doc=await this.jlc_eda_read_document({...p,documentUuid:p.schematicPageUuid,kind:'schematic',includePins:true,includeGeometry:true,limit:200});if(doc.status!=='ok')return incompleteVerification(doc,connectivity);
-  const archive=await this.invoke(p.sessionId,drawingScript({...p,operation:'archive'}));if(archive.status!=='ok')return incompleteVerification(archive,connectivity);
-  try{enrichModelSources(doc,archive.data);}catch(e){return incompleteVerification({status:'unknown',code:'MODEL_SOURCE_READ_UNCERTAIN',message:e.message},connectivity);}
+  const expected=p.schematicPageUuids??[p.schematicPageUuid],pages=[];
+  const actual=connectivity.scope?.schematicPages;
+  if(!Array.isArray(actual)||!expected.includes(p.schematicPageUuid)||new Set(expected).size!==expected.length||expected.length!==actual.length||!expected.every(id=>actual.includes(id)))
+   return incompleteVerification({status:'unknown',code:'VERIFICATION_TARGET_OR_SCOPE_UNCERTAIN'},connectivity);
+  for(const uuid of expected){
+   const page=await this.jlc_eda_read_document({...p,documentUuid:uuid,kind:'schematic',includePins:true,includeGeometry:true,limit:200});if(page.status!=='ok')return incompleteVerification(page,connectivity);
+   const capture=await this.invoke(p.sessionId,drawingScript({...p,schematicPageUuid:uuid,operation:'archive'}));if(capture.status!=='ok')return incompleteVerification(capture,connectivity);
+   try{enrichModelSources(page,capture.data);}catch(e){return incompleteVerification({status:'unknown',code:'MODEL_SOURCE_READ_UNCERTAIN',message:e.message},connectivity);}
+   if(page.projectUuid!==p.expectedProjectUuid||page.documentUuid!==uuid||page.kind!=='schematic'||page.truncated!==false||page.counts.components!==page.components.length)return incompleteVerification({status:'unknown',code:'SCHEMATIC_PAGE_READ_INCOMPLETE'},connectivity);
+   pages.push(page);
+  }
+  const first=pages.find(v=>v.documentUuid===p.schematicPageUuid);
+  const doc=pages.length===1?first:{...first,components:pages.flatMap(v=>v.components),counts:{components:pages.reduce((n,v)=>n+v.counts.components,0)}};
+  if(expected.at(-1)!==p.schematicPageUuid){const f=await this.invoke(p.sessionId,scripts.focus({...p,kind:'schematic',documentUuid:p.schematicPageUuid}));if(f.status!=='ok')return incompleteVerification(f,connectivity);}
   const last=await this.invokeLossless(p.sessionId,factsScript({...p,documentUuid:p.schematicPageUuid,operation:'netlist'}));if(last.status!=='ok')return incompleteVerification(last,connectivity);
   let finalNetlist;try{finalNetlist=parseNetlist(last.source,p.expectedProjectUuid);}catch(e){return incompleteVerification({status:e.status??'unknown',code:e.code??'FINAL_NETLIST_READ_FAILED',message:e.message},connectivity);}
   const comparison=mergeConnectivityComparison(compareCircuit(p.circuit,connectivity.netlist,doc),connectivity.comparison);
   if(finalNetlist.sourceSha256!==connectivity.netlist.sourceSha256){comparison.issues.push({code:'NETLIST_CHANGED_DURING_VERIFICATION',before:connectivity.netlist.sourceSha256,after:finalNetlist.sourceSha256});comparison.status='unknown';}
-  if(connectivity.projectUuid!==p.expectedProjectUuid||connectivity.netlist.projectUuid!==p.expectedProjectUuid||doc.projectUuid!==p.expectedProjectUuid||doc.documentUuid!==p.schematicPageUuid||doc.kind!=='schematic'||!Array.isArray(connectivity.scope?.schematicPages)||connectivity.scope.schematicPages.length!==1||connectivity.scope.schematicPages[0]!==p.schematicPageUuid){
+  if(connectivity.projectUuid!==p.expectedProjectUuid||connectivity.netlist.projectUuid!==p.expectedProjectUuid){
     comparison.issues.push({code:'VERIFICATION_TARGET_OR_SCOPE_UNCERTAIN'});comparison.status='unknown';
   }
-  return {status:'ok',comparison,netlist:connectivity.netlist,document:doc,verification:{netlistStableThroughFinalRead:finalNetlist.sourceSha256===connectivity.netlist.sourceSha256,finalNetlistSha256:finalNetlist.sourceSha256,atomicEditorSnapshot:false}};
+  return {status:'ok',comparison,netlist:connectivity.netlist,document:doc,...(pages.length>1?{documents:pages}:{}),verification:{netlistStableThroughFinalRead:finalNetlist.sourceSha256===connectivity.netlist.sourceSha256,finalNetlistSha256:finalNetlist.sourceSha256,atomicEditorSnapshot:false}};
  },
  async jlc_eda_save_work_project(p){if(p.pcbDocumentUuid)return this.savePcbWork(p);const ctx=await bound(this,p);const r=await this.invoke(p.sessionId,drawingScript({...p,operation:'save'}));ctx.r.saveAttempt={...r,at:new Date().toISOString(),requestId:p.requestId};await persist(ctx.dir,ctx.r);return {...r,path:ctx.r.path,target:{sessionId:p.sessionId,projectUuid:p.expectedProjectUuid,schematicPageUuid:p.schematicPageUuid}};},
  async jlc_eda_reopen_work_project(p){const ctx=await bound(this,p);

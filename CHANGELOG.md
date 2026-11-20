@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a26 · 2026-11-20
+
+- Add a schematic page to a verified local PCB with existing traces. Check the exact page set, source pad assignments, original copper, new footprint positions and both saved schematic pages.
+
 ## 0.11.0-dev.a25 · 2026-11-20
 
 - Resume a saved, closed, unrouted placement in an independent working copy. Verify its board outline, mounting holes, embedded models and existing rules before adding local traces.

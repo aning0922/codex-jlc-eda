@@ -20,7 +20,7 @@ const workTarget={...readTarget,workDirectory:z.string().min(1).max(4096)};
 export const pcbSchemas={
  jlc_eda_derive_work_project:z.object({renderMode:workRenderMode,sourcePath:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:id,circuit:circuitSchema,sourcePcbState:z.enum(['empty','synchronized_unrouted']).default('empty'),sourceCheckpointPath:z.string().min(1).max(4096).optional(),phase:z.enum(['open','recover']).default('open')}).strict(),
  jlc_eda_sync_pcb:z.object({...workTarget,requestId:id,circuit:circuitSchema,phase:z.enum(['apply','verify','retry_unapplied_review']).default('apply'),importMode:z.enum(['review','force_initial_empty']).default('review')}).strict(),
- jlc_eda_verify_pcb:z.object({...readTarget,circuit:circuitSchema}).strict(),
+ jlc_eda_verify_pcb:z.object({...readTarget,schematicPageUuids:z.array(id).min(1).max(8).optional(),circuit:circuitSchema}).strict(),
  jlc_eda_reopen_pcb:z.object({...workTarget,circuit:circuitSchema}).strict(),
  jlc_eda_preview_pcb:z.object(workTarget).strict()
 };
@@ -32,8 +32,10 @@ export function association(project,p){
  const pcb=project.documents.find(x=>x.uuid===p.pcbDocumentUuid&&x.itemType==='PCB');
  const boards=(project.boards??[]).filter(x=>x.schematicUuid===p.schematicUuid&&x.pcbDocumentUuid===p.pcbDocumentUuid&&x.schematicPageUuids?.includes(p.schematicPageUuid));
  if(!page||!root||!pcb||page.parentSchematicUuid!==p.schematicUuid||boards.length!==1||!boards[0].name||page.boardName!==boards[0].name||root.boardName!==boards[0].name||pcb.boardName!==boards[0].name)return {status:'failed',code:'PCB_ASSOCIATION_MISMATCH_OR_AMBIGUOUS'};
- if(project.documents.filter(x=>x.itemType==='Schematic').length!==1||project.documents.filter(x=>x.itemType==='Schematic Page').length!==1)return {status:'unsupported',code:'PCB_SINGLE_PAGE_SCOPE_REQUIRED'};
- return {status:'ok',boardName:boards[0].name,schematicUuid:p.schematicUuid,schematicPageUuid:p.schematicPageUuid,pcbDocumentUuid:p.pcbDocumentUuid};
+ const pages=project.documents.filter(x=>x.itemType==='Schematic Page'),expected=p.schematicPageUuids??[p.schematicPageUuid];
+ if(project.documents.filter(x=>x.itemType==='Schematic').length!==1||pages.length!==expected.length||new Set(expected).size!==expected.length||
+    !expected.includes(p.schematicPageUuid)||!pages.every(d=>expected.includes(d.uuid)&&d.parentSchematicUuid===p.schematicUuid&&boards[0].schematicPageUuids.includes(d.uuid)))return {status:'unsupported',code:'PCB_SINGLE_PAGE_SCOPE_REQUIRED'};
+ return {status:'ok',boardName:boards[0].name,schematicUuid:p.schematicUuid,schematicPageUuid:p.schematicPageUuid,pcbDocumentUuid:p.pcbDocumentUuid,...(p.schematicPageUuids?{schematicPageUuids:expected}:{})};
 }
 // Serialized into the official CLI. All mutations recheck exact project, board and active document.
 async function nativePcb(p){
@@ -449,9 +451,15 @@ export const pcbWorkflow={
  },
  async savePcbWork(p){
   const ctx=await pcbBound(this,p),sch=await this.jlc_eda_save_work_project({...p,pcbDocumentUuid:undefined});
+  const extraPages=[];
+  for(const uuid of (p.schematicPageUuids??[]).filter(id=>id!==p.schematicPageUuid)){
+   const focusedPage=await this.invoke(p.sessionId,scripts.focus({...p,documentUuid:uuid,kind:'schematic'}));if(focusedPage.status!=='ok')return focusedPage;
+   const savedPage=await this.invoke(p.sessionId,drawingScript({...p,schematicPageUuid:uuid,operation:'save'}));extraPages.push({uuid,saved:savedPage});
+   if(savedPage.nativeSaveResult!==true)return {status:'unknown',code:'SHEET_SAVE_REQUIRES_READBACK',extraPages};
+  }
   const focus=await focused(this,p);if(focus.status!=='ok')return focus;
   const pcb=await this.invoke(p.sessionId,pcbScript({...p,operation:'save'}));
-  const result={status:'unknown',code:'PERSISTENCE_NOT_VERIFIED',schematicSave:sch,pcbSave:pcb,path:ctx.r.path,nextAction:'Call jlc_eda_reopen_pcb for a new disk copy and native context.'};
+  const result={status:'unknown',code:'PERSISTENCE_NOT_VERIFIED',schematicSave:sch,...(extraPages.length?{extraPages}:{}),pcbSave:pcb,path:ctx.r.path,nextAction:'Call jlc_eda_reopen_pcb for a new disk copy and native context.'};
   ctx.r.pcbSaveAttempt={...result,at:new Date().toISOString(),requestId:p.requestId};await persist(ctx.dir,ctx.r);return result;
  },
  async jlc_eda_reopen_pcb(p){
