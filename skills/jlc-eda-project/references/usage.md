@@ -92,4 +92,4 @@ STM32H563VI 的 `swdConnector` 增量用 `header` 指定五针直排针，`reset
 
 已收尾的未布线布局通过 `resume_work_project` 从来源工作目录派生。新副本沿用已验证的板框、安装孔、全部位姿和原生规则，可用 `route_pcb` 的 critical 模式逐支路布线。用 `check_pcb` 和 `finish_work_project` 在磁盘重开后逐网检查铜线与 DRC。
 
-带有已验收局部走线的单页工程可用 `schematic_eco` 的 `add_page` 模式派生工作副本。依次执行 `derive`、`plan`、`place_page`、`schematic`、`sync`、`complete`、`verify` 和 `finish`。新图页使用实际针脚验证正交连线；新器件按 mm 坐标放置。导入回执不确定时，使用同请求的 `verify_sync` 核对既有动作。原图页、两页汇总网表、原生铜线和 DRC 在保存重开时复核。
+已验收局部走线的工程可用 `schematic_eco` 的 `add_page` 模式派生工作副本。上次增页并完成验收的副本可以继续增页，每块板最多八页。依次执行 `derive`、`plan`、`place_page`、`schematic`、`sync`、`complete`、`verify` 和 `finish`。新图页使用实际针脚验证正交连线。新器件按 mm 坐标放置。导入回执不确定时，使用同请求的 `verify_sync` 核对既有动作。保存重开时逐页复核旧图页、跨页网表、原生铜线和 DRC。

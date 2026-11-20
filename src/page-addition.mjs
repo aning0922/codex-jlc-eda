@@ -6,7 +6,7 @@ import {unzipSync} from 'fflate';
 import {circuitSchema,drawingScript,fingerprint,enrichModelSources} from './drawing.mjs';
 import {bound,load,persist,action,closedWorkResult} from './workflow.mjs';
 import {digest} from './facts.mjs';
-import {pcbSnapshot,comparePreservedPcbSnapshot} from './pcb.mjs';
+import {pcbSnapshot,comparePreservedPcbSnapshot,recordedPageIds} from './pcb.mjs';
 import {capturePlacementArchives} from './placement-evidence.mjs';
 import {archiveDesignFingerprint} from './resources.mjs';
 import {readOwnedRouting,compareRoutingCheckpoint,routingScript} from './p3.mjs';
@@ -14,9 +14,9 @@ import {preserveArchive} from './eco-preservation.mjs';
 import {unresolvedActions,verifyLayoutSnapshot} from './pcb-validation.mjs';
 import {planLayout,toMil} from './layout.mjs';
 import {compareNativeDrc} from './drc-comparison.mjs';
-const id=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),coord=z.number().finite(),point=z.tuple([coord,coord]);
+const id=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),coord=z.number().finite(),point=z.array(coord).length(2);
 export const pageAdditionSchema=z.object({name:z.string().trim().min(1).max(80),circuit:circuitSchema,placements:z.array(z.object({ref:id,xMm:coord,yMm:coord,rotation:z.union([z.literal(0),z.literal(90),z.literal(180),z.literal(270)])}).strict()).min(1).max(200)}).strict();
-export const pageWiresSchema=z.array(z.object({net:z.string().min(1),lines:z.array(z.tuple([coord,coord,coord,coord])).min(1).max(180),labelAt:point.optional()}).strict()).min(1).max(100);
+export const pageWiresSchema=z.array(z.object({net:z.string().min(1),lines:z.array(z.array(coord).length(4)).min(1).max(180),labelAt:point.optional()}).strict()).min(1).max(100);
 const requireState=(ok,code)=>{if(!ok)throw Object.assign(Error(code),{code,status:'unknown'});};
 export function pagePreviewPng(data,pageName,pages){
  const png=Buffer.from([137,80,78,71,13,10,26,10]);
@@ -45,13 +45,14 @@ async function readPage(a,t,uuid){
 }
 async function nativeSheet(p){
  const info=async()=>{const project=await eda.dmt_Project.getCurrentProjectInfo(),board=project?.data?.filter(x=>x.itemType==='Board'&&x.pcb?.uuid===p.pcbDocumentUuid&&x.schematic?.uuid===p.schematicUuid);return project?.uuid===p.expectedProjectUuid&&board?.length===1?board[0].schematic.page:null;};
- const pages=await info();if(!pages?.some(x=>x.uuid===p.schematicPageUuid))return {status:'failed',code:'SHEET_NATIVE_TARGET_CHANGED'};
+ const pages=await info(),prior=p.priorPages;
+ if(!pages||!prior.some(x=>x.uuid===p.schematicPageUuid)||!prior.every(s=>pages.filter(x=>x.uuid===s.uuid&&(!s.name||x.name===s.name)).length===1))return {status:'failed',code:'SHEET_NATIVE_TARGET_CHANGED'};
  if(p.operation==='create'){
-  if(pages.length!==1)return {status:'failed',code:'SHEET_CREATION_PRECONDITION'};
+  if(pages.length!==prior.length||pages.some(x=>x.name===p.name))return {status:'failed',code:'SHEET_CREATION_PRECONDITION'};
   const uuid=await eda.dmt_Schematic.createSchematicPage(p.schematicUuid);
   return {status:typeof uuid==='string'?'ok':'unknown',uuid};
  }
- if(pages.length!==2||!pages.some(x=>x.uuid===p.newUuid))return {status:'failed',code:'SHEET_PAIR_CHANGED'};
+ if(pages.length!==prior.length+1||prior.some(x=>x.uuid===p.newUuid)||!pages.some(x=>x.uuid===p.newUuid))return {status:'failed',code:'SHEET_PAIR_CHANGED'};
  if(p.operation==='rename'){
   const ok=await eda.dmt_Schematic.modifySchematicPageName(p.newUuid,p.name);
   return {status:ok===true?'ok':'unknown'};
@@ -73,33 +74,44 @@ async function nativeSheet(p){
  }
  return {status:'unsupported',code:'SHEET_UNKNOWN_OPERATION'};
 }
-const nativeCall=(a,t,operation,extra={})=>a.invokeLossless(t.sessionId,'('+nativeSheet.toString()+')('+JSON.stringify({...t,operation,...extra})+')',60000);
+const nativeCall=(a,t,stage,operation,extra={})=>a.invokeLossless(t.sessionId,'('+nativeSheet.toString()+')('+JSON.stringify({...t,operation,priorPages:stage.priorPages??[{uuid:t.schematicPageUuid}],name:stage.input.name,...extra})+')',60000);
+const actionPrefix=stage=>stage.priorPages?'sheet/'+stage.uuid+'/':'added-page/';
 async function pageTree(a,t){
  const project=await a.jlc_eda_inspect_project({sessionId:t.sessionId,expectedProjectUuid:t.expectedProjectUuid,waitForReady:true}),board=project.boards?.filter(b=>b.schematicUuid===t.schematicUuid&&b.pcbDocumentUuid===t.pcbDocumentUuid);
  requireState(project.status==='ok'&&project.project.uuid===t.expectedProjectUuid&&board?.length===1,'SHEET_BOARD_ASSOCIATION');
  return project.documents.filter(d=>d.itemType==='Schematic Page'&&d.parentSchematicUuid===t.schematicUuid&&board[0].schematicPageUuids.includes(d.uuid));
 }
+async function verifyPriorPages(a,t,stage){
+ const pages=await pageTree(a,t),prior=stage.priorPages??[{uuid:t.schematicPageUuid}];
+ requireState(pages.length===prior.length+(stage.uuid?1:0)&&prior.every(p=>pages.some(x=>x.uuid===p.uuid&&(!p.name||x.name===p.name)))&&(!stage.uuid||pages.some(x=>x.uuid===stage.uuid&&x.name===stage.input.name)),'SHEET_PARENT_PAGE_SET_CHANGED');
+ for(const {uuid} of prior){
+  const actual=await readPage(a,t,uuid);
+  requireState(equal(actual.design,stage.before.schematicPages?.[uuid]??stage.before.schematic),'SHEET_ORIGINAL_SCHEMATIC_CHANGED');
+ }
+}
 async function createAndPlace(a,ctx,t,stage){
  const {r,dir}=ctx;let pages=await pageTree(a,t);
+ const prior=stage.priorPages??[{uuid:t.schematicPageUuid}];
  if(!stage.creation){
-  requireState(pages.length===1&&pages[0].uuid===t.schematicPageUuid&&pages[0].name!==stage.input.name,'SHEET_SOURCE_MUST_HAVE_ONE_PAGE');
+  await verifyPriorPages(a,t,stage);
+  requireState(!pages.some(p=>p.name===stage.input.name),'SHEET_NAME_ALREADY_EXISTS');
   stage.creation={state:'pending'};await persist(dir,r);
-  stage.creation.result=await nativeCall(a,t,'create');await persist(dir,r);
+  stage.creation.result=await nativeCall(a,t,stage,'create');await persist(dir,r);
  }
- pages=await pageTree(a,t);const fresh=pages.filter(x=>x.uuid!==t.schematicPageUuid);
- requireState(pages.length===2&&fresh.length===1&&stage.creation.result?.status==='ok'&&fresh[0].uuid===stage.creation.result.uuid&&(!stage.uuid||fresh[0].uuid===stage.uuid),'SHEET_CREATION_OUTCOME_UNCONFIRMED');
+ pages=await pageTree(a,t);const fresh=pages.filter(x=>!prior.some(p=>p.uuid===x.uuid));
+ requireState(pages.length===prior.length+1&&fresh.length===1&&stage.creation.result?.status==='ok'&&fresh[0].uuid===stage.creation.result.uuid&&(!stage.uuid||fresh[0].uuid===stage.uuid),'SHEET_CREATION_OUTCOME_UNCONFIRMED');
  stage.uuid=fresh[0].uuid;stage.creation.state='completed';await persist(dir,r);
  if(fresh[0].name!==stage.input.name){
   requireState(!stage.rename,'SHEET_RENAME_OUTCOME_UNCONFIRMED');stage.rename={state:'pending'};await persist(dir,r);
-  stage.rename.result=await nativeCall(a,t,'rename',{newUuid:stage.uuid,name:stage.input.name});await persist(dir,r);
+  stage.rename.result=await nativeCall(a,t,stage,'rename',{newUuid:stage.uuid});await persist(dir,r);
  }
  pages=await pageTree(a,t);requireState(pages.some(x=>x.uuid===stage.uuid&&x.name===stage.input.name),'SHEET_NAME_UNCONFIRMED');
  if(stage.rename)stage.rename.state='completed';await persist(dir,r);
  const target={...t,schematicPageUuid:stage.uuid};const before=await readPage(a,t,stage.uuid);
  if(!stage.blank){requireState(!before.doc.components.length&&!before.doc.counts.wires,'SHEET_NEW_PAGE_NOT_EMPTY');stage.blank=before.data;await persist(dir,r);}
  for(const part of stage.input.circuit.components){
-  if(r.actions['added-page/pose/'+part.ref]?.state==='completed')continue;
-  const v=await action(a,target,ctx,'added-page/place/'+part.ref,{operation:'place',component:part});requireState(v.status==='ok',v.code??'SHEET_PART_UNCONFIRMED');
+  if(r.actions[actionPrefix(stage)+'pose/'+part.ref]?.state==='completed')continue;
+  const v=await action(a,target,ctx,actionPrefix(stage)+'place/'+part.ref,{operation:'place',component:part});requireState(v.status==='ok',v.code??'SHEET_PART_UNCONFIRMED');
  }
  const placed=await readPage(a,t,stage.uuid);requireState(placed.doc.components.length===stage.input.circuit.components.length,'SHEET_EXTRA_OR_MISSING_PARTS');
  for(const part of stage.input.circuit.components){
@@ -138,24 +150,23 @@ async function drawPage(a,ctx,t,stage,wires){
  const page=await readPage(a,t,stage.uuid),groups=sheetWirePlan(stage.input.circuit,page.doc,wires),target={...t,schematicPageUuid:stage.uuid};
  stage.wiresHash=fingerprint(wires);await persist(ctx.dir,ctx.r);
  for(const [i,g]of groups.entries()){
-  const key='added-page/wire/'+i;
+  const key=actionPrefix(stage)+'wire/'+i;
   const v=await action(a,target,ctx,key,{operation:'junction',net:g.net,anchors:g.anchors,lines:g.lines});requireState(v.status==='ok',v.code??'SHEET_WIRE_UNVERIFIED');
   if(g.labelAt){const l=await action(a,target,ctx,key+'/label',{operation:'junction_label',net:g.net,wireId:v.wireId,labelAt:g.labelAt});requireState(l.status==='ok',l.code??'SHEET_LABEL_UNVERIFIED');}
  }
  for(const pin of stage.input.circuit.nc){
   const part=stage.input.circuit.components.find(c=>c.ref===pin.ref);
-  const v=await action(a,target,ctx,'added-page/nc/'+pin.ref+'/'+pin.pin,{operation:'connect',endpoint:{...pin,designator:part.designator},nc:true});requireState(v.status==='ok',v.code??'SHEET_NC_UNVERIFIED');
+  const v=await action(a,target,ctx,actionPrefix(stage)+'nc/'+pin.ref+'/'+pin.pin,{operation:'connect',endpoint:{...pin,designator:part.designator},nc:true});requireState(v.status==='ok',v.code??'SHEET_NC_UNVERIFIED');
  }
  for(const [i,note]of stage.input.circuit.notes.entries()){
-  const v=await action(a,target,ctx,'added-page/note/'+i,{operation:'note',note});requireState(v.status==='ok','SHEET_NOTE_UNVERIFIED');
+  const v=await action(a,target,ctx,actionPrefix(stage)+'note/'+i,{operation:'note',note});requireState(v.status==='ok','SHEET_NOTE_UNVERIFIED');
  }
- const result=await a.jlc_eda_verify_schematic({...t,pcbDocumentUuid:undefined,schematicPageUuids:[t.schematicPageUuid,stage.uuid],circuit:stage.combined});
+ const result=await a.jlc_eda_verify_schematic({...t,pcbDocumentUuid:undefined,schematicPageUuids:recordedPageIds(ctx.r),circuit:stage.combined});
  if(result.status!=='ok'||result.comparison?.status!=='matched')return {...result,status:'unknown',code:'SHEET_COMBINED_NETLIST_UNVERIFIED'};
- const old=await readPage(a,t,t.schematicPageUuid),fresh=await readPage(a,t,stage.uuid);
- requireState(equal(old.design,stage.before.schematic),'SHEET_ORIGINAL_SCHEMATIC_CHANGED');
+ await verifyPriorPages(a,t,stage);const fresh=await readPage(a,t,stage.uuid);
  requireState(fresh.doc.components.length===stage.input.circuit.components.length&&fresh.doc.components.every(c=>stage.input.circuit.components.some(n=>n.ref===c.uniqueId)),'SHEET_MEMBER_CHANGED');
  stage.verifiedSchematic=fresh.design;await persist(ctx.dir,ctx.r);
- return {status:'ok',pageUuid:stage.uuid,schematic:fresh.design,originalSchematic:old.design,netlist:result.netlist,comparison:result.comparison};
+ return {status:'ok',pageUuid:stage.uuid,schematic:fresh.design,originalSchematic:stage.before.schematic,netlist:result.netlist,comparison:result.comparison};
 }
 async function readBoard(a,t){
  const doc=await a.jlc_eda_read_document({...t,kind:'pcb',documentUuid:t.pcbDocumentUuid,includePins:true,includeGeometry:true,limit:200});
@@ -172,17 +183,17 @@ function existingPcb(r,doc,native){
 }
 async function syncPage(a,ctx,t,stage,verifyOnly){
  requireState(stage.verifiedSchematic,'SHEET_VERIFIED_LOGIC_REQUIRED');
- const set=[t.schematicPageUuid,stage.uuid],combined={...t,schematicPageUuids:set,circuit:stage.combined};
+ const combined={...t,schematicPageUuids:recordedPageIds(ctx.r),circuit:stage.combined};
  if(!stage.sync){
   requireState(!verifyOnly,'SHEET_NO_PENDING_SYNC');
   const logic=await a.jlc_eda_verify_schematic({...combined,pcbDocumentUuid:undefined});requireState(logic.comparison?.status==='matched','SHEET_SYNC_LOGIC_CHANGED');
-  const old=await readPage(a,t,t.schematicPageUuid),fresh=await readPage(a,t,stage.uuid);
-  requireState(equal(old.design,stage.before.schematic)&&equal(fresh.design,stage.verifiedSchematic),'SHEET_PREIMPORT_SCHEMATIC_CHANGED');
+  await verifyPriorPages(a,t,stage);const fresh=await readPage(a,t,stage.uuid);
+  requireState(equal(fresh.design,stage.verifiedSchematic),'SHEET_PREIMPORT_SCHEMATIC_CHANGED');
   const doc=await readBoard(a,t),native=await readOwnedRouting(a,t);existingPcb(ctx.r,doc,native);
   const before=await capturePlacementArchives(a,t);requireState(equal(before.pcb,stage.before.pcb)&&doc.components.length===ctx.r.continuation.selectedStage.document.components.length,'SHEET_PREIMPORT_PCB_CHANGED');
   const ids=doc.components.map(c=>c.id),lines=native.objects.filter(x=>x.kind==='Line').map(x=>[x.primitiveId,x.net,x.layer,x.startX,x.startY,x.endX,x.endY,x.lineWidth]);
   stage.sync={state:'pending'};await persist(ctx.dir,ctx.r);
-  stage.sync.result=await nativeCall(a,t,'sync',{newUuid:stage.uuid,ids,lines});await persist(ctx.dir,ctx.r);
+  stage.sync.result=await nativeCall(a,t,stage,'sync',{newUuid:stage.uuid,ids,lines});await persist(ctx.dir,ctx.r);
  }
  const v=await a.jlc_eda_verify_pcb(combined);
  if(v.status!=='ok'||v.comparison?.status!=='matched')return {...v,status:'unknown',code:'SHEET_PCB_IMPORT_READBACK_REQUIRED',nativeMutationReplayed:false};
@@ -196,17 +207,32 @@ async function syncPage(a,ctx,t,stage,verifyOnly){
  stage.sync.state='verified';stage.sync.proof=report;await persist(ctx.dir,ctx.r);
  return {status:'ok',pageUuid:stage.uuid,board:v.pcbDocument,comparison:v.comparison,preserved,archive:report};
 }
-export function sheetDrcDelta(before,after,addedParts){
- const pads=new Map(addedParts.flatMap(c=>c.pins.map(p=>[p.id,p]))),remaining=structuredClone(after),added=[];
+export function sheetDrcDelta(before,after,addedParts,originalParts=[]){
+ const pads=new Map(addedParts.flatMap(c=>c.pins.map(p=>[p.id,p]))),remaining=structuredClone(after),added=[],previouslySinglePads=[];
+ const extendedNets=new Set([...pads.values()].map(p=>p.net).filter(Boolean)),originalsByNet=new Map();
+ for(const component of originalParts)for(const p of component.pins){
+  if(!extendedNets.has(p.net))continue;
+  const list=originalsByNet.get(p.net)??[];list.push({...p,designator:component.designator});originalsByNet.set(p.net,list);
+ }
+ const oldErrors=new Set(before.filter(g=>g.name==='Connection Error').flatMap(g=>g.list.map(n=>n.name)));
  for(const group of remaining){
   if(group.name!=='Connection Error'||!Array.isArray(group.list))continue;
   for(const net of group.list){
    if(!Array.isArray(net.list))continue;
    const old=net.list.length;
    net.list=net.list.filter(e=>{
-    const obj=e.explanation?.errData,p=pads.get(obj?.obj1);
-    if(!p||e.errorType!=='Connection Error'||obj.errorType!=='No Connection'||!p.net||net.name!==p.net||e.net!==p.net||obj.net!==p.net)return true;
-    added.push({padId:p.id,net:p.net});return false;
+    const obj=e.explanation?.errData;
+    if(e.errorType!=='Connection Error'||obj?.errorType!=='No Connection'||!net.name||e.net!==net.name||obj.net!==net.name)return true;
+    const p=pads.get(obj.obj1);
+    if(p?.net===net.name){added.push({padId:p.id,net:p.net});return false;}
+    // A single existing pad first acquires a ratsnest when another pad joins its net.
+    const prior=originalsByNet.get(net.name);
+    if(prior?.length!==1||oldErrors.has(net.name)||previouslySinglePads.some(v=>v.net===net.name))return true;
+    const pin=prior[0],suffix='('+pin.net+'): '+pin.designator+'_'+pin.number;
+    if(obj.obj1!==pin.id||!equal(e.objs,[pin.id])||obj.obj1Suffix!==suffix||e.obj1?.suffix!==suffix||
+       !equal(obj.layerIds,[pin.layer])||!Number.isFinite(obj.position?.x)||!Number.isFinite(obj.position?.y)||!equal(e.pos,obj.position)||
+       Math.abs(obj.position.x*10-pin.x)>.051||Math.abs(obj.position.y*10-pin.y)>.051)return true;
+    previouslySinglePads.push({padId:pin.id,designator:pin.designator,pin:pin.number,net:pin.net});return false;
    });
    if(net.list.length!==old){
     requireState(net.count===old&&net.title===net.name+' ('+old+')','SHEET_DRC_GROUP_COUNTS');
@@ -218,7 +244,7 @@ export function sheetDrcDelta(before,after,addedParts){
   group.list=group.list.filter(n=>n.list.length);
  }
  const comparison=compareNativeDrc(before,remaining.filter(g=>g.name!=='Connection Error'||g.list.length));
- return {status:comparison.status,comparison,addedDisconnectedPads:added};
+ return {status:comparison.status,comparison,addedDisconnectedPads:added,previouslySinglePads};
 }
 async function completePage(a,ctx,t,stage){
  const r=ctx.r;requireState(stage.sync?.state==='verified','SHEET_VERIFIED_SYNC_REQUIRED');
@@ -231,14 +257,14 @@ async function completePage(a,ctx,t,stage){
  if(!stage.position){
   const move=plan.poses.filter(p=>poses.some(x=>x.uniqueId===p.uniqueId)).map(p=>({id:p.id,ref:p.uniqueId,x:p.x,y:p.y,rotation:p.rotation}));
   stage.position={state:'pending',move};await persist(ctx.dir,r);
-  stage.position.result=await nativeCall(a,t,'place_pcb',{newUuid:stage.uuid,ids:doc.components.map(c=>c.id),poses:move});await persist(ctx.dir,r);
+  stage.position.result=await nativeCall(a,t,stage,'place_pcb',{newUuid:stage.uuid,ids:doc.components.map(c=>c.id),poses:move});await persist(ctx.dir,r);
  }
  const after=await readBoard(a,t),observed=await readOwnedRouting(a,t),preserved=existingPcb(r,after,observed),layout=verifyLayoutSnapshot(plan,after,observed,baseline.outline);
  if(layout.status!=='matched')return {status:'unknown',code:'SHEET_NEW_PLACEMENTS_UNCONFIRMED',layout,nativeMutationReplayed:false};
- const combined={...t,schematicPageUuids:[t.schematicPageUuid,stage.uuid],circuit:stage.combined},identity=await a.jlc_eda_verify_pcb(combined);
+ const combined={...t,schematicPageUuids:recordedPageIds(r),circuit:stage.combined},identity=await a.jlc_eda_verify_pcb(combined);
  requireState(identity.comparison?.status==='matched','SHEET_FINAL_ASSIGNMENTS_CHANGED');
- const prior=await readPage(a,t,t.schematicPageUuid),fresh=await readPage(a,t,stage.uuid);
- requireState(equal(prior.design,stage.before.schematic)&&equal(fresh.design,stage.verifiedSchematic),'SHEET_FINAL_SCHEMATIC_CHANGED');
+ await verifyPriorPages(a,t,stage);const fresh=await readPage(a,t,stage.uuid);
+ requireState(equal(fresh.design,stage.verifiedSchematic),'SHEET_FINAL_SCHEMATIC_CHANGED');
  const archives=await capturePlacementArchives(a,t),newParts=after.components.filter(c=>poses.some(p=>p.uniqueId===c.uniqueId)),ids=newParts.map(c=>c.id);
  const models=fresh.doc.components.flatMap(c=>[c.device?.uuid,c.symbol?.uuid,c.footprint?.uuid]).filter(Boolean);
  const originalNames=new Set(r.continuation.selectedStage.document.components.flatMap(c=>c.pins.map(p=>p.net)));
@@ -247,9 +273,9 @@ async function completePage(a,ctx,t,stage){
  if(full.status!=='matched')return {status:'unknown',code:'SHEET_SAVED_BOARD_DELTA_UNCONFIRMED',full};
  const drc=await a.invokeLossless(t.sessionId,routingScript({...t,operation:'check'}),60000);
  requireState(drc.status==='ok'&&drc.strict&&equal(drc.beforeRules,drc.afterRules),'SHEET_FRESH_DRC_REQUIRED');
- const source=JSON.parse(await readFile(r.continuation.sourceJournalCopy)),delta=sheetDrcDelta(source.finish.disk.drc.errors,drc.errors,newParts);
+ const source=JSON.parse(await readFile(r.continuation.sourceJournalCopy)),delta=sheetDrcDelta(source.finish.disk.drc.errors,drc.errors,newParts,source.finish.disk.document.components);
  if(delta.status!=='matched')return {status:'unknown',code:'SHEET_DRC_OUTSIDE_NEW_OPEN_PADS',drc,delta};
- stage.position.state='completed';stage.accepted={oldSchematic:prior.design,newSchematic:fresh.design,pcb:archives.pcb,full,preserved,drcDelta:delta};
+ stage.position.state='completed';stage.accepted={oldSchematic:stage.before.schematic,newSchematic:fresh.design,pcb:archives.pcb,full,preserved,drcDelta:delta};
  r.circuit=stage.combined;r.pcbSyncBaseline={inputFingerprint:fingerprint(stage.combined),after:pcbSnapshot(after)};
  r.pcbLayoutBaseline={after:pcbSnapshot(after),plan,outline:baseline.outline};r.pcbCopperBaseline={after:pcbSnapshot(after),native:observed,archives};
  r.documents=(await a.jlc_eda_inspect_project(t)).documents;await persist(ctx.dir,r);
@@ -289,8 +315,8 @@ export async function addPageWorkflow(a,p){
   const page=await readPage(a,t,s.uuid);requireState(!page.doc.counts.wires,'SHEET_WIRED_POSES_IMMUTABLE');
   s.reposition=hash;await persist(dir,r);
   for(const [i,part]of revised.circuit.components.entries())if(!equal(s.input.circuit.components[i].pose,part.pose)){
-   const primitiveId=r.actions['added-page/place/'+part.ref]?.result?.primitiveId;
-   const v=await action(a,{...t,schematicPageUuid:s.uuid},ctx,'added-page/pose/'+part.ref,{operation:'new_page_pose',primitiveId,ref:part.ref,designator:part.designator,pose:part.pose});
+   const primitiveId=r.actions[actionPrefix(s)+'place/'+part.ref]?.result?.primitiveId;
+   const v=await action(a,{...t,schematicPageUuid:s.uuid},ctx,actionPrefix(s)+'pose/'+part.ref,{operation:'new_page_pose',primitiveId,ref:part.ref,designator:part.designator,pose:part.pose});
    requireState(v.status==='ok','SHEET_POSE_UNCONFIRMED');
   }
   s.input=revised;s.hash=hash;s.combined=appendSheetCircuit(r.circuit,revised);await persist(dir,r);
@@ -299,7 +325,11 @@ export async function addPageWorkflow(a,p){
   requireState(p.phase==='plan'&&!unresolvedActions(r).length,'SHEET_PLAN_REQUIRED');
   const combined=appendSheetCircuit(r.circuit,p.pageAddition),snapshot=await capturePlacementArchives(a,t);
   requireState(equal(snapshot.schematic,origin.selectedStage.design.schematic)&&equal(snapshot.pcb,origin.selectedStage.design.pcb),'SHEET_PARENT_ARCHIVES_CHANGED');
-  r.addedSheet={hash,input:p.pageAddition,combined,before:snapshot};await persist(dir,r);
+  const design=origin.selectedStage.design,priorPages=(await pageTree(a,t)).map(({uuid,name})=>({uuid,name}));
+  const pages=design.schematicPages??{[r.schematicPageUuid]:design.schematic};
+  requireState(priorPages.length>0&&priorPages.length<8&&priorPages.length===Object.keys(pages).length&&priorPages.every(x=>pages[x.uuid]&&x.name!==p.pageAddition.name),'SHEET_SOURCE_PAGE_SET_INVALID');
+  r.addedSheet={hash,input:p.pageAddition,combined,priorPages,before:{...snapshot,schematicPages:pages}};
+  await verifyPriorPages(a,t,r.addedSheet);await persist(dir,r);
  }
  const stage=r.addedSheet;
  if(p.phase==='derive')return {status:'ok',reused:true,workDirectory:dir,path:r.path,sessionId:r.sessionId,projectUuid:r.projectUuid,pageUuid:stage.uuid??null};
@@ -319,12 +349,12 @@ export async function addPageWorkflow(a,p){
  }
  if(p.phase==='verify'||p.phase==='finish'){
   requireState(stage.accepted,'SHEET_STAGE_VERIFICATION_REQUIRED');
-  const target={...t,schematicPageUuids:[t.schematicPageUuid,stage.uuid],circuit:r.circuit};
+  const target={...t,schematicPageUuids:recordedPageIds(r),circuit:r.circuit};
   const checked=await a.jlc_eda_check_pcb(target);
   if(checked.status!=='ok'||checked.identity?.comparison?.status!=='matched'||checked.layout?.status!=='matched'||checked.fullArchive?.status!=='matched'||!checked.rulesMatched)return {...checked,status:'unknown',code:'SHEET_FINAL_CHECK_FAILED'};
   const fresh=await readPage(a,t,stage.uuid);requireState(equal(fresh.design,stage.accepted.newSchematic),'SHEET_NEW_PAGE_ARCHIVE_CHANGED');
   const parent=JSON.parse(await readFile(r.continuation.sourceJournalCopy));
-  const delta=sheetDrcDelta(parent.finish.disk.drc.errors,checked.drc.errors,checked.document.components.filter(c=>stage.input.placements.some(p=>p.ref===c.uniqueId)));
+  const delta=sheetDrcDelta(parent.finish.disk.drc.errors,checked.drc.errors,checked.document.components.filter(c=>stage.input.placements.some(p=>p.ref===c.uniqueId)),parent.finish.disk.document.components);
   requireState(delta.status==='matched','SHEET_FINAL_DRC_CHANGED');
   return p.phase==='verify'?{...checked,pageUuid:stage.uuid,drcDelta:delta}:a.jlc_eda_finish_work_project(target);
  }

@@ -17,9 +17,9 @@ Real component models · Isolated work copies · Native placement and routing ·
 
 | Development source | Published runtime | Public interface | License |
 |:---:|:---:|:---:|:---:|
-| `0.11.0-dev.a26` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
+| `0.11.0-dev.a27` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
 
-On 4.1.105, A26 added a second schematic page and six input-protection parts to a saved H563 layout. All 14 existing crystal trace segments matched after disk reopen.
+A27 can extend a closed, previously expanded PCB project. It checks each existing sheet archive and each cross-sheet pin assignment on the three-page H563 main supply design.
 
 > **Current progress · synced on 2026-10-18**
 > The RC board completed schematic generation, PCB synchronization, placement, routing and compatible component replacement on EDA Pro 4.1.71. Version 4.1.105 was used for notes editing, background recovery across Codex hosts and fresh disk verification. The published download is Alpha.3. This is a community developer preview.
@@ -60,7 +60,7 @@ Scope: **one schematic page, one low-voltage two-layer board**. Passive changes 
 
 | Your goal | Entry point | What to expect |
 |---|---|---|
-| Inspect or develop the latest work | Current source, `0.11.0-dev.a26` | Local build with A11 background working copies |
+| Inspect or develop the latest work | Current source, `0.11.0-dev.a27` | Local build with A11 background working copies |
 | Use the existing precompiled package | [Alpha.3 pre-release](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | No npm installation; excludes the A6–A10 additions |
 
 Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host supporting local stdio MCP**. Version 4.1.60 is the earlier baseline; 4.1.71 and 4.1.105 have the bounded qualifications above. Other platforms, versions and `.eprj3` paths need separate checks. Native interaction requires host desktop capabilities or operator assistance. [Official CLI documentation](https://prodocs.lceda.cn/cn/api/guide/cli.html)
@@ -71,14 +71,14 @@ Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host suppo
 git clone https://github.com/aning0922/codex-jlc-eda.git
 cd codex-jlc-eda
 PROJECT_ROOT="$(pwd -P)"
-node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a26") process.exit(1)'
+node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a27") process.exit(1)'
 npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund
 npm --prefix "$PROJECT_ROOT" test
 npm --prefix "$PROJECT_ROOT" run test:protocol
 npm --prefix "$PROJECT_ROOT" run package
 ```
 
-Outputs are written to `release/0.11.0-dev.a26/`: source / runtime ZIPs, file manifests and `SHA256SUMS`. This creates a local development build; it does not establish a new public release or actual chat-host qualification. Offline tests and protocol checks do not call the real editor.
+Outputs are written to `release/0.11.0-dev.a27/`: source / runtime ZIPs, file manifests and `SHA256SUMS`. This creates a local development build; it does not establish a new public release or actual chat-host qualification. Offline tests and protocol checks do not call the real editor.
 
 <details>
 <summary><strong>Use the published Alpha.3 runtime</strong></summary>

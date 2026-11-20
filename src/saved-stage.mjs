@@ -4,7 +4,7 @@ import {fingerprint} from './drawing.mjs';
 import {confirmedFailedStageAction,unresolvedActions,verifyLayoutSnapshot} from './pcb-validation.mjs';
 import {isOwnedFootprintVia} from './footprint-vias.mjs';
 import {compareRoutingCheckpoint} from './p3.mjs';
-import {pcbSnapshot,comparePreservedPcbSnapshot} from './pcb.mjs';
+import {pcbSnapshot,comparePreservedPcbSnapshot,recordedPageIds} from './pcb.mjs';
 import {ruleCheckpointEqual} from './rules.mjs';
 const fail=code=>{throw Object.assign(Error(code),{code,status:'unknown'});};
 const exact=(a,b)=>!!a&&!!b&&fingerprint(a)===fingerprint(b);
@@ -28,6 +28,17 @@ function closedLayoutStage(source,origin){
  const mechanical=new Set([...verified.board.outline,...(verified.board.mountingHoles??[])].map(x=>x.primitiveId));
  const routing=d.native.objects.filter(x=>!mechanical.has(x.primitiveId)&&!isOwnedFootprintVia(x));
  const accepted=source.pcbCopperBaseline;
+ if(source.addedSheet){
+  const sheet=source.addedSheet,prior=source.continuation?.selectedStage?.design;
+  const oldPages=prior?.schematicPages??{[source.schematicPageUuid]:prior?.schematic};
+  const ids=recordedPageIds(source),expected={...oldPages,[sheet.uuid]:sheet.accepted?.newSchematic};
+  if(!sheet.uuid||!sheet.accepted?.newSchematic?.sha256||!accepted||new Set(ids).size!==ids.length||
+     !exact(expected,f.design.schematicPages)||!exact(sheet.accepted.pcb,f.design.pcb)||
+     !exact(f.design.schematic,f.design.schematicPages?.[source.schematicPageUuid]))fail('CONTINUATION_CLOSED_SHEETS_UNVERIFIED');
+ }else if(source.continuation?.selectedStage?.design?.schematicPages){
+  const prior=source.continuation.selectedStage.design.schematicPages;
+  if(!exact(prior,f.design.schematicPages)||!exact(prior,accepted?.archives?.schematicPages))fail('CONTINUATION_CLOSED_SHEETS_UNVERIFIED');
+ }
  if(accepted){
   if(!routing.length||routing.some(x=>x.kind!=='Line'||![1,2].includes(x.layer)||!x.net)||
      d.copperCheckpoint?.status!=='matched'||d.fullArchive?.status!=='matched'||
@@ -39,7 +50,7 @@ function closedLayoutStage(source,origin){
 }
 export function selectSavedStage(source,{sourcePath,sourceSha256,sourceJournalSha256}){
  const failed=Object.entries(source.pcbActions??{}).filter(([key,a])=>key.startsWith('route/')&&a.state==='failed_preserved');
- if(!failed.length&&source.finish?.state==='closed'&&source.pcbLayoutBaseline&&(!source.pcbCopperBaseline||source.continuation?.selectedStage?.kind==='closed_unrouted_layout')&&!source.pcbFileRouteBaseline&&!source.pcbRepairBaseline)
+ if(!failed.length&&source.finish?.state==='closed'&&source.pcbLayoutBaseline&&(!source.pcbCopperBaseline||['closed_unrouted_layout','closed_routed_layout'].includes(source.continuation?.selectedStage?.kind))&&!source.pcbFileRouteBaseline&&!source.pcbRepairBaseline)
   return closedLayoutStage(source,{sourcePath,sourceSha256,sourceJournalSha256});
  if(!failed.length)return null;
  if(unresolvedActions(source).length)fail('CONTINUATION_STAGE_ACTION_UNRESOLVED');

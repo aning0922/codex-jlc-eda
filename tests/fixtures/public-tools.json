@@ -5593,38 +5593,22 @@
                 "type": "array",
                 "items": {
                   "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
                   "minItems": 4,
-                  "maxItems": 4,
-                  "items": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ]
+                  "maxItems": 4
                 },
                 "minItems": 1,
                 "maxItems": 180
               },
               "labelAt": {
                 "type": "array",
+                "items": {
+                  "type": "number"
+                },
                 "minItems": 2,
-                "maxItems": 2,
-                "items": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "number"
-                  }
-                ]
+                "maxItems": 2
               }
             },
             "required": [

@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a27 · 2026-11-20
+
+- Continue a closed multi-page board in a fresh copy, add a power sheet, and verify every existing page and routed pad through PCB synchronization and disk reopen.
+
 ## 0.11.0-dev.a26 · 2026-11-20
 
 - Add a schematic page to a verified local PCB with existing traces. Check the exact page set, source pad assignments, original copper, new footprint positions and both saved schematic pages.

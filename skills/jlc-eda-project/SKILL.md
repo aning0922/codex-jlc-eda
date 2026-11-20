@@ -13,7 +13,7 @@ description: 使用嘉立创EDA专业版读取工程、核实器件和引脚、�
 - 新小型原理图/首次PCB同步：create_work_project 或 derive_work_project → draw_schematic → verify/preview → sync_pcb → 原生复核 → verify → 布局/规则/局部或受限路由 → finish_work_project。已同步板可显式读取官方布局候选并在同一板框下采用约束位置；具体边界见 [日常使用与状态处理](references/usage.md)。
 - 已完成PCB局部孔/线/位号/EP钢网：incremental_pcb，从closed成品派生，plan → apply/verify → finish。工程内独立钢网封装仍有“仅所选实例”原生步骤，不写共享/全局库。
 - 单脚测试点：schematic_eco，默认 single_point 模式，沿已验收P4-D流程。
-- 已验收单页布局新增第二张图页时，使用 schematic_eco 的 add_page 模式，在独立副本上核实两页网表、原有铜线、新器件和两页磁盘存档。步骤见[日常使用](references/usage.md)。
+- 已验收的布局可用 schematic_eco 的 add_page 模式继续增页。在独立副本上核实每张既有图页、跨页网表、新器件和原有铜线，并从磁盘重开复核。步骤见[日常使用](references/usage.md)。
 - 常规两脚R/C新增或兼容换料/改接：schematic_eco，mode=passives；详见 [阻容增量操作](references/passives.md)。
 - 制造交付：从最终成品 export_manufacturing，一次新导出；未知导出仅复核已捕获文件，不重新导出充数。
 

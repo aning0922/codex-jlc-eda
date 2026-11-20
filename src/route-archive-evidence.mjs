@@ -4,7 +4,7 @@ import {allocatorChanges} from './incremental-allocators.mjs';
 const key=r=>r.type+'/'+r.id,near=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=.0001;
 export function compareRouteArchives(before,after,{documentUuid,added}={}){
  const a=nativeModelRecords(before.pcbData),b=nativeModelRecords(after.pcbData),issues=[],old=a.get(documentUuid),now=b.get(documentUuid);
- if(fingerprint(before.schematic)!==fingerprint(after.schematic))issues.push({code:'ROUTE_SCHEMATIC_CHANGED'});
+ if(fingerprint(before.schematic)!==fingerprint(after.schematic)||fingerprint(before.schematicPages??null)!==fingerprint(after.schematicPages??null))issues.push({code:'ROUTE_SCHEMATIC_CHANGED'});
  if(!old||!now)return {status:'mismatch',issues:[...issues,{code:'ROUTE_ARCHIVE_TARGET_MISSING'}]};
  const asRows=doc=>doc.rows.map(r=>({header:{type:r.type,id:r.id},body:r.body}));
  const allocator=allocatorChanges(asRows(old),asRows(now),added.length),allocatorIds=new Set(allocator.matched?allocator.accepted.map(r=>r.id):[]);

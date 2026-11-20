@@ -28,6 +28,19 @@ test('a closed unrouted layout binds the fresh disk design and rejects extra cop
   s=>s.finish.disk.native.objects.pop(),s=>s.finish.disk.reopened.inspectionCopy=false,
   s=>s.finish.disk.design={...design,pcb:{sha256:'other'}},s=>s.pcbActions={pending:{state:'unknown'}}
  ]){const variant=structuredClone(source);mutate(variant);assert.throws(()=>selectSavedStage(variant,origin),/CONTINUATION_/);}
+ const multi=structuredClone(source),first='page1',second='page2',third='page3';
+ const pages={[first]:design.schematic,[second]:{sha256:'power-in'}},newSchematic={sha256:'rails'};
+ multi.schematicPageUuid=first;multi.continuation={selectedStage:{kind:'closed_routed_layout',design:{schematic:pages[first],schematicPages:pages}}};
+ multi.addedSheet={uuid:third,accepted:{newSchematic,pcb:design.pcb}};
+ const saved=multi.finish.disk;saved.native.objects.push({kind:'Line',primitiveId:'route',layer:1,net:'SIG'});
+ saved.copperCheckpoint={status:'matched'};saved.fullArchive={status:'matched'};
+ multi.pcbCopperBaseline={native:structuredClone(saved.native),archives:design};
+ multi.finish.design={...design,schematicPages:{...pages,[third]:newSchematic}};saved.design=structuredClone(multi.finish.design);
+ assert.equal(selectSavedStage(multi,origin).kind,'closed_routed_layout');
+ for(const alter of [m=>delete m.finish.design.schematicPages[second],m=>m.finish.design.schematicPages[second]={sha256:'changed'},m=>m.addedSheet.uuid=first]){
+  const changed=structuredClone(multi);alter(changed);changed.finish.disk.design=structuredClone(changed.finish.design);
+  assert.throws(()=>selectSavedStage(changed,origin),/CLOSED_SHEETS_UNVERIFIED/);
+ }
 });
 test('disconnected markers follow only a verified native rounding of their own component pose',()=>{
  const doc=x=>({components:[{id:'c',uniqueId:'C1',x,y:5,rotation:0,layer:1,footprint:{uuid:'fp'},pins:[{id:'cp',number:'1',net:'GND',x:x+2,y:5}]}]});

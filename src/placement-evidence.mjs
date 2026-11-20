@@ -4,14 +4,27 @@ import {pcbScript} from './pcb.mjs';
 import {scripts} from './native-scripts.mjs';
 import {archiveDesignFingerprint} from './resources.mjs';
 import {equivalentAngle} from './angles.mjs';
+export async function schematicPageArchives(a,p,primary){
+ if(!(p.schematicPageUuids?.length>1))return {};
+ const pages={[p.schematicPageUuid]:primary};
+ for(const uuid of p.schematicPageUuids.filter(id=>id!==p.schematicPageUuid)){
+  const focus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:uuid,kind:'schematic'}));
+  const extra=focus.status==='ok'?await a.invoke(p.sessionId,drawingScript({...p,schematicPageUuid:uuid,operation:'archive'})):focus;
+  if(extra.status!=='ok')throw Object.assign(Error('SHEET_ARCHIVE_UNAVAILABLE'),extra);
+  pages[uuid]=archiveDesignFingerprint(extra.data);
+ }
+ return {schematicPages:pages};
+}
 export async function capturePlacementArchives(a,p){
  const schFocus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.schematicPageUuid,kind:'schematic'}));
  if(schFocus.status!=='ok')throw Object.assign(Error('PLACEMENT_SCH_FOCUS_UNCERTAIN'),{code:'PLACEMENT_SCH_FOCUS_UNCERTAIN',status:'unknown'});
  const sch=await a.invoke(p.sessionId,drawingScript({...p,operation:'archive'}));
+ if(sch.status!=='ok')throw Object.assign(Error('PLACEMENT_ARCHIVE_UNAVAILABLE'),{code:'PLACEMENT_ARCHIVE_UNAVAILABLE',status:'unknown'});
+ const schematic=archiveDesignFingerprint(sch.data),pages=await schematicPageArchives(a,p,schematic);
  const pcbFocus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb'}));
  const pcb=pcbFocus.status==='ok'?await a.invoke(p.sessionId,pcbScript({...p,operation:'archive'})):pcbFocus;
  if(sch.status!=='ok'||pcb.status!=='ok')throw Object.assign(Error('PLACEMENT_ARCHIVE_UNAVAILABLE'),{code:'PLACEMENT_ARCHIVE_UNAVAILABLE',status:'unknown'});
- return {schematic:archiveDesignFingerprint(sch.data),pcbData:pcb.data,pcb:archiveDesignFingerprint(pcb.data)};
+ return {schematic,...pages,pcbData:pcb.data,pcb:archiveDesignFingerprint(pcb.data)};
 }
 const key=r=>r.type+'/'+r.id,without=(o,keys)=>Object.fromEntries(Object.entries(o).filter(([k])=>!keys.includes(k)));
 const near=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=.0001;

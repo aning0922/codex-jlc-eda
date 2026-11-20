@@ -36,4 +36,12 @@ test('DRC changes can consist only of same-network disconnected markers on newly
  assert.equal(sheetDrcDelta(base,[...now,{name:'Clearance',list:[]}],added).status,'mismatch');
  const changed=structuredClone(now);changed[0].list[0].list[0].explanation.errData.obj1='unrelated';assert.equal(sheetDrcDelta(base,changed,added).status,'mismatch');
  const wrong=structuredClone(now);wrong[0].list[0].list[1].net='VIN';assert.equal(sheetDrcDelta(base,wrong,added).status,'mismatch');
+ const pad={id:'j1',number:'1',net:'VIN',layer:12,x:112.1,y:60},original=[{designator:'J1',pins:[pad]}];
+ const newLink=leaf('j1','VIN'),suffix='(VIN): J1_1',pos={x:11.2105,y:6};
+ Object.assign(newLink,{obj1:{suffix},objs:['j1'],pos});Object.assign(newLink.explanation.errData,{obj1Suffix:suffix,position:pos,layerIds:[12]});
+ const extended=tree([group('GND',[leaf('old','GND'),leaf('new','GND')]),group('VIN',[leaf('v','VIN'),newLink])]);
+ const accepted=sheetDrcDelta(base,extended,added,original);assert.equal(accepted.status,'matched');assert.equal(accepted.previouslySinglePads[0].designator,'J1');
+ assert.equal(sheetDrcDelta(base,extended,added,[...original,{designator:'J2',pins:[{...pad,id:'j2'}]}]).status,'mismatch');
+ const moved=structuredClone(extended);moved[0].list[1].list[1].explanation.errData.position.x+=1;
+ assert.equal(sheetDrcDelta(base,moved,added,original).status,'mismatch');
 });

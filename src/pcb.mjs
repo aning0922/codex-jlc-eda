@@ -25,6 +25,12 @@ export const pcbSchemas={
  jlc_eda_preview_pcb:z.object(workTarget).strict()
 };
 const fail=(code,message=code,status='failed')=>{throw Object.assign(new Error(message),{code,status});};
+export function recordedPageIds(record){
+ const savedPages=record.continuation?.selectedStage?.design?.schematicPages;
+ const ids=savedPages?Object.keys(savedPages):[record.schematicPageUuid];
+ if(record.addedSheet?.uuid)ids.push(record.addedSheet.uuid);
+ return ids;
+}
 export function association(project,p){
  if(project.status!=='ok'||project.project?.uuid!==p.expectedProjectUuid)return {status:'unknown',code:'PCB_PROJECT_IDENTITY_UNCERTAIN'};
  const page=project.documents.find(x=>x.uuid===p.schematicPageUuid&&x.itemType==='Schematic Page');

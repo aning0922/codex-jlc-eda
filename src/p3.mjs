@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {realpath} from 'node:fs/promises';
 import {invalidateRouteObservation,guiParameterCoverage} from './route-state.mjs';
 import {proveFootprintVias,isOwnedFootprintVia,compareMovedFootprintVias} from './footprint-vias.mjs';
-import {pcbBound,pcbSnapshot,positionDiff} from './pcb.mjs';
+import {pcbBound,pcbSnapshot,positionDiff,recordedPageIds} from './pcb.mjs';
 import {scripts} from './native-scripts.mjs';
 import {persist,load} from './workflow.mjs';
 import {fingerprint,circuitSchema} from './drawing.mjs';
@@ -185,7 +185,9 @@ export const p3Workflow={
   try{action.nativeResult=await this.invoke(p.sessionId,routingScript({...p,operation:'rules',beforeRules:plan.before,afterRules:plan.after}));action.state='unknown';await persist(dir,r);return this.jlc_eda_configure_pcb_rules(p);}catch(e){action.state='unknown';action.error={code:e.code,message:e.message};await persist(dir,r);throw e;}
  },
  async jlc_eda_route_pcb(p){
-  if((await load(p.workDirectory)).pcbRepairBaseline)return {status:'unknown',code:'PCB_KNOWN_PARTIAL_USE_LOCAL_REPAIR',nativeMutationReplayed:false};
+  const recorded=await load(p.workDirectory);
+  if(recorded.pcbRepairBaseline)return {status:'unknown',code:'PCB_KNOWN_PARTIAL_USE_LOCAL_REPAIR',nativeMutationReplayed:false};
+  const pages=recordedPageIds(recorded);if(pages.length>1)p={...p,schematicPageUuids:pages};
   const key='route/'+p.requestId,hash=fingerprint({critical:p.critical??null,routing:p.routing??null,unit:p.unit});let context;
   try{context=await pcbBound(this,p);}catch(e){
    // Binding reads can fail before copper reads. Invalidate only the exact
@@ -265,7 +267,7 @@ export const p3Workflow={
  },
  async jlc_eda_check_pcb(p){
   const recorded=await load(p.workDirectory);
-  if(recorded.addedSheet?.accepted)p={...p,schematicPageUuids:[recorded.schematicPageUuid,recorded.addedSheet.uuid]};
+  const pages=recordedPageIds(recorded);if(pages.length>1)p={...p,schematicPageUuids:pages};
   if(recorded.pcbRepairBaseline){
    if(!sameFileTarget(recorded,p))return {status:'failed',code:'WORK_TARGET_MISMATCH',boardReady:false};
    if(recorded.finish?.state==='closed')return {status:'unknown',code:'WORK_SESSION_CLOSED',boardReady:false};
@@ -322,5 +324,5 @@ async function checkAcceptedFile(a,p,r){
 
 async function verifyRouteArchiveCheckpoint(a,p,r){
  const expected=r.pcbCopperBaseline?.archives;if(!expected)return null;
- const actual=await capturePlacementArchives(a,p);const matched=fingerprint(expected.schematic)===fingerprint(actual.schematic)&&fingerprint(expected.pcb)===fingerprint(actual.pcb);return {status:matched?"matched":"mismatch",expected:{schematic:expected.schematic,pcb:expected.pcb},actual:{schematic:actual.schematic,pcb:actual.pcb}};
+ const actual=await capturePlacementArchives(a,p);const matched=fingerprint(expected.schematic)===fingerprint(actual.schematic)&&fingerprint(expected.pcb)===fingerprint(actual.pcb)&&(!expected.schematicPages||fingerprint(expected.schematicPages)===fingerprint(actual.schematicPages));return {status:matched?"matched":"mismatch",expected:{schematic:expected.schematic,pcb:expected.pcb},actual:{schematic:actual.schematic,pcb:actual.pcb}};
 }
