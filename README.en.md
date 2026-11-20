@@ -19,31 +19,19 @@ Real component models · Isolated work copies · Native placement and routing ·
 |:---:|:---:|:---:|:---:|
 | `0.11.0-dev.a31-r4` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
 
-A29 adds solid copper pours, island and thermal-spoke connectivity on inner and outer layers, and supports individual trace widths and plated top-to-bottom transitions on a saved multi-page board. The routing workflow checks current rules, existing copper and the native geometry of every added segment and via.
-
-A30 routes several pad-to-pad paths together and connects surface-mount pads to a named power or ground plane. After refilling, it checks actual copper on each via annulus, the new paths, existing traces and every schematic sheet.
-
-A31 connects explicitly deferred pins on earlier sheets to a newly added sheet. New surface-mount parts and parts with fully plated round through-holes can be placed on the bottom side. The saved copy is reopened to verify every sheet, pad assignment, existing track and copper group.
-
-
-> **Current progress · synced on 2026-10-18**
-> The RC board completed schematic generation, PCB synchronization, placement, routing and compatible component replacement on EDA Pro 4.1.71. Version 4.1.105 was used for notes editing, background recovery across Codex hosts and fresh disk verification. The published download is Alpha.3. This is a community developer preview.
+As of 2026-11-20, the development build can extend a low-voltage board that already has copper. In a working copy, it can add a schematic sheet, connect pins left open on an earlier sheet, place new parts on either side and route connections in batches. It reopens the saved project from disk to check the netlist, existing copper and remaining connections.
 
 ## Latest results
 
-Starting with a real blank project, the workflow completed an RC signal filter board, then derived a new copy from the saved, closed result and replaced C1 from **10 nF to 100 nF**. These bounded real-editor results were recorded on 2026-10-10 and 10-11.
+### Four-layer STM32H563 controller · partial routing
 
-| 8 components · 13 pins · 3 nets | 21 traces · 0 vias | Strict DRC: 0 | 41 manufacturing files |
-|:---:|:---:|:---:|:---:|
-| All pin → net → pad mappings checked | All nets connected; about 60.24 mm total trace length | Connectivity, visual review and saving checked separately | Gerber / BOM / CPL and associated files checked |
+EDA Pro 4.1.105 saved and reopened a board with **12 schematic sheets, 265 components and 161 nets**. This routing stage closed 74 gaps on 37 target signal nets. An independent reconstruction from four Gerber copper layers and the NC drill files matched the editor’s connectivity groups on all 161 nets.
 
-- **A6 · Real model reading** — Validated symbol and footprint source with explicit identity, units and geometry provenance; qualified a bounded existing-board edit and save on 4.1.71.
-- **A7 · Schematic to PCB** — RC schematic, local exchange-file import, controlled initial synchronization into an empty PCB, and complete saving of the unrouted stage.
-- **A8 · Placement and native routing** — Evaluated a native placement candidate, adopted circuit-constrained positions, then completed native routing, strict checks and fresh disk readback.
-- **A9-R1 · Compatible real replacement** — Replaced C1 with a real compatible 100 nF part, preserved non-target content, nets, placement, rules and existing copper, and completed saving, closing and local manufacturing checks.
-- **A10–A11 · Notes delivery and background working copies** — Two corrections and three text positions were verified after a fresh reopen. New working copies default to headless. Choose `renderMode: "visible"` at creation when the native picker or import review is required.
+The board went from **487 to 348 remaining connections**. Strict DRC separately reported **480 unconnected markers**, with zero shorts or clearance violations. A fresh Codex host loaded A31-r4 and reopened the saved board read-only. [Validation record](docs/validation.md)
 
-Manufacturing status is `filesValid=true`, `manufacturingReady=false`: assembly orientation, 3D and physical performance still need separate verification. See the [development status and evidence summary](docs/development-status.md).
+### Two-layer RC filter · complete routing and component replacement
+
+On EDA Pro 4.1.71, a blank project became an eight-component, 13-pin board. All three nets connected through 21 trace segments and no vias, with zero strict DRC errors. After C1 changed from **10 nF to 100 nF**, reopening confirmed that the original copper was intact. All 41 manufacturing files passed their checks. Assembly orientation, 3D fit and physical performance still need verification. [RC example](examples/rc-filter/README.md) · [Development status](docs/development-status.md)
 
 ## Capabilities
 
@@ -52,12 +40,13 @@ Describe the circuit and project location. The assistant uses tools to read, pla
 | Stage | Current capability |
 |---|---|
 | **Understand a project** | Project identity, real library models, complete native records, schematic pins, PCB pads and copper connectivity |
-| **Create a small board** | Native blank templates, schematic drawing and annotation, initial PCB sync, constrained placement and bounded native routing |
-| **Modify a completed design** | Derive from a closed result; add ordinary top-layer two-pin R/C parts, replace compatible real parts, or make source-backed local reconnections |
+| **Draw and synchronize** | Draw from a blank template and synchronize the PCB, or extend a routed working copy one sheet at a time and connect pins left open on earlier sheets |
+| **Place and modify parts** | Define the outline, mounting holes and placement on a two- or four-layer board. When adding a sheet, place new SMD parts or parts with round plated through-holes on the bottom side. Add, replace or reconnect ordinary two-pin passives |
+| **Route and pour copper** | Use bounded native routing or submit up to 32 specified connections per batch. Vary trace width by segment on the outer layers, use through-vias and create solid pours on inner or outer layers. Verify via annular contact and thermal spokes after refill |
 | **Preserve the design** | Compare complete before/after archives, preserve non-target content, avoid replaying unknown writes, and diagnose or recover using the original request |
 | **Save and deliver** | Save both documents, verify in a fresh disk context, generate local Gerber / BOM / CPL files, previews and hash manifests |
 
-Scope: **one schematic page, one low-voltage two-layer board**. Passive changes are limited to ordinary two-pin resistors / non-polar MLCCs, orthogonal orientations and compatible geometry, with 1–2 parts per stage. High-speed / RF / high-voltage designs, multiple boards, arbitrary footprint changes and unrestricted whole-board optimization are outside current qualification.
+Combined verification accepts up to **12 sheets, 500 components and 256 named nets** per board. The separate passive-edit workflow accepts 1–2 ordinary two-pin resistors or non-polar MLCCs per stage and requires compatible orientation and footprint geometry. High-speed, RF, high-voltage and multi-board designs, as well as unrestricted whole-board autorouting, still need separate qualification. [Multi-sheet design and local routing](skills/jlc-eda-project/references/usage.md)
 
 ## Quick start
 
@@ -65,8 +54,8 @@ Scope: **one schematic page, one low-voltage two-layer board**. Passive changes 
 
 | Your goal | Entry point | What to expect |
 |---|---|---|
-| Inspect or develop the latest work | Current source, `0.11.0-dev.a31-r4` | Local build with A11 background working copies |
-| Use the existing precompiled package | [Alpha.3 pre-release](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | No npm installation; excludes the A6–A10 additions |
+| Use or develop the multi-sheet, four-layer workflows | Current source, `0.11.0-dev.a31-r4` | Build and install the runtime ZIP using the steps below |
+| Use the existing precompiled package | [Alpha.3 pre-release](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | Installable community preview from 2026-10-10, predating the A6–A31 work |
 
 Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host supporting local stdio MCP**. Version 4.1.60 is the earlier baseline; 4.1.71 and 4.1.105 have the bounded qualifications above. Other platforms, versions and `.eprj3` paths need separate checks. Native interaction requires host desktop capabilities or operator assistance. [Official CLI documentation](https://prodocs.lceda.cn/cn/api/guide/cli.html)
 
@@ -83,7 +72,7 @@ npm --prefix "$PROJECT_ROOT" run test:protocol
 npm --prefix "$PROJECT_ROOT" run package
 ```
 
-Outputs are written to `release/0.11.0-dev.a31-r4/`: source / runtime ZIPs, file manifests and `SHA256SUMS`. This creates a local development build; it does not establish a new public release or actual chat-host qualification. Offline tests and protocol checks do not call the real editor.
+The build writes source and runtime ZIPs, file manifests and `SHA256SUMS` to `release/0.11.0-dev.a31-r4/`. Unpack the runtime ZIP and install it in step 3.
 
 <details>
 <summary><strong>Use the published Alpha.3 runtime</strong></summary>
@@ -116,15 +105,17 @@ Installed-file matching and actual host loading are separate checks. The source 
 
 > Use the JLCEDA assistant to check the environment. Report the loaded plugin version, tool count and editor connection status. Only check the environment for now.
 
-Expect your installed version and **35** tools. If `editorConnected=false`, open the desktop editor first. Then describe a task:
+Expect your installed version and **35** tools. If `editorConnected=false`, open the desktop editor first. With the development build, try one of these requests.
 
 > Build a low-voltage RC filter board from a fresh blank template. Verify real parts and every pin, complete the schematic and PCB, check connectivity, and verify saving through fresh disk readback.
 
-> Derive a copy of the completed board, replace C1 with a real compatible 100 nF capacitor, preserve everything else, and check the BOM and saved result.
+> Derive a copy of the saved four-layer board. Connect a deferred MCU pin from the previous sheet to a new sheet. Preserve the existing traces, then reopen the saved board and report the netlist changes and remaining connections.
 
 ## Validation and recovery
 
-The offline suite covers working-copy identity, repeat requests and uncertain results. Protocol checks cover 35 tools and 35 invalid inputs. A11 also ran against the installed editor through independent Codex hosts. [Validation record](docs/validation.md)
+A clean install of A31-r4 passed **250/250 offline tests**. The compiled MCP matched the protocol definitions for all 35 tools and rejected all 35 invalid inputs. [Validation record](docs/validation.md)
+
+On 2026-11-20, the full `npm audit` reported **3 high and 5 moderate findings** in the locked dependencies. The runtime bundles include the MCP SDK, Zod and fast-uri. [Dependency security review](docs/dependency-security.md)
 
 | Returned status | Next step |
 |---|---|

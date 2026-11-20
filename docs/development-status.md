@@ -1,6 +1,6 @@
 # Development status / 开发进展
 
-2026-11-20 · Local source / 本地源码 `0.11.0-dev.a31-r4`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
+2026-11-20 · Development source / 开发源码 `0.11.0-dev.a31-r4`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
 
 The RC qualification used EDA 4.1.71 for A6–A9 and 4.1.105 on macOS for the A10 closeout and A11 background lifecycle. Project files and native evidence are retained locally.
 
@@ -15,6 +15,8 @@ A31 extends a saved board through twelve sheets. It can use previously deferred 
 | `0.11.0-dev.a7` / `dev.a8` | Independent schematic/sync and placement/routing qualification builds. / 原理图同步与布局布线开发验证。 |
 | `0.11.0-dev.a9-r1` | Most recent completed RC replacement workflow, within the scope below. / 最近完成限定验收的 RC 换料流程。 |
 | `0.11.0-dev.a11` | Background working copies and board-scoped inspection. / 隐藏工作副本、跨宿主恢复和按板读取。 |
+| A12–A23 | Staged H563 schematic and PCB synchronization, including power rails, decoupling, boot/reset, SWD and USB-C. / 分阶段同步 H563 的供电、去耦、启动复位及接口。 |
+| A24–A31-r4 | Two- and four-layer placement, multi-sheet continuation, two-sided component placement, local routing and copper-pour verification. / 双层与四层布局、多页增量、双面放件、局部布线与覆铜核验。[A31-r4 validation / 实测记录](validation.md) |
 
 A12 adds explicit deferred pins and native wire junctions for a partially drawn schematic. / A12 可记录阶段内留空的真实引脚，并按实际引脚位置绘制有分支的导线。
 
@@ -48,7 +50,7 @@ A10 两处文案和三条位置已完成磁盘回读。A11 在隔离的 Codex �
 ## Remaining qualification / 仍需验证
 
 1. Verify background operation and reconnect handling again on additional editor versions. The 4.1.105 notes-editing closeout is recorded above.
-2. Qualify a selected final build in the actual chat host. Independent MCP processes, protocol simulation and installed-file matching are different evidence layers.
+2. The A31-r4 host check covered a read-only reopen of the saved board. A future runtime release still needs installation and workflow checks on its own packaged build.
 3. Verify assembly orientation, 3D/mechanical fit and physical performance before any production conclusion. Native DRC 0 and generated files alone are insufficient.
 4. Qualify other platforms, editor versions, complex footprints and `.eprj3` separately.
 

@@ -34,4 +34,4 @@ node scripts/check-docs.mjs
 
 中英文README的版本、命令和事实应一致；更新相关文档相对链接。Add new public files to `release-files.json` after reviewing their contents. Never overwrite a previously reviewed release directory with different bytes under the same version.
 
-本仓库尚未公开，也没有远端CI运行记录。提交作者、维护者及私密安全渠道由发布者确认；不要虚构身份或承诺响应时间。The project is not affiliated with JLCEDA or OpenAI.
+提交作者、维护者及私密安全渠道由发布者确认。The project is not affiliated with JLCEDA or OpenAI. 每次提交的远端检查结果见 [GitHub Actions](https://github.com/aning0922/codex-jlc-eda/actions)。

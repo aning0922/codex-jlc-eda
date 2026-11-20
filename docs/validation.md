@@ -1,6 +1,20 @@
 # Validation record / 验证记录
 
-## Current source · 0.11.0-dev.a15
+## Current source · 0.11.0-dev.a31-r4
+
+2026-11-20. The editor and hardware-design records below were collected with development builds through source commit `527b42e`. Only aggregate results are published.
+
+| Check / 核查 | Result / 结果 |
+|---|---|
+| Public software checks / 公开回归 | A clean Node 20 install passed **250/250** offline cases with zero skips. The compiled MCP matched all **35** tool definitions and rejected **35/35** invalid inputs. |
+| Real-editor readback / 实机回读 | On macOS with EDA Pro `4.1.105.0339a6cd`, reopening the four-layer H563 board confirmed **12 sheets, 265 components, 161 named nets and 887 logical pin assignments**. The saved project matched the recorded file digest. |
+| Copper and DRC / 铜连接与规则 | Routing closed **74 gaps on 37 target signal nets**. With local supply and return routing included, whole-board remaining connections fell **487 → 348**. Strict DRC reported **480 unconnected markers**, zero shorts and zero clearance violations. |
+| Manufacturing data / 制造数据 | Rebuilding connectivity from four Gerber copper layers and plated NC drills reproduced the editor’s pad groups on **161/161 nets**. All pre-existing copper groups stayed connected. The board still requires routing and physical qualification. |
+| Host and private tests / 宿主与私有回归 | A fresh Codex host reported **A31-r4** and 35 tools, opened the saved board read-only and closed its inspection copy. The earlier resident session reported **A31-r1**. The development run recorded **44/44** private capture tests. |
+
+The public suite uses synthetic inputs. The full lockfile audit and the packages included in the runtime are recorded in the [dependency security review](dependency-security.md).
+
+## A15 qualification · 0.11.0-dev.a15
 
 The digital supply extension checks existing rail membership, actual MCU pin names, the full set of digital supply and return pins, paired capacitor connections and preservation of an unrouted PCB. Regression cases include analog-ground substitution and collisions with pre-existing wires.
 
@@ -22,7 +36,7 @@ On macOS with EDA 4.1.105, the local candidate ran in isolated Codex app-server 
 
 ## Historical source check · 0.11.0-dev.a10
 
-2026-10-18 source sync. The checks below apply to the current source, including a synthetic public replacement for the private footprint fixture. / 本次核查对象为当前源码与合成公开 fixture。
+2026-10-18 source sync. These results apply to A10 and its synthetic public replacement for the private footprint fixture. / 此处记录 A10 源码与当时的合成公开 fixture。
 
 | Layer / 层次 | Result / 结果 |
 |---|---|
