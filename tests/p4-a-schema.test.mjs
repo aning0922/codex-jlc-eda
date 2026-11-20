@@ -9,6 +9,40 @@ import {auditCopper} from '../src/copper.mjs';
 import {surfaceParts,surfaceDistance} from '../src/copper-surface.mjs';
 import {connectionPrimitives,fanoutContacts} from '../src/pcb-connections.mjs';
 import {matchesFillRecord,sameFilledGeometry,sameStoredFills} from '../src/copper-plane.mjs';
+import {proveFootprintVias} from '../src/footprint-vias.mjs';
+import {zipSync,strToU8} from 'fflate';
+
+test('ordinary via precision comes from the same board record and a compatible getter',()=>{
+ const row={netName:'S',centerX:18.25,centerY:60,viaDiameter:21.8504,holeDiameter:11.811,viaType:'NORMAL',locked:true};
+ const live={kind:'Via',primitiveId:'v',x:18.25,y:60,net:'S',diameter:21.8,holeDiameter:11.8,viaType:0,primitiveLock:true};
+ const read=(source,object=live,uuid='board')=>{
+  const entries=[[{type:'DOCHEAD',id:'doc'},{docType:'PCB',uuid:'board'}],[{type:'VIA',id:'v'},source]];
+  const text=entries.map(([h,b])=>JSON.stringify(h)+'||'+JSON.stringify(b)+'|').join('\n');
+  const modelsBase64=Buffer.from(zipSync({'board.epru':strToU8(text)})).toString('base64');
+  return proveFootprintVias({status:'ok',objects:[object],footprintViaData:{modelsBase64,components:[]}},uuid);
+ };
+ assert.deepEqual(read(row).objects[0],{...live,diameter:row.viaDiameter,holeDiameter:row.holeDiameter});
+ for(const different of [{...row,netName:'OTHER'},{...row,centerX:18.4},{...row,viaDiameter:22.15},{...row,holeDiameter:22}])assert.equal(read(different).status,'unknown');
+ assert.equal(read(row,{...live,diameter:21.82}).status,'unknown');
+ assert.equal(read(row,live,'other-board').status,'unknown');
+});
+
+test('a submitted trace may split exactly at a captured same-net land or footprint via',()=>{
+ const points=[[0,0],[100,0]],critical={net:'GND',layer:1,width:8},[line]=criticalPrimitives(critical,points,'mil');
+ const ownership={componentId:'part',sourceViaId:'v',uniqueId:'U1',source:'model',footprintUuid:'fp',modelViaFingerprint:'proof'};
+ const via={kind:'Via',primitiveId:'partv',net:'GND',x:50,y:.035,componentOwnership:ownership};
+ const pieces=[{...line,primitiveId:'first',endX:50},{...line,primitiveId:'last',startX:100,endX:50}];
+ const check=(parts,previous=[via],pins=[])=>verifyAddedCopper({critical,points,pathPlan:{objects:[line]},before:{components:[{pins}]},beforeNative:{objects:previous},nativeResult:{status:'ok',log:[{...line,primitiveId:'submitted'}]}},parts,'mil');
+ assert.deepEqual(check(pieces).criticalReadback.groups,[{provisional:['submitted'],actual:['first','last']}]);
+ assert.equal(check(pieces,[{...via,y:.07163}]).status,'matched');
+ for(const change of [{endX:49.9},{endX:50.1},{endY:.01},{lineWidth:7.9},{net:'OTHER'}])assert.equal(check([{...pieces[0],...change},pieces[1]]).status,'mismatch');
+ for(const previous of [[],[{...via,net:'OTHER'}],[{...via,y:.1001}],[{...via,x:50.08,y:0}],[{...via,componentOwnership:null}]])assert.equal(check(pieces,previous).status,'mismatch');
+ const pad={id:'original-pad',net:'GND',layer:1,x:50.013,y:0};
+ assert.equal(check(pieces,[],[pad]).status,'matched');
+ assert.equal(check(pieces,[],[{...pad,layer:12,metallization:true}]).status,'matched');
+ for(const change of [{layer:2},{net:'S'},{x:50.15},{layer:12,metallization:false}])assert.equal(check(pieces,[],[{...pad,...change}]).status,'mismatch');
+ assert.equal(check([...pieces,{...pieces[1],primitiveId:'extra'}]).status,'mismatch');
+});
 
 const target={sessionId:'session',expectedProjectUuid:'project',schematicPageUuid:'page',schematicUuid:'sch',pcbDocumentUuid:'pcb',workDirectory:'/task',requestId:'request'};
 const rules={unit:'mm',copperClearance:0.2,boardClearance:0.3,track:{minimum:0.2,default:0.25,maximum:1},via:{diameter:0.6,hole:0.3},manufacturingReference:'documented process',clearanceOverrides:[{objects:['SMD Pad','Track'],minimum:0.2}]};

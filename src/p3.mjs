@@ -162,7 +162,7 @@ async function nativeRouting(p){
 export const routingScript=p=>'('+nativeRouting.toString()+')('+JSON.stringify(p)+')';
 const beforeNativeRules=old=>old.beforeNative.ruleConfiguration;
 const readDoc=(a,p)=>a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});
-const rawRead=async(a,p)=>{const focus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb'}));if(focus.status!=='ok')return focus;return proveFootprintVias(await a.invokeLossless(p.sessionId,routingScript({...p,operation:'read'})));};
+const rawRead=async(a,p)=>{const focus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb'}));if(focus.status!=='ok')return focus;return proveFootprintVias(await a.invokeLossless(p.sessionId,routingScript({...p,operation:'read'})),p.pcbDocumentUuid);};
 export const readOwnedRouting=rawRead;
 export const p3Workflow={
  async jlc_eda_read_pcb_routing(p){const pages=recordedPageIds(await load(p.workDirectory));if(pages.length>1)p={...p,schematicPageUuids:pages};await pcbBound(this,p);const native=await rawRead(this,p);return {...native,routingCapability:await this.routingCapability()};},

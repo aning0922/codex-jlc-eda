@@ -29,7 +29,7 @@ import { scripts } from './native-scripts.mjs';
 import { factsScript } from './native-facts.mjs';
 import {MAX_BOARD_COMPONENTS, normalizeDevice, parseNetlist, matchesSchematicScope, compareAssignments, summarizeModel, summarizeSourceModel } from './facts.mjs';
 
-export const VERSION = '0.11.0-dev.a31-r1';
+export const VERSION = '0.11.0-dev.a31-r4';
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const session = { sessionId: id };
 const target = { ...session, expectedProjectUuid: id };

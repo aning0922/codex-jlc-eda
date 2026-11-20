@@ -1,5 +1,10 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a31-r4 · 2026-11-20
+
+- Bind ordinary through-via dimensions to the board archive when the native getter reports tenths of a mil.
+- Verify saved trace segments that meet on the submitted centreline at a source-proven thermal via or same-layer component land.
+
 ## 0.11.0-dev.a31-r1 · 2026-11-20
 
 - Read large multi-sheet PNG exports in bounded slices from one official export. Verify its SHA-256, release it from editor memory and return the selected page as a PNG.

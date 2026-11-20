@@ -1,5 +1,6 @@
 import {checkLayout,toMil} from './layout.mjs';
 import {knownPartialPredecessor} from './known-partial-stage.mjs';
+import {isOwnedFootprintVia} from './footprint-vias.mjs';
 const near=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=0.0001;
 export function verifyBoard(plan,native,expectedOutline){
  const issues=[];
@@ -65,6 +66,35 @@ function sameCritical(want,x,allowReverse=false){
  const ends=['startX','startY','endX','endY'],reversed=['endX','endY','startX','startY'];
  return ends.every(k=>near(x[k],want[k]))||allowReverse&&ends.every((k,i)=>near(x[k],want[reversed[i]]));
 }
+function splitAtNativeContacts(line,candidates,action){
+ if(line.kind!=='Line')return null;
+ const dx=line.endX-line.startX,dy=line.endY-line.startY,length=Math.hypot(dx,dy);
+ if(!length)return null;
+ const along=([x,y])=>((x-line.startX)*dx+(y-line.startY)*dy)/length;
+ const onChord=([x,y])=>Math.abs((x-line.startX)*dy-(y-line.startY)*dx)<=.005*length;
+ const same=(p,q)=>near(p[0],q[0])&&near(p[1],q[1]);
+ const pieces=[];
+ for(const part of candidates){
+  if(part.kind!=='Line'||part.net!==line.net||part.layer!==line.layer||part.primitiveLock!==true||!near(part.lineWidth,line.lineWidth))continue;
+  let a=[part.startX,part.startY],b=[part.endX,part.endY];
+  if(along(a)>along(b))[a,b]=[b,a];
+  if(onChord(a)&&onChord(b)&&along(a)>=-.00015&&along(b)<=length+.00015&&along(b)-along(a)>.00015)pieces.push({a,b,id:part.primitiveId});
+ }
+ pieces.sort((a,b)=>along(a.a)-along(b.a));
+ if(pieces.length<2||!same(pieces[0].a,[line.startX,line.startY])||!same(pieces.at(-1).b,[line.endX,line.endY]))return null;
+ const contacts=action.beforeNative.objects.filter(v=>isOwnedFootprintVia(v)&&v.net===line.net);
+ for(const c of action.before?.components??[])for(const pad of c.pins??[]){
+  if(pad.id&&pad.net===line.net&&(pad.layer===line.layer||pad.layer===12&&pad.metallization===true))contacts.push(pad);
+ }
+ for(let i=1;i<pieces.length;i++){
+  const p=pieces[i].a;
+  // The editor projects a contact within one native 0.1 mil increment onto the trace.
+  // A pad centre rounded in both axes may shift the projected position by 0.071 mil.
+  const anchors=contacts.filter(v=>Math.hypot(v.x-p[0],v.y-p[1])<=.1&&Math.abs(along([v.x,v.y])-along(p))<=.071);
+  if(!same(pieces[i-1].b,p)||anchors.length!==1)return null;
+ }
+ return pieces.map(p=>p.id);
+}
 function profiledReadback(action,raw,added){
  if(!Array.isArray(action.pathPlan.objects)||!Array.isArray(action.beforeNative?.objects))return null;
  const submitted=action.pathPlan.objects,log=action.nativeResult?.log??[],original=new Set(action.beforeNative.objects.map(x=>x.primitiveId)),written=new Set(log.map(x=>x?.primitiveId));
@@ -77,10 +107,10 @@ function profiledReadback(action,raw,added){
   const provisional=indices.map(i=>log[i].primitiveId);
   let actual=provisional;
   if(!indices.every(i=>sameCritical(submitted[i],available.get(log[i].primitiveId)))){
-   if(indices.length===1)return null;
-   const candidates=[...available.values()].filter(x=>(!written.has(x.primitiveId)||provisional.includes(x.primitiveId))&&sameCritical(object,x,true));
-   if(candidates.length!==1)return null;
-   actual=[candidates[0].primitiveId];
+   const candidates=[...available.values()].filter(x=>!written.has(x.primitiveId)||provisional.includes(x.primitiveId));
+   const merged=indices.length>1?candidates.filter(x=>sameCritical(object,x,true)):[];
+   actual=merged.length===1?[merged[0].primitiveId]:splitAtNativeContacts(object,candidates,action);
+   if(!actual)return null;
   }
   for(const id of actual)available.delete(id);
   groups.push({provisional,actual});

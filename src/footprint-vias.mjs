@@ -8,17 +8,21 @@ const sha=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 // A prefix is never sufficient ownership evidence. Match an exported native
 // footprint VIA record, exact composite ID, current instance transformation,
 // diameter, hole, type and lock. Unknown model formats fail closed.
-export function proveFootprintVias(native){
+export function proveFootprintVias(native,pcbDocumentUuid){
   if(native.status!=='ok'||!native.footprintViaData)return native;
   const {modelsBase64,components}=native.footprintViaData,{footprintViaData,...result}=native;
-  const issues=[],models=new Map();
+  const issues=[],models=new Map(),boardVias=new Map();
   try{
     for(const [file,bytes] of Object.entries(unzipSync(Buffer.from(modelsBase64,'base64')))){
-      if(!file.endsWith('.epru'))continue;let model;
+      if(!file.endsWith('.epru'))continue;let model,selectedBoard=false;
       for(const {header:head,body,deleted}of parseNativeSource(strFromU8(bytes))){if(deleted)continue;
         if(head.type==='DOCHEAD'){
+          selectedBoard=!!pcbDocumentUuid&&body.docType==='PCB'&&body.uuid===pcbDocumentUuid;
           model=body.docType==='FOOTPRINT'?{uuid:body.uuid,vias:[],origin:null,source:null}:null;
           if(model){if(models.has(model.uuid))throw Error('Duplicate footprint model');models.set(model.uuid,model);}
+        }else if(selectedBoard&&head.type==='VIA'){
+          if(boardVias.has(head.id))throw Error('Duplicate board VIA');
+          boardVias.set(head.id,body);
         }else if(model&&head.type==='CANVAS')model.origin={x:body.originX,y:body.originY};
         else if(model&&head.type==='META')model.source=body.source;
         else if(model&&head.type==='VIA')model.vias.push({id:head.id,...body});
@@ -44,7 +48,21 @@ export function proveFootprintVias(native){
       if(found.length!==1||found[0].kind!=='Via'||!['x','y','diameter','holeDiameter'].every(k=>near(e[k],found[0][k]))||found[0].viaType!==e.viaType||found[0].primitiveLock!==e.primitiveLock||owned.has(e.primitiveId))issues.push({code:'FOOTPRINT_VIA_ID_OR_GEOMETRY_MISMATCH',expected:e,actual:found});
       else owned.set(e.primitiveId,e.componentOwnership);
     }
-    result.objects=result.objects.map(x=>owned.has(x.primitiveId)?{...x,componentOwnership:owned.get(x.primitiveId)}:x);
+    result.objects=result.objects.map(x=>{
+      if(owned.has(x.primitiveId))return {...x,componentOwnership:owned.get(x.primitiveId)};
+      if(!pcbDocumentUuid||x.kind!=='Via'||x.viaType!==0)return x;
+      const row=boardVias.get(x.primitiveId);
+      if(!row||row.viaType!=='NORMAL'||row.netName!==x.net||row.locked!==x.primitiveLock||!near(row.centerX,x.x)||!near(row.centerY,x.y))throw Error('Board VIA identity or position differs from its source');
+      // 4.1.105 getters can expose one decimal mil while the bound native VIA record retains four.
+      const actual={...x};
+      for(const [key,source] of [['diameter',row.viaDiameter],['holeDiameter',row.holeDiameter]]){
+        if(near(source,x[key]))continue;
+        if(!Number.isFinite(source)||!near(x[key]*10,Math.round(x[key]*10))||Math.abs(source-x[key])>.10005)throw Error('Board VIA dimensions differ from its source');
+        actual[key]=source;
+      }
+      if(actual.holeDiameter<=0||actual.diameter<=actual.holeDiameter)throw Error('Invalid board VIA dimensions');
+      return actual;
+    });
     result.footprintVias={status:issues.length?'mismatch':'matched',expectedCount:expected.length,matchedCount:owned.size,issues,coverage:'native model record plus exact instance transform; top-side zero-origin footprints only'};
     if(issues.length){result.status='unknown';result.code='FOOTPRINT_VIA_OWNERSHIP_UNVERIFIED';}
   }catch(e){result.status='unknown';result.code='FOOTPRINT_VIA_MODEL_UNVERIFIED';result.footprintVias={status:'unknown',issues:[{message:e.message}]};}
