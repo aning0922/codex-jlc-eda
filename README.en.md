@@ -1,139 +1,132 @@
-<div align="center">
+![Codex JLC EDA, a local plugin for JLCEDA Pro. An exploded illustration shows four PCB layers.](docs/assets/workflow.svg)
 
-# Codex JLC EDA
+[简体中文](README.md) · **English**　|　[Setup](#quick-start) · [Examples](#board-examples) · [Workflows](#workflows) · [Docs](#documentation-and-support)
 
-### From a design brief to a verifiable schematic and PCB
+# Design and verify JLCEDA Pro boards from Codex
 
-A local MCP / Skill plugin for JLCEDA Pro.<br>
-Real component models · Isolated work copies · Native placement and routing · Verified saves
+Give Codex a project and a change, such as “replace the filter capacitor with a 100 nF part and keep the existing traces.” The plugin uses **35 local MCP tools** to read component models, edit the schematic and PCB in a working copy, then reopen the saved design from disk to check pins, pads and copper connectivity.
 
-[简体中文](README.md) · **English**
+**Development source** `0.11.0-dev.a31-r4` · **Prebuilt runtime** [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) · **License** [MIT](LICENSE)
 
-[Latest results](#latest-results) · [Quick start](#quick-start) · [RC example](examples/rc-filter/README.md) · [Validation](docs/validation.md) · [Changelog](CHANGELOG.md)
+## Board examples
 
-</div>
+### Four-layer controller · extending an existing layout
 
-![Original Codex JLC EDA concept diagram: requirements, real models, isolated design, verification and saving; not an editor screenshot](docs/assets/workflow.svg)
+A working copy of the STM32H563 controller retained its existing copper while routing closed **74 gaps across 37 target signal nets**. After saving and reopening on EDA Pro 4.1.105, the checks covered **12 schematic sheets, 265 components, 161 named nets and 887 logical pin assignments**.
 
-| Development source | Published runtime | Public interface | License |
-|:---:|:---:|:---:|:---:|
-| `0.11.0-dev.a31-r4` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
-
-As of 2026-11-20, the development build can extend a low-voltage board that already has copper. In a working copy, it can add a schematic sheet, connect pins left open on an earlier sheet, place new parts on either side and route connections in batches. It reopens the saved project from disk to check the netlist, existing copper and remaining connections.
-
-## Latest results
-
-### Four-layer STM32H563 controller · partial routing
-
-EDA Pro 4.1.105 saved and reopened a board with **12 schematic sheets, 265 components and 161 nets**. This routing stage closed 74 gaps on 37 target signal nets. An independent reconstruction from four Gerber copper layers and the NC drill files matched the editor’s connectivity groups on all 161 nets.
-
-The board went from **487 to 348 remaining connections**. Strict DRC separately reported **480 unconnected markers**, with zero shorts or clearance violations. A fresh Codex host loaded A31-r4 and reopened the saved board read-only. [Validation record](docs/validation.md)
-
-### Two-layer RC filter · complete routing and component replacement
-
-On EDA Pro 4.1.71, a blank project became an eight-component, 13-pin board. All three nets connected through 21 trace segments and no vias, with zero strict DRC errors. After C1 changed from **10 nF to 100 nF**, reopening confirmed that the original copper was intact. All 41 manufacturing files passed their checks. Assembly orientation, 3D fit and physical performance still need verification. [RC example](examples/rc-filter/README.md) · [Development status](docs/development-status.md)
-
-## Capabilities
-
-Describe the circuit and project location. The assistant uses tools to read, plan, execute and verify each stage.
-
-| Stage | Current capability |
+| Check | Result on the saved board |
 |---|---|
-| **Understand a project** | Project identity, real library models, complete native records, schematic pins, PCB pads and copper connectivity |
-| **Draw and synchronize** | Draw from a blank template and synchronize the PCB, or extend a routed working copy one sheet at a time and connect pins left open on earlier sheets |
-| **Place and modify parts** | Define the outline, mounting holes and placement on a two- or four-layer board. When adding a sheet, place new SMD parts or parts with round plated through-holes on the bottom side. Add, replace or reconnect ordinary two-pin passives |
-| **Route and pour copper** | Use bounded native routing or submit up to 32 specified connections per batch. Vary trace width by segment on the outer layers, use through-vias and create solid pours on inner or outer layers. Verify via annular contact and thermal spokes after refill |
-| **Preserve the design** | Compare complete before/after archives, preserve non-target content, avoid replaying unknown writes, and diagnose or recover using the original request |
-| **Save and deliver** | Save both documents, verify in a fresh disk context, generate local Gerber / BOM / CPL files, previews and hash manifests |
+| Whole-board connectivity | Including local supply and return routing, remaining connections fell from **487 to 348**. All pre-existing copper groups stayed connected. |
+| Manufacturing data | Pad groups reconstructed from four Gerber copper layers and plated NC drills matched editor readback on **161/161 nets**. |
+| Strict design rule check (DRC) | **480 unconnected markers**, zero shorts and zero clearance violations. The board still needs routing. |
 
-Combined verification accepts up to **12 sheets, 500 components and 256 named nets** per board. The separate passive-edit workflow accepts 1–2 ordinary two-pin resistors or non-polar MLCCs per stage and requires compatible orientation and footprint geometry. High-speed, RF, high-voltage and multi-board designs, as well as unrestricted whole-board autorouting, still need separate qualification. [Multi-sheet design and local routing](skills/jlc-eda-project/references/usage.md)
+A fresh Codex host loaded A31-r4, reopened the final board read-only and closed its inspection copy. [Validation record](docs/validation.md)
+
+### RC filter · replacing a capacitor and verifying the original copper
+
+![RC filter schematic. R1 connects input to output, C1 and R2 shunt the output to ground, and C1 changes from 10 nF to 100 nF.](docs/assets/rc-filter.svg)
+
+Starting with a blank two-layer project on EDA Pro 4.1.71, the workflow drew the schematic, synchronized the PCB, placed the parts and routed the board. A copy of the saved design then received a footprint-compatible **100 nF** replacement for C1. The BOM was checked after the change.
+
+| Design | Copper and rules | Delivery checks |
+|---|---|---|
+| 8 components, 13 pins, 3 nets | All three nets connected through 21 trace segments and no vias, with zero strict DRC errors | Reopening confirmed the original copper was intact. All 41 manufacturing files passed their checks. |
+
+The drawing follows the public connection table. Assembly orientation, 3D fit and physical performance still need verification. [RC walkthrough and netlist](examples/rc-filter/README.md) · [Development status](docs/development-status.md)
 
 ## Quick start
 
-### 1 · Choose a version
+You need **macOS, Node.js 20 or later, JLCEDA Pro desktop** and a Codex host that supports local plugins. Choose the source build to reproduce the multi-sheet, four-layer and RC replacement examples below.
 
-| Your goal | Entry point | What to expect |
-|---|---|---|
-| Use or develop the multi-sheet, four-layer workflows | Current source, `0.11.0-dev.a31-r4` | Build and install the runtime ZIP using the steps below |
-| Use the existing precompiled package | [Alpha.3 pre-release](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | Installable community preview from 2026-10-10, predating the A6–A31 work |
+<details>
+<summary><strong>Build A31-r4 from source</strong> · Multi-sheet designs, four-layer boards and local routing</summary>
 
-Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host supporting local stdio MCP**. Version 4.1.60 is the earlier baseline; 4.1.71 and 4.1.105 have the bounded qualifications above. Other platforms, versions and `.eprj3` paths need separate checks. Native interaction requires host desktop capabilities or operator assistance. [Official CLI documentation](https://prodocs.lceda.cn/cn/api/guide/cli.html)
-
-### 2 · Build the latest source
+Clone the repository into a fresh directory. `npm run check` builds the plugin, runs the offline and protocol checks, and produces the runtime archive.
 
 ```sh
 git clone https://github.com/aning0922/codex-jlc-eda.git
 cd codex-jlc-eda
 PROJECT_ROOT="$(pwd -P)"
-node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a31-r4") process.exit(1)'
-npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund
-npm --prefix "$PROJECT_ROOT" test
-npm --prefix "$PROJECT_ROOT" run test:protocol
-npm --prefix "$PROJECT_ROOT" run package
+node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a31-r4") process.exit(1)' &&
+  npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund &&
+  npm --prefix "$PROJECT_ROOT" run check
 ```
 
-The build writes source and runtime ZIPs, file manifests and `SHA256SUMS` to `release/0.11.0-dev.a31-r4/`. Unpack the runtime ZIP and install it in step 3.
-
-<details>
-<summary><strong>Use the published Alpha.3 runtime</strong></summary>
-
-Download the [runtime ZIP](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/codex-jlc-eda-0.11.0-alpha.3-runtime.zip) and [SHA256SUMS](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/SHA256SUMS). Compare this digest with its manifest entry before unpacking into a permanent directory.
+After the checks pass, verify both ZIPs and enter the unpacked runtime directory.
 
 ```sh
-shasum -a 256 codex-jlc-eda-0.11.0-alpha.3-runtime.zip
+cd "$PROJECT_ROOT/release/0.11.0-dev.a31-r4" &&
+  shasum -a 256 -c SHA256SUMS &&
+  unzip -q codex-jlc-eda-0.11.0-dev.a31-r4-runtime.zip -d runtime &&
+  cd runtime
 ```
-
-Keep the root `.agents/` and `plugins/jlc-eda/` directories. The runtime includes its bundles and needs no `npm install`. The published version uses `fflate 0.8.3` and MCP SDK `1.31.0`; see the historical [dependency security review](docs/dependency-security.md).
 
 </details>
 
-### 3 · Install the unpacked local runtime
+<details>
+<summary><strong>Download the Alpha.3 runtime</strong> · Early community preview, ready to install</summary>
 
-These commands accept the root of either runtime ZIP described above. Confirm the chosen version first.
+Alpha.3 was published on 2026-10-10, before the A6–A31 work. Download both files into the same empty directory. Run these commands there to verify and unpack the runtime. [Runtime ZIP](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/codex-jlc-eda-0.11.0-alpha.3-runtime.zip) · [SHA256SUMS](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/SHA256SUMS)
 
 ```sh
-codex plugin marketplace add "/absolute/path/to/unpacked-runtime"
+runtime_zip=codex-jlc-eda-0.11.0-alpha.3-runtime.zip
+awk -v name="$runtime_zip" '$2 == name' SHA256SUMS | shasum -a 256 -c - &&
+  unzip -q "$runtime_zip" -d runtime &&
+  cd runtime
+```
+
+This package includes its dependencies, among them `fflate 0.8.3` and MCP SDK `1.31.0`. [Dependency audit](docs/dependency-security.md)
+
+</details>
+
+**Install in Codex.** Run the following commands from the unpacked runtime directory you chose above. It contains `.agents/` and `plugins/`. Keep that directory in place after installation.
+
+```sh
+codex plugin marketplace add "$PWD"
 codex plugin add jlc-eda@jlc-eda-alpha --json
 codex plugin list --marketplace jlc-eda-alpha --json
 ```
 
-If an older source provides the same plugin, disable that source and keep its cache to avoid confusing two `jlc_eda` services. When reloading is necessary, fully restart the desktop host at a convenient break, then check the loaded version in a fresh context. [Local plugin installation](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
+Open the EDA editor and start with a read-only request in a fresh Codex chat.
 
-Installed-file matching and actual host loading are separate checks. The source repository excludes `dist`; a Git source is not a verified zero-build installation path. The launcher prefers `CODEX_MCP_NODE_PATH`, then `node` on PATH. Set `JLCEDA_CLI_PATH` for a nonstandard editor installation.
+> Use the JLCEDA assistant to report the loaded plugin version, how many tools are available, and whether the editor is connected.
 
-### 4 · Start a conversation
+Expect your selected version, **35** tools and `editorConnected=true`. If an older version appears, check for duplicate plugin sources and reload the host. For a nonstandard EDA installation, point `JLCEDA_CLI_PATH` at its CLI executable. Use `CODEX_MCP_NODE_PATH` to select Node. [Local plugin installation](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
 
-> Use the JLCEDA assistant to check the environment. Report the loaded plugin version, tool count and editor connection status. Only check the environment for now.
+## Workflows
 
-Expect your installed version and **35** tools. If `editorConnected=false`, open the desktop editor first. With the development build, try one of these requests.
+In an MCP client, use `jlc_eda_read_connectivity` to check pin assignments, `jlc_eda_check_pcb` to read copper connectivity and strict DRC results, and `jlc_eda_finish_work_project` to save and verify the design from disk. [Full tool definitions](https://github.com/aning0922/codex-jlc-eda/blob/main/tests/fixtures/public-tools.json)
 
-> Build a low-voltage RC filter board from a fresh blank template. Verify real parts and every pin, complete the schematic and PCB, check connectivity, and verify saving through fresh disk readback.
+| Task | What the plugin does | What it checks |
+|---|---|---|
+| Inspect an existing project | Read symbols, footprints, pins, pads and nets in a read-only copy | Match each schematic pin to its physical pad and net |
+| Create or extend a schematic | Draw from a blank template, or add a sheet to a routed board and connect pins left open on an earlier sheet | Compare the combined netlist, original pad assignments and new components |
+| Place and route | Set two- or four-layer outlines and mounting holes, place parts, route in batches, change layers and refill solid pours | Read back segment widths, vias, annular copper contact and thermal spokes, then run strict DRC |
+| Save and deliver | Save both documents, reopen the working copy and generate local Gerber, BOM and CPL files | Compare the full design read from disk, inspect manufacturing files and write a hash manifest |
 
-> Derive a copy of the saved four-layer board. Connect a deferred MCU pin from the previous sheet to a new sheet. Preserve the existing traces, then reopen the saved board and report the netlist changes and remaining connections.
+Combined verification accepts up to **12 sheets, 500 components and 256 named nets** per board. A local routing batch accepts **32 specified connections**. When adding a sheet, new surface-mount parts and parts with round plated through-holes can go on the bottom side. A separate passive-edit workflow handles 1–2 ordinary two-pin resistors or non-polar MLCCs per stage with compatible orientation and geometry. [Multi-sheet design and routing](skills/jlc-eda-project/references/usage.md) · [Passive edits](skills/jlc-eda-project/references/passives.md)
 
-## Validation and recovery
+<details>
+<summary><strong>Editor windows, background copies and interrupted writes</strong></summary>
 
-A clean install of A31-r4 passed **250/250 offline tests**. The compiled MCP matched the protocol definitions for all 35 tools and rejected all 35 invalid inputs. [Validation record](docs/validation.md)
+New working copies open in the background. Choose `renderMode: "visible"` when creating a copy that needs the native component picker or import review.
 
-On 2026-11-20, the full `npm audit` reported **3 high and 5 moderate findings** in the locked dependencies. The runtime bundles include the MCP SDK, Zod and fast-uri. [Dependency security review](docs/dependency-security.md)
+- `needs_ui` identifies the window that needs attention. Complete the native step and verify it with the same request.
+- `pending` or `unknown` means that the outcome of a write still needs confirmation. Preserve the copy, receipts and journal, then diagnose read-only.
+- `ok` covers the current step. A `closed` working copy has completed saving, independent readback and closure. Whole-board routing status comes from copper connectivity and strict DRC.
 
-| Returned status | Next step |
-|---|---|
-| `needs_ui` | Complete the specified native step in the exact window, then verify with the same request |
-| `unknown` / `pending` | Preserve the project, receipts and journal; diagnose read-only before further action |
-| `failed` / `unsupported` | Address the specific model, source, geometry or state issue |
-| `ok` / `closed` | Read the scope of that stage's evidence; final persistence requires independent disk readback |
+</details>
 
-[Daily use](skills/jlc-eda-project/references/usage.md) · [Passive changes](skills/jlc-eda-project/references/passives.md) · [Testing](docs/testing.md) · [Roadmap](docs/roadmap.md)
+## Validation and compatibility
 
-## Data and licensing
+- **Software checks.** A clean install of A31-r4 passed **250/250 offline tests**. The compiled MCP matched 35 tool definitions and rejected all 35 invalid inputs. [Testing guide](docs/testing.md) · [GitHub Actions](https://github.com/aning0922/codex-jlc-eda/actions/workflows/ci.yml)
+- **Desktop editor.** Version 4.1.60 is the early baseline. The RC workflow ran on 4.1.71, and the multi-sheet board and cross-host readback ran on 4.1.105. Other platforms, editor versions and `.eprj3` projects need separate checks. High-speed, RF, high-voltage and multi-board designs, as well as unrestricted whole-board autorouting, remain outside the tested scope. [Versions and qualification](docs/development-status.md)
+- **Dependencies.** On 2026-11-20, `npm audit` reported 3 high and 5 moderate findings in the lockfile. The audit identifies which affected packages are included in the runtime. [Dependency security review](docs/dependency-security.md)
 
-The local MCP handles projects, copies and manufacturing files. Library search, accounts and synchronization may use JLCEDA services. Tool outputs go to the AI host and can include paths, models and previews, subject to that host's settings. This plugin requires no additional LLM API key.
+## Documentation and support
 
-Original code, documentation and the concept diagram use [MIT](LICENSE); bundled dependencies retain [their own licenses](THIRD_PARTY_NOTICES.txt). Real library models, native projects, editor screenshots and manufacturing materials stay local. Public regression tests use synthetic data. [Sources and redistribution boundaries](docs/sources-and-licenses.md)
+[Operating guide](skills/jlc-eda-project/references/usage.md) · [RC example](examples/rc-filter/README.md) · [Changelog](CHANGELOG.md) · [Roadmap](docs/roadmap.md) · [Contributing](CONTRIBUTING.md)
 
-## Contribute
+The plugin handles working copies and manufacturing files locally. Library searches, accounts and sync may use JLCEDA services. Tool outputs sent to the AI host can include project paths, models and previews. The plugin needs no separate LLM API key. Project code, documentation and original illustrations use the MIT license. Dependencies retain their own licenses, and users read actual library models and native projects locally. [Sources and redistribution](docs/sources-and-licenses.md) · [Third-party notices](THIRD_PARTY_NOTICES.txt)
 
-[Contribution guide](CONTRIBUTING.md) · [Report an issue](https://github.com/aning0922/codex-jlc-eda/issues) · [Security policy](SECURITY.md) · [Releases](https://github.com/aning0922/codex-jlc-eda/releases)
-
-Include versions, platform, status codes and a sanitized minimal reproduction. Report security issues through the [private reporting channel](https://github.com/aning0922/codex-jlc-eda/security/advisories/new).
+For a bug report, include the plugin and editor versions, platform, returned status and sanitized reproduction steps. Report security issues through the private channel. [GitHub Issues](https://github.com/aning0922/codex-jlc-eda/issues) · [Security reporting](SECURITY.md)

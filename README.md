@@ -1,139 +1,132 @@
-<div align="center">
+![Codex JLC EDA · 嘉立创 EDA 专业版本地插件，封面为四层 PCB 分层示意](docs/assets/workflow.svg)
 
-# Codex JLC EDA
+**简体中文** · [English](README.en.md)　｜　[安装](#快速开始) · [案例](#工程实测) · [工作流](#工作流程) · [文档](#文档与支持)
 
-### 从一句需求，到可核验的原理图与 PCB
+# 在 Codex 中使用嘉立创 EDA 专业版
 
-面向嘉立创 EDA 专业版的本地 MCP / Skill 插件。<br>
-真实器件模型 · 隔离工程副本 · 原生布局布线 · 完整保存回读
+告诉 Codex 工程位置和改动目标，例如“把滤波电容换成 100 nF，保留原有走线”。插件通过 **35 个本地 MCP 工具**读取真实器件，在副本上修改原理图与 PCB，保存后从磁盘重开，核对引脚、焊盘和铜连接。
 
-**简体中文** · [English](README.en.md)
+**开发源码** `0.11.0-dev.a31-r4` · **预编译运行包** [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) · **许可** [MIT](LICENSE)
 
-[最新成果](#最新成果) · [快速开始](#快速开始) · [RC 示例](examples/rc-filter/README.md) · [验证记录](docs/validation.md) · [变更记录](CHANGELOG.md)
+## 工程实测
 
-</div>
+### 四层控制板 · 接着已有走线完成一批信号网
 
-![Codex JLC EDA：从需求、真实模型、隔离设计到核验保存的原创概念图，非实机截图](docs/assets/workflow.svg)
+从已有走线的 STM32H563 控制板派生副本后，**37 个目标信号网**共消除 74 处断点。在 EDA Pro 4.1.105 中保存并重开工程，核对了 **12 页原理图、265 个器件、161 个命名网络和 887 项逻辑引脚分配**。
 
-| 开发源码 | 公开运行包 | 公共接口 | 许可 |
-|:---:|:---:|:---:|:---:|
-| `0.11.0-dev.a31-r4` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 项 MCP 工具** | [MIT](LICENSE) |
-
-截至 2026-11-20，开发版可在已有走线的低压单板上继续设计。你可以在工作副本中增添原理图页、接入旧页预留引脚、在板的正反面放置新器件，并分批布线。插件会从磁盘重开工程，检查网表、已有铜线和剩余待连数。
-
-## 最新成果
-
-### STM32H563 四层控制板 · 局部布线
-
-在 EDA Pro 4.1.105 中保存并重开了 **12 页、265 个器件、161 个网络**的工程。本阶段接通了 37 个目标信号网上的 74 处断点。按四层 Gerber 和数控钻孔文件独立重建铜连接后，161 个网的导通分组均与编辑器回读一致。
-
-全板待连数从 **487 降到 348**。严格 DRC 另报 **480 个未连标记**，短路和间距违规均为 0。新启动的 Codex 宿主加载了 A31-r4，并以只读方式重开了这份工程。[验证记录](docs/validation.md)
-
-### RC 双层滤波板 · 完整布线与换料
-
-在 EDA Pro 4.1.71 中从空白工程完成了 8 个器件、13 个引脚的小板。3 个网全部布通，共 21 段线、0 过孔，严格 DRC 为 0。C1 从 **10 nF 换为 100 nF** 后，原有走线经保存重开核对。41 个制造文件通过检查，装配方向、3D 配合和样板性能仍待验证。[RC 示例](examples/rc-filter/README.md) · [开发进展](docs/development-status.md)
-
-## 能做什么
-
-你描述电路目标与工程位置，助手通过工具逐步读取、规划、执行和核验。
-
-| 工作环节 | 当前能力 |
+| 检查项目 | 实机结果 |
 |---|---|
-| **读懂工程** | 工程身份、真实库模型、完整原生记录、原理图引脚、PCB 焊盘与铜连接 |
-| **绘图与同步** | 从空白模板绘图并首次同步 PCB，也可在已布线副本上逐页扩展，将旧页预留引脚接入新页 |
-| **布局与改件** | 双层或四层板的板框、安装孔和器件定位。增页时可把新贴片件或采用圆形镀通孔的器件放到底面。另支持常规两脚阻容新增、兼容换料及局部改接 |
-| **布线与覆铜** | 受限官方路由，或每批最多 32 条指定连接。支持顶底层分段变宽、普通过孔和内外层实心覆铜，重铺后核验孔环接触与热焊盘辐条 |
-| **保留设计** | 前后完整档案比较、非目标内容保持、未知写入不重放、按原请求恢复或诊断 |
-| **保存交付** | 两端保存、全新磁盘上下文读回、本地 Gerber / BOM / CPL 与预览、文件摘要清单 |
+| 全板铜连接 | 计入本阶段的供电和回流走线后，待连数从 **487 降到 348**。原有铜连通组均保留。 |
+| 制造数据复核 | 从四层 Gerber 铜层与镀通钻孔重建焊盘连通组，**161/161 个网**与编辑器回读一致。 |
+| 严格设计规则检查（DRC） | **480 个未连标记**，短路 0 项，间距违规 0 项。整板仍需继续布线。 |
 
-多页合并校验的输入上限为每块板 **12 页、500 个器件、256 个命名网络**。独立的阻容修改流程每阶段限 1–2 个常规两脚电阻或无极性 MLCC，并要求方向和封装几何兼容。高速、射频、高压、多板和任意整板自动布线仍待独立验证。[多页设计与局部布线用法](skills/jlc-eda-project/references/usage.md)
+新启动的 Codex 宿主加载了 A31-r4，以只读方式重开最终工程并关闭检查副本。[验收记录](docs/validation.md)
+
+### RC 滤波板 · 换一颗电容并验证原有走线
+
+![RC 滤波示意图。R1 串联在输入与输出之间，C1 和 R2 从输出接地，C1 从 10 nF 换为 100 nF。](docs/assets/rc-filter.svg)
+
+在 EDA Pro 4.1.71 中，从空白双层板完成绘图、首次 PCB 同步、布局和布线。随后由已保存的成品派生副本，将 C1 换为封装兼容的 **100 nF** 实际料号，并核对 BOM。
+
+| 规模 | 铜连接与规则 | 交付检查 |
+|---|---|---|
+| 8 个器件、13 个引脚、3 个网 | 3 个网全部布通，21 段走线、0 过孔，严格 DRC 为 0 | 换料后原有走线通过磁盘回读，41 个制造文件通过检查 |
+
+图中连接来自公开需求表。这个案例完成了文件级验收，装配方向、3D 配合和样板性能仍待验证。[复现步骤与连接表](examples/rc-filter/README.md) · [开发进展](docs/development-status.md)
 
 ## 快速开始
 
-### 1 · 选择版本
+需要 **macOS、Node.js 20 或更高版本、嘉立创 EDA 桌面专业版**，以及支持本地插件的 Codex。下方的多页、四层板和 RC 换料案例使用开发构建。若要复现这些流程，请选择源码版。
 
-| 你的目的 | 使用入口 | 需要了解 |
-|---|---|---|
-| 使用或开发多页、四层板流程 | 当前仓库源码 `0.11.0-dev.a31-r4` | 按下方命令构建并安装 runtime ZIP |
-| 使用现有预编译包 | [Alpha.3 预发布](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | 2026-10-10 的社区预览，可直接安装，早于 A6–A31 的开发工作 |
+<details>
+<summary><strong>从源码构建 A31-r4</strong> · 多页设计、四层板和局部布线</summary>
 
-环境要求：**macOS、Node.js ≥20、嘉立创 EDA 桌面专业版、支持本地 stdio MCP 的 Codex 宿主**。4.1.60 是早期基线，4.1.71 与 4.1.105 已完成上述限定路径验证；其他平台、版本及 `.eprj3` 路径另验。原生交互需要宿主桌面能力或操作者配合。[官方 CLI 文档](https://prodocs.lceda.cn/cn/api/guide/cli.html)
-
-### 2 · 从最新源码构建
+在新目录克隆仓库。`npm run check` 会构建插件、运行离线及协议检查，并生成运行包。
 
 ```sh
 git clone https://github.com/aning0922/codex-jlc-eda.git
 cd codex-jlc-eda
 PROJECT_ROOT="$(pwd -P)"
-node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a31-r4") process.exit(1)'
-npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund
-npm --prefix "$PROJECT_ROOT" test
-npm --prefix "$PROJECT_ROOT" run test:protocol
-npm --prefix "$PROJECT_ROOT" run package
+node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a31-r4") process.exit(1)' &&
+  npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund &&
+  npm --prefix "$PROJECT_ROOT" run check
 ```
 
-产物位于 `release/0.11.0-dev.a31-r4/`，包含 source / runtime ZIP、逐文件清单及 `SHA256SUMS`。解压其中的 runtime ZIP 后，按第 3 步安装。
-
-<details>
-<summary><strong>使用公开 Alpha.3 运行包</strong></summary>
-
-下载 [runtime ZIP](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/codex-jlc-eda-0.11.0-alpha.3-runtime.zip) 和 [SHA256SUMS](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/SHA256SUMS)，将下列摘要与清单对应条目比较，再解包到固定目录。
+成功后校验两个 ZIP，并进入解包后的 runtime 目录。
 
 ```sh
-shasum -a 256 codex-jlc-eda-0.11.0-alpha.3-runtime.zip
+cd "$PROJECT_ROOT/release/0.11.0-dev.a31-r4" &&
+  shasum -a 256 -c SHA256SUMS &&
+  unzip -q codex-jlc-eda-0.11.0-dev.a31-r4-runtime.zip -d runtime &&
+  cd runtime
 ```
-
-保留根 `.agents/` 与 `plugins/jlc-eda/`；运行包自带 bundle，无需 `npm install`。已发布版本采用 `fflate 0.8.3` 与 MCP SDK `1.31.0`，历史依赖修复见[安全核查](docs/dependency-security.md)。
 
 </details>
 
-### 3 · 安装解包后的本地运行包
+<details>
+<summary><strong>下载 Alpha.3 运行包</strong> · 免构建的早期社区预览</summary>
 
-以下命令适用于上述任一 runtime ZIP 的解包根目录；安装前确认选定版本。
+Alpha.3 发布于 2026-10-10，早于 A6–A31 的开发工作。将两个文件下载到同一个空目录，在该目录中校验并解包。[runtime ZIP](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/codex-jlc-eda-0.11.0-alpha.3-runtime.zip) · [SHA256SUMS](https://github.com/aning0922/codex-jlc-eda/releases/download/v0.11.0-alpha.3/SHA256SUMS)
 
 ```sh
-codex plugin marketplace add "/absolute/path/to/unpacked-runtime"
+runtime_zip=codex-jlc-eda-0.11.0-alpha.3-runtime.zip
+awk -v name="$runtime_zip" '$2 == name' SHA256SUMS | shasum -a 256 -c - &&
+  unzip -q "$runtime_zip" -d runtime &&
+  cd runtime
+```
+
+此包自带依赖，包括 `fflate 0.8.3` 与 MCP SDK `1.31.0`。[依赖审计](docs/dependency-security.md)
+
+</details>
+
+**安装到 Codex。** 在上面选定的 runtime 解包根目录执行以下命令。该目录包含 `.agents/` 和 `plugins/`，安装后请保留。
+
+```sh
+codex plugin marketplace add "$PWD"
 codex plugin add jlc-eda@jlc-eda-alpha --json
 codex plugin list --marketplace jlc-eda-alpha --json
 ```
 
-已有同名插件时，停用旧来源并保留缓存，避免两个 `jlc_eda` 服务混淆。需要重载时，在方便中断其他工作时完整重启桌面宿主，然后从新上下文核对实际加载版本。[本地插件安装说明](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
+打开嘉立创 EDA，在新 Codex 聊天中做第一次只读检查。
 
-安装文件匹配与实际宿主加载分别验收。源码仓库不含 `dist`；不能将 Git 仓库来源视为已验证的零构建安装入口。启动器优先使用 `CODEX_MCP_NODE_PATH`，否则使用 PATH 中的 `node`；EDA 安装路径特殊时可指定 `JLCEDA_CLI_PATH`。
+> 使用嘉立创 EDA 助手检查环境，告诉我当前加载的插件版本、可用工具数，以及是否已连接编辑器。
 
-### 4 · 开始对话
+预期结果是所选版本、**35** 项工具和 `editorConnected=true`。若仍报告旧版，检查是否启用了两个同名来源，再重新加载宿主。若 EDA 安装在非默认位置，将 `JLCEDA_CLI_PATH` 指向官方 CLI 可执行文件。Node 路径可通过 `CODEX_MCP_NODE_PATH` 指定。[本地插件安装说明](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
 
-> 使用嘉立创 EDA 助手检查环境，报告实际加载的插件版本、工具数和编辑器连接状态；现在只检查环境。
+## 工作流程
 
-应报告你安装的版本和 **35** 项工具。若 `editorConnected=false`，先打开 EDA 桌面编辑器。使用开发版时，可以这样描述任务。
+在 MCP 客户端，`jlc_eda_read_connectivity` 用于核对引脚与网络，`jlc_eda_check_pcb` 分别报告铜连接和严格 DRC，`jlc_eda_finish_work_project` 负责保存与独立回读。[完整工具定义](https://github.com/aning0922/codex-jlc-eda/blob/main/tests/fixtures/public-tools.json)
 
-> 从全新空白模板建立低压 RC 滤波小板，核对真实器件与全部引脚，完成原理图、PCB、连接检查及保存回读。
+| 工程任务 | 插件执行的操作 | 如何核对结果 |
+|---|---|---|
+| 读懂已有工程 | 在只读副本中取得真实符号、封装、引脚、焊盘及网络 | 对照原理图和 PCB，检查同一个引脚最终落在哪个焊盘和网络上 |
+| 新建或扩展原理图 | 从空模板绘图，或向有走线的单板新增图页并接入旧页预留引脚 | 对比所有图页的网表、原有焊盘分配和新增器件 |
+| 调整布局与走线 | 设置双层或四层板框和安装孔，放置器件，分批布线、换层和重铺实心铜面 | 读取逐段线宽、过孔、孔环接触和热焊盘辐条，再运行严格 DRC |
+| 保存与交付 | 将原理图与 PCB 写入工作副本，重开后生成本地 Gerber、BOM、CPL | 比较磁盘中的完整设计，检查制造文件并生成摘要清单 |
 
-> 从已保存的四层板派生副本，在新图页接入上一页预留的 MCU 引脚。保留已有走线，保存重开后报告网表变化和剩余待连数。
+多页合并校验每板最多 **12 页、500 个器件、256 个命名网络**。指定局部布线每批最多 **32 条连接**。增页时，新增贴片件及采用圆形镀通孔的器件可放到底面。独立阻容修改每阶段支持 1–2 个方向和几何兼容的常规两脚电阻或无极性 MLCC。[多页与布线用法](skills/jlc-eda-project/references/usage.md) · [阻容修改](skills/jlc-eda-project/references/passives.md)
 
-## 验证与恢复
+<details>
+<summary><strong>原生窗口、后台副本与中断恢复</strong></summary>
 
-A31-r4 干净安装后通过 **250/250 项离线回归**。编译后的 MCP 通过 35 项工具的协议比对，并拒绝了全部 35 个非法输入。[验证记录](docs/validation.md)
+工作副本默认在后台打开。需要原生选料器或导入复核时，新建副本可指定 `renderMode: "visible"`。
 
-2026-11-20 的完整 `npm audit` 在锁定依赖中报告 **3 项高危、5 项中危**，其中 MCP SDK、Zod 和 fast-uri 进入了运行包。[依赖安全核查](docs/dependency-security.md)
+- `needs_ui` 指明需要操作的窗口。完成原生步骤后，用同一请求核验。
+- `pending` 或 `unknown` 表示写入结果待确认。保留副本、回执和 journal，先只读诊断。
+- `ok` 对应当步操作，`closed` 表示工作副本已完成保存、独立回读及关闭。整板是否布通要看铜连接和严格 DRC 结果。
 
-| 返回状态 | 应如何继续 |
-|---|---|
-| `needs_ui` | 在工具指出的准确窗口完成原生步骤，再用同请求验证 |
-| `unknown` / `pending` | 保留工程、回执与 journal，先只读诊断，避免重复执行 |
-| `failed` / `unsupported` | 依据具体模型、来源、几何或状态缺口处理 |
-| `ok` / `closed` | 查看该阶段的证据范围；最终持久化要求独立磁盘回读 |
+</details>
 
-[日常使用](skills/jlc-eda-project/references/usage.md) · [阻容修改](skills/jlc-eda-project/references/passives.md) · [测试说明](docs/testing.md) · [后续路线](docs/roadmap.md)
+## 验证与兼容性
 
-## 数据与许可
+- **软件回归**　A31-r4 在干净安装下通过 **250/250 项离线测试**。编译后的 MCP 匹配 35 项工具定义，并拒绝全部 35 个非法输入。[测试说明](docs/testing.md) · [GitHub Actions](https://github.com/aning0922/codex-jlc-eda/actions/workflows/ci.yml)
+- **桌面环境**　4.1.60 是早期基线。4.1.71 有完整 RC 流程记录，4.1.105 有多页四层板和跨宿主回读记录。其他平台、编辑器版本及 `.eprj3` 工程需单独验证。高速、射频、高压、多板设计和任意整板自动布线也超出当前实测范围。[版本与验收范围](docs/development-status.md)
+- **依赖状态**　2026-11-20 的 `npm audit` 对锁文件报告 3 项高危、5 项中危。进入运行包的相关依赖及审计结果见[依赖安全核查](docs/dependency-security.md)。
 
-工程、副本和制造文件由本地 MCP 处理；库搜索、账户与同步可能使用嘉立创官方服务。工具结果会交给 AI 宿主，可能包含工程路径、模型和预览，按宿主设置处理。本插件不要求额外的大模型 API Key。
+## 文档与支持
 
-自有代码、文档和原创概念图采用 [MIT](LICENSE)，打包依赖保留[各自许可](THIRD_PARTY_NOTICES.txt)。真实库模型、原生工程、实机截图和制造资料保持本地；公开回归使用合成测试数据。[来源与分发边界](docs/sources-and-licenses.md)
+[日常操作手册](skills/jlc-eda-project/references/usage.md) · [RC 示例](examples/rc-filter/README.md) · [变更记录](CHANGELOG.md) · [路线图](docs/roadmap.md) · [贡献指南](CONTRIBUTING.md)
 
-## 参与项目
+工程副本和制造文件在本地处理。库搜索、账户与同步可能使用嘉立创服务，返回给 AI 宿主的内容可能含工程路径、模型和预览。插件无需单独的大模型 API Key。项目代码、文档与原创插图采用 MIT 许可，打包依赖保留各自许可，真实库模型和原生工程由使用者在本地读取。[来源与分发](docs/sources-and-licenses.md) · [第三方许可](THIRD_PARTY_NOTICES.txt)
 
-[贡献指南](CONTRIBUTING.md) · [提交反馈](https://github.com/aning0922/codex-jlc-eda/issues) · [安全报告](SECURITY.md) · [发布记录](https://github.com/aning0922/codex-jlc-eda/releases)
-
-反馈请包含版本、平台、状态码与脱敏最小复现。安全问题通过[私密报告入口](https://github.com/aning0922/codex-jlc-eda/security/advisories/new)提交。
+提交反馈时请附上插件与 EDA 版本、平台、返回状态及脱敏复现步骤。安全问题请使用私密报告渠道。[GitHub Issues](https://github.com/aning0922/codex-jlc-eda/issues) · [安全报告](SECURITY.md)

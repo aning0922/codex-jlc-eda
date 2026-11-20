@@ -1,38 +1,117 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-labelledby="title desc">
-  <title id="title">Codex JLC EDA — From intent to verified design</title>
-  <desc id="desc">An original conceptual illustration, not a PCB screenshot. A signal passes through a resistor and a shunt capacitor. Four stages describe requirements, real models, isolated design, and verification and saving. The software is a developer preview.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="350" viewBox="0 0 1200 350" role="img" aria-labelledby="title desc">
+  <title id="title">Codex JLC EDA</title>
+  <desc id="desc">A local schematic and PCB plugin for JLCEDA Pro. An original exploded illustration shows components, traces, copper planes and vias on four circuit-board layers.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#102E33"/><stop offset="1" stop-color="#071A21"/></linearGradient>
-    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#447276" opacity=".28"/></pattern>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2=".7">
+      <stop stop-color="#101d26"/><stop offset=".62" stop-color="#102932"/><stop offset="1" stop-color="#153139"/>
+    </linearGradient>
+    <linearGradient id="mask" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#236c66"/><stop offset=".54" stop-color="#195a58"/><stop offset="1" stop-color="#154340"/>
+    </linearGradient>
+    <pattern id="grid" width="23" height="23" patternUnits="userSpaceOnUse">
+      <path d="M23 0H0V23" fill="none" stroke="#92b8b0" stroke-width=".65" opacity=".23"/>
+    </pattern>
+    <pattern id="etch" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M-2 2l4-4m-2 10l8-8m-2 10l4-4" fill="none" stroke="#a4cabc" stroke-width=".9" opacity=".24"/>
+    </pattern>
+    <path id="outline" d="M13 0H279L292 13V193L279 206H13L0 193V13Z"/>
+    <g id="via"><circle r="4" fill="#e5ae77"/><circle r="1.8" fill="#143c40"/></g>
+    <g id="hole"><circle r="7.6" fill="none" stroke="currentColor" stroke-width="2"/><circle r="5" fill="#102931"/></g>
+    <g id="mounts">
+      <use href="#hole" x="18" y="18"/><use href="#hole" x="274" y="18"/>
+      <use href="#hole" x="18" y="188"/><use href="#hole" x="274" y="188"/>
+    </g>
+    <g id="land-pair">
+      <rect x="-8" y="-4" width="16" height="8" rx="1.4" fill="#253d40"/>
+      <path d="M-8-3.8h4v7.6h-4zm12 0h4v7.6H4z" fill="#e4c699"/>
+      <rect x="-3" y="-3" width="6" height="6" rx=".8" fill="#8a7769"/>
+    </g>
   </defs>
-  <rect width="1200" height="460" rx="24" fill="url(#bg)"/>
-  <rect x="620" y="24" width="556" height="290" rx="18" fill="url(#grid)"/>
-  <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif">
-    <rect x="44" y="40" width="184" height="28" rx="14" fill="#25474A"/>
-    <text x="136" y="59" text-anchor="middle" fill="#9EE5CF" font-size="11" font-weight="700" letter-spacing="1.8">LOCAL MCP / SKILL</text>
-    <text x="44" y="130" fill="#F4F1E9" font-size="52" font-weight="700" letter-spacing="-1.5">Codex JLC EDA</text>
-    <text x="47" y="174" fill="#A9CBC6" font-size="23">From intent to verified design.</text>
-    <text x="47" y="216" fill="#8AA8A9" font-size="15">Real models. Native workflows. Evidence at every step.</text>
-    <text x="47" y="275" fill="#D6AC7A" font-size="12" letter-spacing="1.8">SCHEMATIC / PCB / LOCAL DELIVERY</text>
-    <g stroke="#84D8BC" stroke-width="3" fill="none" stroke-linejoin="round">
-      <path d="M690 134H759M831 134H1080M936 134V199M915 199H957M915 211H957M936 211V253M917 253H955M924 262H948M931 271H941"/>
-      <rect x="759" y="120" width="72" height="28" rx="3"/>
-      <circle cx="690" cy="134" r="7" fill="#102B30"/>
-      <circle cx="1080" cy="134" r="7" fill="#102B30"/>
-      <circle cx="936" cy="134" r="4" fill="#84D8BC"/>
+
+  <rect width="1200" height="350" rx="14" fill="url(#field)"/>
+  <path d="M566 16h598v318H566z" fill="url(#grid)" opacity=".64"/>
+  <g font-family="'IBM Plex Mono', SFMono-Regular, Menlo, Consolas, monospace">
+    <path d="M47 54h28" stroke="#edae73" stroke-width="3"/>
+    <text x="88" y="60" fill="#c6dcd5" font-size="16" letter-spacing="2.5">JLCEDA PRO / LOCAL MCP</text>
+  </g>
+  <g font-family="Inter, Helvetica, Arial, sans-serif" font-weight="700" letter-spacing="-4">
+    <text x="43" y="149" font-size="84" fill="#f5f4e9">Codex</text>
+    <text x="41" y="242" font-size="102" fill="#a1e8ce">JLC EDA</text>
+  </g>
+  <text x="48" y="296" font-family="Inter, Helvetica, Arial, sans-serif" font-size="22" fill="#c2d6d2">Schematic · Layout · Readback</text>
+
+  <!-- Each layer shares the same board outline and coordinate system. -->
+  <g transform="translate(0 78)">
+    <g transform="matrix(1.03 -.37 .90 .48 585 143)">
+      <use href="#outline" fill="#213e44" stroke="#63978c" stroke-width="2.4"/>
+      <path d="M17 175h55l31-31h76l35-35h60M15 164h55l29-29h76l35-35h65M25 46h50l23 23h62l33-33h63" fill="none" stroke="#579185" stroke-width="3.4"/>
+      <use href="#mounts" color="#71aa98"/>
     </g>
-    <g fill="#AAC8C4" font-size="13" text-anchor="middle">
-      <text x="690" y="105">IN</text><text x="795" y="105">R</text><text x="1080" y="105">OUT</text><text x="980" y="211">C</text>
+  </g>
+  <g transform="translate(0 52)">
+    <g transform="matrix(1.03 -.37 .90 .48 585 143)">
+      <use href="#outline" fill="#705347" stroke="#d49869" stroke-width="2.4"/>
+      <path d="M12 131V27l14-14h114v47L88 112v78H26l-12-12v-28h52l19-19zM154 14h115l11 11v73h-62l-26 26h-58v-31l20-20zM118 149h80l37-37h45v66l-12 14H118z" fill="#b47f59"/>
+      <use href="#mounts" color="#deb38a"/>
     </g>
-    <text x="882" y="306" fill="#7A999A" font-size="11" text-anchor="middle" letter-spacing="1.5">CONCEPT ILLUSTRATION · NOT A PCB CAPTURE</text>
-    <path d="M44 330H1156" stroke="#355356"/>
-    <g font-size="16" font-weight="600" fill="#E2EBE5">
-      <text x="44" y="374"><tspan fill="#83D6BA">01</tspan><tspan dx="12">Requirements</tspan></text>
-      <text x="332" y="374"><tspan fill="#83D6BA">02</tspan><tspan dx="12">Real models</tspan></text>
-      <text x="620" y="374"><tspan fill="#83D6BA">03</tspan><tspan dx="12">Isolated design</tspan></text>
-      <text x="908" y="374"><tspan fill="#83D6BA">04</tspan><tspan dx="12">Verify &amp; save</tspan></text>
+  </g>
+  <g transform="translate(0 26)">
+    <g transform="matrix(1.03 -.37 .90 .48 585 143)">
+      <use href="#outline" fill="#28534f" stroke="#7cb3a1" stroke-width="2.4"/>
+      <use href="#outline" fill="url(#etch)"/>
+      <path d="M24 61h58l25 25v49l-20 20H35m130 21v-44l52-52h58" fill="none" stroke="#173d3c" stroke-width="10"/>
+      <use href="#mounts" color="#9cc5af"/>
     </g>
-    <g font-size="12" fill="#8EA9A8"><text x="44" y="401">Circuit, scope and constraints</text><text x="332" y="401">Identity, pins and geometry</text><text x="620" y="401">Schematic, placement and copper</text><text x="908" y="401">Checks, readback and local files</text></g>
-    <g fill="#527873" font-size="22"><text x="286" y="375">→</text><text x="574" y="375">→</text><text x="862" y="375">→</text></g>
+  </g>
+  <g transform="matrix(1.03 -.37 .90 .48 585 143)" stroke-linejoin="round" stroke-linecap="round">
+    <use href="#outline" fill="url(#mask)" stroke="#a2cfb1" stroke-width="2.8"/>
+    <path d="M24 8h243l17 16v158l-16 16H24L8 182V24Z" fill="none" stroke="#78a798" stroke-width="1.2"/>
+    <g fill="none" stroke="#c59866" stroke-width="2.1">
+      <path d="M91 73H73L53 53H26m65 27H71L51 60H26m65 27H68L48 67H26m65 27H65L45 74H26"/>
+      <path d="M91 105H63l-15 15H28m63-8H65l-15 15H28m63-8H68l-15 15H28"/>
+      <path d="M105 62V46l17-17h69m-79 33V49l15-15h64m-72 28V52l13-13h59m-52 23V50l13-13"/>
+      <path d="M161 75h16l18-18h32l11 11h21m-98 14h19l19-19h25l12 12h23m-98 14h22l20-20h17l13 13h26"/>
+      <path d="M161 104h26l16 16h49m-91-9h23l16 16h52m-91-9h20l16 16h55"/>
+      <path d="M104 126v19l-25 25H41m70-44v23l-27 27H41m77-50v27l-29 29H56"/>
+      <path d="M136 126v18l20 20h38l13 13h48m-112-51v15l17 17h38l13 13h44m-105-45v12l14 14h38l13 13h40"/>
+    </g>
+    <g fill="none" stroke="#7fb8a2" stroke-width="1.5">
+      <path d="M35 40h39l16 16h8m79-6 7-7h33l16-16h21M16 152h47l17-17m98 46h-22l-20-20h-11m79-66h30l12 12h24"/>
+      <path d="M85 59V51L69 35H43m123 20 20-20h23l14-14h16m-71 162h-16l-18-18h-13"/>
+    </g>
+    <g fill="none" stroke="#dbbf96" stroke-width="9" stroke-dasharray="2.8 3.7" stroke-linecap="butt">
+      <path d="M98 64h56m-56 61h56M92 69v51m68-51v51"/>
+    </g>
+    <rect x="94" y="67" width="64" height="55" rx="3" fill="#152b32" stroke="#a3b6a3" stroke-width="1.8"/>
+    <path d="M100 72h50l4 4v40h-55V76Z" fill="#233c42"/>
+    <circle cx="104" cy="78" r="2.7" fill="#c9cfb4"/>
+    <g stroke="#b4d1bc" stroke-width="1.4" fill="none">
+      <path d="M85 72v-15h14m53 0h15v14m0 49v12h-14m-53 0H85v-11"/>
+      <rect x="218" y="91" width="43" height="15" rx="2"/>
+      <path d="M38 159h17m-15 3h8"/>
+    </g>
+    <g>
+      <use href="#land-pair" x="65" y="84"/><use href="#land-pair" x="65" y="98"/>
+      <use href="#land-pair" x="111" y="42"/><use href="#land-pair" x="131" y="47"/>
+      <use href="#land-pair" x="187" y="92"/><use href="#land-pair" x="187" y="103"/>
+      <use href="#land-pair" x="105" y="162"/><use href="#land-pair" x="127" y="174"/>
+    </g>
+    <g>
+      <use href="#via" x="26" y="53"/><use href="#via" x="26" y="67"/>
+      <use href="#via" x="28" y="120"/><use href="#via" x="28" y="134"/>
+      <use href="#via" x="191" y="29"/><use href="#via" x="191" y="39"/>
+      <use href="#via" x="259" y="68"/><use href="#via" x="259" y="82"/>
+      <use href="#via" x="252" y="120"/><use href="#via" x="252" y="134"/>
+      <use href="#via" x="41" y="170"/><use href="#via" x="56" y="182"/>
+      <use href="#via" x="255" y="165"/><use href="#via" x="255" y="177"/>
+    </g>
+    <use href="#mounts" color="#e2c894"/>
+  </g>
+  <g fill="none" stroke="#a0bdb5" stroke-width="1.15">
+    <path d="M1071 135h28l12-12h20m-60 38h32l8-8h20m-60 34h34l6-6h20m-60 32h37l3 3h20"/>
+  </g>
+  <g fill="#c8ddd4" font-family="'IBM Plex Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="16">
+    <text x="1140" y="129">L1</text><text x="1140" y="159">L2</text>
+    <text x="1140" y="187">L3</text><text x="1140" y="222">L4</text>
   </g>
 </svg>

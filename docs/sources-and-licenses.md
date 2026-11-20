@@ -26,4 +26,4 @@
 
 这也意味着 Alpha 首轮没有“已公开可复现的完整硬件样板”资格。后续由助手使用可用原生界面创建全新空白模板开始，实际料号现场复核；是否公开其模型/原生文件需另行核实。源码开源与硬件文件许可分别处理。[GitHub 许可证说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository)。
 
-本版 `docs/assets/workflow.svg` 为项目原创概念流程图（MIT），不是实机PCB截图，也不包含商标或第三方素材。新增中英文README、贡献/安全/发布文档同为自有文字；历史安装记录只作历史说明。
+README 的四层 PCB 封面是项目原创概念图。RC 电路图根据[公开示例的连接表](../examples/rc-filter/requirements.json)重绘，标出 C1 的换料位置。两幅插图和中英文 README 均采用 [MIT 许可](../LICENSE)。
