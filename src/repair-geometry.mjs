@@ -1,11 +1,16 @@
 import {fingerprint} from './drawing.mjs';
 import {toMil} from './layout.mjs';
 import {segmentsIntersect} from './board-geometry.mjs';
+import {provenPlanes,surfaceParts,surfaceDistance,surfaceSegmentDistance} from './copper-surface.mjs';
 const dist=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],t=(dx*dx+dy*dy)?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy))):0;return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);};
 const sd=(a,b,c,d)=>segmentsIntersect(a,b,c,d)?0:Math.min(dist(a,c,d),dist(b,c,d),dist(c,a,b),dist(d,a,b));
 function padObstacle(p,bounds){
  const [shape,w,h]=p.padShape??[],angle=p.rotation*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle),rot=([x,y])=>[p.x+x*c-y*s,p.y+x*s+y*c],inflate=.055;
  if(shape==='POLYGON'&&bounds&&[bounds.minX,bounds.minY,bounds.maxX,bounds.maxY].every(Number.isFinite)&&p.x>=bounds.minX&&p.x<=bounds.maxX&&p.y>=bounds.minY&&p.y<=bounds.maxY){
+  try{
+   const surfaces=surfaceParts(p.padShape[1]);
+   if(surfaces.some(s=>surfaceDistance(s,{x:p.x,y:p.y})<0))return {surfaces,inflate};
+  }catch{}
   const {minX,minY,maxX,maxY}=bounds;
   return {poly:[[minX-inflate,minY-inflate],[maxX+inflate,minY-inflate],[maxX+inflate,maxY+inflate],[minX-inflate,maxY+inflate]]};
  }
@@ -14,6 +19,7 @@ function padObstacle(p,bounds){
  const radius=Math.min(w,h)/2+inflate,delta=(Math.max(w,h)-Math.min(w,h))/2,axis=w>=h?[delta,0]:[0,delta];return {a:rot(axis.map(x=>-x)),b:rot(axis),radius};
 }
 function separation(a,b){
+ if(b.surfaces)return Math.min(...b.surfaces.map(s=>surfaceSegmentDistance(s,a.a,a.b)))-a.radius-b.inflate;
  if(b.poly){const angle=(p,q,r)=>(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);if([a.a,a.b].some(p=>b.poly.every((q,i)=>angle(q,b.poly[(i+1)%4],p)>=0)))return -a.radius;return Math.min(...b.poly.map((q,i)=>sd(a.a,a.b,q,b.poly[(i+1)%4])))-a.radius;}
  return sd(a.a,a.b,b.a,b.b)-a.radius-b.radius;
 }
@@ -39,7 +45,8 @@ export function planRepair(input,document,native,record){
 export function checkPlannedCopper(objects,document,native,record,{preserveExistingRoutes=false}={}){
  const issues=[],board=record.pcbLayoutBaseline.plan.board;
  if(preserveExistingRoutes){
-  const unsupported=native.objects.find(o=>!(o.kind==='Line'&&[1,2].includes(o.layer)||o.kind==='Via'&&o.viaType===0||!o.net&&(o.layer===11||o.kind==='Fill'&&o.layer===12&&o.complexPolygon?.[0]==='CIRCLE')));
+  if(preserveExistingRoutes)provenPlanes(native.objects);
+  const unsupported=native.objects.find(o=>!(o.kind==='Line'&&[1,2].includes(o.layer)||o.kind==='Via'&&o.viaType===0||preserveExistingRoutes&&['Pour','Poured'].includes(o.kind)||!o.net&&(o.layer===11||o.kind==='Fill'&&o.layer===12&&o.complexPolygon?.[0]==='CIRCLE')));
   if(unsupported)throw Error('CRITICAL_COPPER_OBSTACLE_UNSUPPORTED');
  }
  const spacing=record.pcbRuleBaseline?.config?.Spacing?.['Safe Spacing']?.copperThickness1oz,track=record.pcbRuleBaseline?.config?.Physics?.Track?.copperThickness1oz?.form?.data?.['1'];

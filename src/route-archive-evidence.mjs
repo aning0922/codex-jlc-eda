@@ -1,8 +1,9 @@
 import {nativeModelRecords} from './file-model-evidence.mjs';
 import {fingerprint} from './drawing.mjs';
 import {allocatorChanges} from './incremental-allocators.mjs';
+import {matchesFillRecord} from './copper-plane.mjs';
 const key=r=>r.type+'/'+r.id,near=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=.0001;
-export function compareRouteArchives(before,after,{documentUuid,added,createdCount=added.length}={}){
+export function compareRouteArchives(before,after,{documentUuid,added,createdCount=added.length,refilled=[]}={}){
  const a=nativeModelRecords(before.pcbData),b=nativeModelRecords(after.pcbData),issues=[],old=a.get(documentUuid),now=b.get(documentUuid);
  if(fingerprint(before.schematic)!==fingerprint(after.schematic)||fingerprint(before.schematicPages??null)!==fingerprint(after.schematicPages??null))issues.push({code:'ROUTE_SCHEMATIC_CHANGED'});
  if(!old||!now)return {status:'mismatch',issues:[...issues,{code:'ROUTE_ARCHIVE_TARGET_MISSING'}]};
@@ -19,7 +20,7 @@ export function compareRouteArchives(before,after,{documentUuid,added,createdCou
  for(const [uuid,d] of a){const n=b.get(uuid);if(!n){issues.push({code:'ROUTE_SOURCE_DOCUMENT_MISSING',uuid});continue;}
   if(uuid!==documentUuid){if(fingerprint(d)!==fingerprint(n))issues.push({code:'ROUTE_MODEL_CHANGED',uuid});continue;}
   if(fingerprint(d.tombstones)!==fingerprint(n.tombstones))issues.push({code:'ROUTE_DELETION_CHANGED'});
-  for(const row of d.rows){const current=n.rows.filter(x=>key(x)===key(row));if(current.length!==1||!allocatorIds.has(row.id)&&fingerprint(row)!==fingerprint(current[0]))issues.push({code:'ROUTE_ORIGINAL_RECORD_CHANGED',key:key(row)});}
+  for(const row of d.rows){const current=n.rows.filter(x=>key(x)===key(row));if(current.length===1&&refilled.some(pair=>matchesFillRecord(row,pair.before)&&matchesFillRecord(current[0],pair.after)))continue;if(current.length!==1||!allocatorIds.has(row.id)&&fingerprint(row)!==fingerprint(current[0]))issues.push({code:'ROUTE_ORIGINAL_RECORD_CHANGED',key:key(row)});}
  }
  const captured=[];
  for(const row of now.rows)if(!old.rows.some(x=>key(x)===key(row))){

@@ -54,6 +54,8 @@
     "src/board-geometry.ts",
     "src/cli.mjs",
     "src/continuation.mjs",
+    "src/copper-plane.mjs",
+    "src/copper-surface.mjs",
     "src/copper.mjs",
     "src/drawing.mjs",
     "src/drc-comparison.mjs",

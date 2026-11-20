@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a29 · 2026-11-20
+
+- Create and rebuild solid copper on a project copy. Verify conductive islands, thermal spokes, clearance holes and native board-coordinate polygon pads.
+
 ## 0.11.0-dev.a28-r1 · 2026-11-20
 
 - Verify disconnected-via DRC markers after reopening by checking the native via ID, net, drill and its stored center to four decimals in mil.

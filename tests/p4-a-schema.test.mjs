@@ -5,6 +5,9 @@ import {p3Schemas} from '../src/p3.mjs';
 import {rulesSchema} from '../src/rules.mjs';
 import {criticalPrimitives,criticalRuns,verifyAddedCopper} from '../src/pcb-validation.mjs';
 import {checkPlannedCopper} from '../src/repair-geometry.mjs';
+import {auditCopper} from '../src/copper.mjs';
+import {surfaceParts,surfaceDistance} from '../src/copper-surface.mjs';
+import {matchesFillRecord,sameFilledGeometry,sameStoredFills} from '../src/copper-plane.mjs';
 
 const target={sessionId:'session',expectedProjectUuid:'project',schematicPageUuid:'page',schematicUuid:'sch',pcbDocumentUuid:'pcb',workDirectory:'/task',requestId:'request'};
 const rules={unit:'mm',copperClearance:0.2,boardClearance:0.3,track:{minimum:0.2,default:0.25,maximum:1},via:{diameter:0.6,hole:0.3},manufacturingReference:'documented process',clearanceOverrides:[{objects:['SMD Pad','Track'],minimum:0.2}]};
@@ -72,4 +75,24 @@ test('a second power path can leave a shared pad, but cannot split a recorded sa
  for(const [a,b]of [[[100,100],[102,102]],[[180,180],[210,120]],[[100,200],[200,100]],[[200,200],[100,100]]])
   assert(check(a,b).issues.some(i=>i.code==='CRITICAL_EXISTING_TRACE_JUNCTION'));
  assert(check([60,75],[95,75]).issues.some(i=>i.code==='CRITICAL_MOUNTING_HOLE_KEEPOUT'));
+});
+
+test('inner-plane islands and thermal spokes conduct only through their actual copper',()=>{
+ const outline=[0,0,'L',20,0,20,10,0,10,0,0],hole=['CIRCLE',12,5,2],spoke=[10,5,'L',12,5];
+ const border={kind:'Pour',primitiveId:'p',net:'GND',layer:15,pourFillMethod:'solid',preserveSilos:false};
+ const area={id:'a',fill:true,lineWidth:0,path:[outline,hole]},thermal={id:'s',fill:false,lineWidth:.5,path:[spoke]};
+ const filled={kind:'Poured',primitiveId:'p',pourPrimitiveId:'p',layer:15,pourFills:[area]};
+ const doc={status:'ok',truncated:false,counts:{components:1},components:[{uniqueId:'J',pins:[30,120,170].map((x,i)=>({id:'v'+i,x,y:50,net:'GND',number:String(i),layer:12,metallization:true,padShape:['ELLIPSE',8,8]}))}]};
+ const graph=()=>auditCopper(doc,{status:'ok',layers:4,objects:[border,filled]});
+ assert.equal(graph().remainingConnections,1);filled.pourFills.push(thermal);assert.equal(graph().fullyConnected,true);
+ const row={type:'POURED',id:'["POURED","p"]',body:{pourFill:filled.pourFills.map(f=>({strokeWidth:f.lineWidth,fill:f.fill,path:f.path,id:f.id}))}};
+ assert(matchesFillRecord(row,filled));const renewed=structuredClone(filled);renewed.pourFills[0].id='new';assert(sameFilledGeometry(filled,renewed));
+ renewed.pourFills[0].path[1][3]=3;assert(!sameFilledGeometry(filled,renewed));
+ const disk=structuredClone(filled.pourFills);disk[0].path[0][0]+=5e-13;
+ assert(sameStoredFills(filled.pourFills,disk));disk[0].path[0][0]+=.000001;assert(!sameStoredFills(filled.pourFills,disk));
+ row.body.pourFill[0].strokeWidth=1;assert(!matchesFillRecord(row,filled));
+});
+test('polygon-pad copper uses board coordinates and the signed native arc sweep',()=>{
+ const source=[0,5,'L',5,5,'ARC',-90,10,0,'L',10,-2,'ARC',-90,5,-7,'L',0,-7,0,5],parts=surfaceParts(source);
+ assert.equal(parts.length,1);assert(surfaceDistance(parts[0],{x:5,y:0})<-4.9);assert(surfaceDistance(parts[0],{x:9.99,y:4.99})>1.9);
 });

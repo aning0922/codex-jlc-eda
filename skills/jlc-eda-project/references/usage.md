@@ -58,6 +58,8 @@ create_work_project 可选择 projectImport 支线，把官方导出的 .epro/.e
 
 公共PCB预览同时纳入器件和板框。最终 check/finish 检查完整档案及新磁盘状态；制造导出在closed成品后进行，孔径、插接外形、板厚/表面工艺及装配方式仍按实际资料单列。doctor仅报告接口/桥接可用性和具体流程已有资格，不通过一次静态检测宣称当前引擎已布通。
 
+在后台带铜副本中，可向 `route_pcb` 提交 `phase=plane` 和 `plane`。输入包括网络、名称、铜层、闭合区域的顶点序列及允许的边框宽度。编辑器重排名称和优先级后，插件核对实际边框、填铜岛、避空孔和热焊盘辐条，并独立核对原有工程记录。同请求的 `verify_plane` 只读回已有动作。后续变宽走线与过孔按受影响的层重铺，检查新铜到实际填充的距离。成品需在磁盘副本及 Gerber 内复核。
+
 ## 已闭合工程的自由说明更正
 
 使用 `schematic_eco mode=notes` 从有完整 closed 证明的单页成品正式派生。derive/read → plan(noteChanges) → schematic → verify/preview → finish；同请求 closed 复用保持只读。每次最多3个独立页 TEXT，仅 text 与 atMm（坐标转为原理图10mil单位，存储Y反向），必须给实际读取的 id 与 expectedText；不支持 ATTR、网络标签、符号内文字、删改其他图元或同步PCB。plan 绑定完整旧体与实际API属性；所有原理图非目标与PCB档案、规则、逻辑严格保持，逐步持久意图，未知写入不重放。完整保存、新磁盘重读和铜/DRC核查通过后关闭。

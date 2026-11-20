@@ -3906,8 +3906,61 @@
             "prepare_ui",
             "verify",
             "retry_rejected",
-            "prepare_restore_undo"
+            "prepare_restore_undo",
+            "plane",
+            "rebuild_plane",
+            "verify_plane"
           ]
+        },
+        "plane": {
+          "type": "object",
+          "properties": {
+            "net": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "type": "number",
+              "enum": [
+                1,
+                2,
+                15,
+                16
+              ]
+            },
+            "vertices": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "minItems": 3,
+              "maxItems": 64
+            },
+            "width": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Maximum border width in the selected unit. The editor may return a narrower solid-pour border."
+            }
+          },
+          "required": [
+            "net",
+            "name",
+            "layer",
+            "vertices",
+            "width"
+          ],
+          "additionalProperties": false
         },
         "guiParameterPolicy": {
           "type": "string",
