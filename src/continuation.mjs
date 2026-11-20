@@ -42,14 +42,17 @@ export async function verifyRecoveredTask(a,r,context){
  if(r.pcbLayoutBaseline){layout=verifyLayoutSnapshot(r.pcbLayoutBaseline.plan,doc,native,r.pcbLayoutBaseline.outline);if(layout.status!=='matched')return {status:'unknown',code:'TASK_RECOVERY_LAYOUT_CHANGED',identity,layout,native};}
  else if(r.pcbSyncBaseline&&positionDiff(r.pcbSyncBaseline.after,pcbSnapshot(doc)).length)return {status:'unknown',code:'TASK_RECOVERY_SYNC_POSE_CHANGED',identity,native};
  const stage=r.continuation?.selectedStage;
- const expected=r.pcbRepairBaseline?.native??stage?.native??r.pcbCopperBaseline?.native;
+ const routedLayout=stage?.kind==='closed_unrouted_layout'?r.pcbCopperBaseline:null;
+ const expected=r.pcbRepairBaseline?.native??routedLayout?.native??stage?.native??r.pcbCopperBaseline?.native;
  if(expected){copper=compareRoutingCheckpoint(expected,native);if(copper.status!=='matched')return {status:'unknown',code:'TASK_RECOVERY_COPPER_CHANGED',identity,layout,copper,native};}
  else if(native.status!=='ok'||native.objects?.some(x=>x.net&&[1,2,12].includes(x.layer)))return {status:'unknown',code:'TASK_RECOVERY_UNRECORDED_COPPER',identity,layout,native};
  let stageComponents=null,stageDesign=null;
  if(stage){
-  stageComponents=comparePreservedPcbSnapshot(repairRead?{...stage.document,counts:doc.counts}:stage.document,pcbSnapshot(doc),{expectedProjectUuid:stage.sourceProjectUuid,actualProjectUuid:r.projectUuid});
+  const stageDocument=routedLayout?{...stage.document,counts:routedLayout.after.counts}:repairRead?{...stage.document,counts:doc.counts}:stage.document;
+  stageComponents=comparePreservedPcbSnapshot(stageDocument,pcbSnapshot(doc),{expectedProjectUuid:stage.sourceProjectUuid,actualProjectUuid:r.projectUuid});
   stageDesign=await archive(a,p);
-  if(stageComponents.status!=='matched'||(!repairRead||r.pcbRepairBaseline.sourceStage)&&fingerprint(stage.design)!==fingerprint(stageDesign))return {status:'unknown',code:'TASK_RECOVERY_SAVED_STAGE_CHANGED',identity,layout,copper,native,stageComponents,stageDesign};
+  const expectedDesign=routedLayout?{schematic:routedLayout.archives.schematic,pcb:routedLayout.archives.pcb}:stage.design;
+  if(stageComponents.status!=='matched'||(!repairRead||r.pcbRepairBaseline.sourceStage)&&fingerprint(expectedDesign)!==fingerprint(stageDesign))return {status:'unknown',code:'TASK_RECOVERY_SAVED_STAGE_CHANGED',identity,layout,copper,native,stageComponents,stageDesign};
   if(repairRead)r.pcbRepairBaseline.nonCopper??=repairRead.nonCopper;
  }
  return {status:'ok',identity,layout,copper,native,stageComponents,stageDesign,repairReadback:repairRead,selectedCheckpoint:stage?.kind??'historical_copper',preservedActionStates:Object.fromEntries(Object.entries(r.pcbActions??{}).map(([k,v])=>[k,v.state]))};
@@ -72,6 +75,11 @@ export const continuationWorkflow={async verifyRecoveredTask(r,context){return v
   if(digest(await readFile(file))!==hash||digest(await readFile(sourcePath))!==hash||digest(await readFile(path.join(sourceDir,'work-project.json')))!==checkpointHash)fail('CONTINUATION_SOURCE_CHANGED_DURING_COPY');
   r=structuredClone(source);r.kind='continuation_pending';r.renderMode=p.renderMode??'headless';r.path=file;r.sessionId=null;r.projectUuid=null;r.openPathConfirmed=false;r.bindingStatus='verification_pending';
   r.continuation={requestId:p.requestId,sourceDirectory:sourceDir,sourcePath,sourceSha256:hash,sourceCheckpointSha256:checkpointHash,copiedSha256:hash,sourceBinding:{sessionId:source.sessionId,projectUuid:source.projectUuid,path:sourcePath},sourceJournalCopy:path.join(dir,'source-journal.json'),...(selectedStage?{selectedStage}:{}),startedAt:new Date().toISOString()};
+  if(selectedStage?.kind==='closed_unrouted_layout'){
+   // The closed finish receipt stays in the immutable source journal. The new copy owns its save lifecycle.
+   delete r.finish;delete r.pcbSaveAttempt;delete r.pcbReopen;
+   r.pcbRuleBaseline=selectedStage.native.ruleConfiguration;
+  }
   if(selectedStage?.kind==='known_partial_file_stage')r.pcbRepairBaseline={predecessorFingerprint:fingerprint(selectedStage),native:selectedStage.native,document:selectedStage.document,storedCopper:selectedStage.storedCopper,padModels:selectedStage.padModels,nativeRules:selectedStage.nativeRules,sourceStage:true};
   // Opening provenance is separate; old openAttempt and every old action stay intact.
   delete r.taskOpenAttempt;await persist(dir,r);

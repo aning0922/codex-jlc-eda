@@ -1,15 +1,39 @@
 // A closed failed stage is a distinct saved checkpoint. Historical successful
 // copper and the original failure records never become this continuation's goal.
 import {fingerprint} from './drawing.mjs';
-import {confirmedFailedStageAction,unresolvedActions} from './pcb-validation.mjs';
+import {confirmedFailedStageAction,unresolvedActions,verifyLayoutSnapshot} from './pcb-validation.mjs';
+import {isOwnedFootprintVia} from './footprint-vias.mjs';
 import {compareRoutingCheckpoint} from './p3.mjs';
 import {pcbSnapshot,comparePreservedPcbSnapshot} from './pcb.mjs';
 import {ruleCheckpointEqual} from './rules.mjs';
 const fail=code=>{throw Object.assign(Error(code),{code,status:'unknown'});};
 const exact=(a,b)=>!!a&&!!b&&fingerprint(a)===fingerprint(b);
 const strictDrc=v=>v?.drc?.status==='ok'&&v.drc.strict===true&&Array.isArray(v.drc.errors)&&ruleCheckpointEqual(v.drc.beforeRules,v.drc.afterRules);
+function closedLayoutStage(source,origin){
+ const f=source.finish,d=f.disk,opened=d?.reopened,closed=f.closed,layout=source.pcbLayoutBaseline;
+ if(!layout.plan?.poses?.length||!layout.plan.input||!layout.outline?.length||
+    source.path!==origin.sourcePath||f.sourceSha256!==origin.sourceSha256||
+    closed?.status!=='ok'||closed.sessionId!==source.sessionId||!closed.sessionNoLongerAlive||!closed.editorWindowDestroyed||
+    d?.status!=='ok'||!d.persistenceVerified||d.comparison?.status!=='matched'||d.identity?.comparison?.status!=='matched'||
+    opened?.sourcePath!==origin.sourcePath||opened.sourceSha256!==f.sourceSha256||!opened.freshDiskContext||
+    !opened.inspectionCopy||opened.reusedOwnedSession!==false||!opened.sessionId||opened.sessionId===source.sessionId||
+    opened.project?.uuid!==d.document?.projectUuid||d.document?.documentUuid!==source.pcbDocumentUuid||
+    d.resourceCleanup?.sessionId!==opened.sessionId||d.resourceCleanup.status!=='ok'||!d.resourceCleanup.sessionNoLongerAlive||
+    !f.design?.schematic?.sha256||!f.design?.pcb?.sha256||!exact(f.design,d.design)||
+    !strictDrc(d)||!Array.isArray(d.native?.objects)||!d.native.ruleConfiguration||!ruleCheckpointEqual(d.drc.beforeRules,d.native.ruleConfiguration)||
+    d.document?.truncated!==false||!d.document.components?.length||d.document.counts?.components!==d.document.components.length||
+    unresolvedActions(source).length)fail('CONTINUATION_CLOSED_LAYOUT_UNVERIFIED');
+ const verified=verifyLayoutSnapshot(layout.plan,d.document,d.native,layout.outline);
+ if(verified.status!=='matched')fail('CONTINUATION_CLOSED_LAYOUT_UNVERIFIED');
+ const mechanical=new Set([...verified.board.outline,...(verified.board.mountingHoles??[])].map(x=>x.primitiveId));
+ if(d.native.objects.some(x=>!mechanical.has(x.primitiveId)&&!isOwnedFootprintVia(x)))fail('CONTINUATION_LAYOUT_ALREADY_ROUTED');
+ return {kind:'closed_unrouted_layout',sourcePath:origin.sourcePath,sourceSha256:origin.sourceSha256,sourceJournalSha256:origin.sourceJournalSha256,
+  sourceProjectUuid:d.document.projectUuid,sourceSessionId:source.sessionId,document:pcbSnapshot(d.document),native:d.native,design:f.design};
+}
 export function selectSavedStage(source,{sourcePath,sourceSha256,sourceJournalSha256}){
  const failed=Object.entries(source.pcbActions??{}).filter(([key,a])=>key.startsWith('route/')&&a.state==='failed_preserved');
+ if(!failed.length&&source.finish?.state==='closed'&&source.pcbLayoutBaseline&&!source.pcbCopperBaseline&&!source.pcbFileRouteBaseline&&!source.pcbRepairBaseline)
+  return closedLayoutStage(source,{sourcePath,sourceSha256,sourceJournalSha256});
  if(!failed.length)return null;
  if(unresolvedActions(source).length)fail('CONTINUATION_STAGE_ACTION_UNRESOLVED');
  const candidates=[];

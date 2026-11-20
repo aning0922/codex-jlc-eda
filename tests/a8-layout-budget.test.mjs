@@ -6,6 +6,29 @@ import {zipSync,strToU8} from 'fflate';
 import {planLayout} from '../src/layout.mjs';
 import {verifyBoard} from '../src/pcb-validation.mjs';
 import {comparePlacedPadDrc} from '../src/drc-comparison.mjs';
+import {selectSavedStage} from '../src/saved-stage.mjs';
+test('a closed unrouted layout binds the fresh disk design and rejects extra copper, open actions and missing holes',()=>{
+ const part={uniqueId:'R1',id:'r',x:20,y:20,layer:1,rotation:0,fixed:false,group:'RC',primitiveLock:false,pins:[],primitiveBounds:{minX:19,minY:19,maxX:21,maxY:21}};
+ const document={status:'ok',truncated:false,counts:{components:1},components:[part],documentUuid:'pcb',projectUuid:'readProject'};
+ const input={unit:'mil',board:{x:0,y:80,width:80,height:80,layers:4,cornerRadius:5,outlineWidth:.25,mountingHoles:[{x:5,y:5,diameter:2,keepoutDiameter:6}]},edgeClearance:.1,componentClearance:.35,components:[{uniqueId:'R1',x:20,y:20,layer:1,rotation:0,fixed:false,group:'RC'}]};
+ const outline={kind:'Polyline',layer:11,primitiveId:'frame',polygon:['R',0,80,80,80,0,5],lineWidth:.25,primitiveLock:true,net:''};
+ const hole={kind:'Fill',layer:12,primitiveId:'hole',complexPolygon:['CIRCLE',5,5,1],fillMode:0,primitiveLock:true,net:null};
+ const rules={name:'project',config:{}},design={schematic:{sha256:'s'},pcb:{sha256:'p'}};
+ const origin={sourcePath:'/placed/work.eprj2',sourceSha256:'saved',sourceJournalSha256:'journal'};
+ const reopened={sourcePath:origin.sourcePath,sourceSha256:'saved',sessionId:'inspection',project:{uuid:'readProject'},inspectionCopy:true,freshDiskContext:true,reusedOwnedSession:false};
+ const disk={status:'ok',comparison:{status:'matched'},identity:{comparison:{status:'matched'}},persistenceVerified:true,document,design,reopened,
+  resourceCleanup:{status:'ok',sessionId:'inspection',sessionNoLongerAlive:true},native:{status:'ok',layers:4,objects:[outline,hole],ruleConfiguration:rules},
+  drc:{status:'ok',strict:true,errors:[],beforeRules:rules,afterRules:rules}};
+ const source={path:origin.sourcePath,sessionId:'writer',pcbDocumentUuid:'pcb',pcbLayoutBaseline:{plan:planLayout(input,document),outline:[outline]},finish:{
+  state:'closed',sourceSha256:'saved',design,disk,closed:{status:'ok',sessionId:'writer',sessionNoLongerAlive:true,editorWindowDestroyed:true}}};
+ const chosen=selectSavedStage(source,origin);
+ assert.equal(chosen.kind,'closed_unrouted_layout');assert.equal(chosen.sourceProjectUuid,'readProject');
+ for(const mutate of [
+  s=>s.finish.disk.native.objects.push({kind:'Line',primitiveId:'trace',layer:1,net:'SIG'}),
+  s=>s.finish.disk.native.objects.pop(),s=>s.finish.disk.reopened.inspectionCopy=false,
+  s=>s.finish.disk.design={...design,pcb:{sha256:'other'}},s=>s.pcbActions={pending:{state:'unknown'}}
+ ]){const variant=structuredClone(source);mutate(variant);assert.throws(()=>selectSavedStage(variant,origin),/CONTINUATION_/);}
+});
 test('disconnected markers follow only a verified native rounding of their own component pose',()=>{
  const doc=x=>({components:[{id:'c',uniqueId:'C1',x,y:5,rotation:0,layer:1,footprint:{uuid:'fp'},pins:[{id:'cp',number:'1',net:'GND',x:x+2,y:5}]}]});
  const errors=x=>[{name:'Connection Error',list:[{name:'GND',list:[{errorType:'Connection Error',net:'GND',pos:{x,y:.5},explanation:{errData:{obj1:'cp',errorType:'No Connection',position:{x,y:.5}}}}]}]}];

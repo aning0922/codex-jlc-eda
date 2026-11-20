@@ -89,3 +89,5 @@ STM32H563VI 的 `swdConnector` 增量用 `header` 指定五针直排针，`reset
 `bulkDecoupling` 接受两个新电容位号，在已有的 +3V3 和数字 GND 间并联两颗同型号 4.7 µF、0805、X7R 电容。先核实 H563VI 的五组数字供电和已有局部去耦。新电容 1 脚接 +3V3，2 脚接 GND。只在已同步、未布线副本使用。
 
 `layout_pcb` 的手动首版布局可使用 2 或 4 个铜层，最多 200 个器件。`board.cornerRadius`、`board.mountingHoles` 与其余几何使用同一单位。安装孔为带孔径和螺钉避让直径的独立非镀圆孔，孔心使用 PCB 全局坐标。板框原点是左上角，+Y 向上。验收时读回所有器件的位置、面和角度、板框圆角和孔位，并在新磁盘上下文核对完整设计。未布线阶段保留预期的未连接报告。
+
+已收尾的未布线布局通过 `resume_work_project` 从来源工作目录派生。新副本沿用已验证的板框、安装孔、全部位姿和原生规则，可用 `route_pcb` 的 critical 模式逐支路布线。用 `check_pcb` 和 `finish_work_project` 在磁盘重开后逐网检查铜线与 DRC。

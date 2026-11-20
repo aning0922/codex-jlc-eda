@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a25 · 2026-11-20
+
+- Resume a saved, closed, unrouted placement in an independent working copy. Verify its board outline, mounting holes, embedded models and existing rules before adding local traces.
+
 ## 0.11.0-dev.a24 · 2026-11-20
 
 - Place synchronized boards with up to 200 components on a two- or four-layer stack. A rounded rectangular outline and mechanical holes are checked against component envelopes and native disk readback.
