@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a28-r1 · 2026-11-20
+
+- Verify disconnected-via DRC markers after reopening by checking the native via ID, net, drill and its stored center to four decimals in mil.
+
 ## 0.11.0-dev.a28 · 2026-11-20
 
 - Route pad-to-pad connections with individually specified segment widths and outer layers. Verify each width change and plated layer transition against current clearance rules, stored geometry and fresh disk readback.

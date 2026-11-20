@@ -9,7 +9,7 @@ import {fingerprint,circuitSchema} from './drawing.mjs';
 import {verifyLayoutSnapshot,verifyAddedCopper,criticalPrimitives,criticalRuns,unresolvedActions} from './pcb-validation.mjs';
 import {checkPlannedCopper} from './repair-geometry.mjs';
 import {auditCopper} from './copper.mjs';
-import {compareNativeDrc,comparePlacedPadDrc} from './drc-comparison.mjs';
+import {compareStoredDrc} from './drc-comparison.mjs';
 import {rulesSchema,configureRules,ruleCheckpointEqual} from './rules.mjs';
 import {verifyAcceptedFileRoute,fileCheckBasis,losslessView} from './file-checkpoint.mjs';
 import {verifyRepairCheckpoint,repairScript} from './local-repair.mjs';
@@ -289,7 +289,8 @@ export const p3Workflow={
   const drc=await this.invokeLossless(p.sessionId,routingScript({...p,operation:'check'}),60000);
   if(drc.status!=='ok')issues.push({code:'PCB_FRESH_DRC_UNAVAILABLE'});
   const unrouted=!expected.pcbCopperBaseline&&layout.status==='matched'&&native.objects.every(x=>x.layer===11||layout.board?.mountingHoles?.some(h=>h.primitiveId===x.primitiveId));
-  const drcComparison=expected.pcbCheck?(unrouted||expected.addedSheet?.accepted?comparePlacedPadDrc(expected.pcbCheck.drc?.errors,drc.errors,expected.pcbCheck.document,doc):compareNativeDrc(expected.pcbCheck.drc?.errors,drc.errors)):null;
+  const comparePads=unrouted||expected.addedSheet?.accepted,checked=expected.pcbCheck;
+  const drcComparison=checked?compareStoredDrc(checked.drc?.errors,drc.errors,comparePads?checked.document:null,comparePads?doc:null,checked.native,native):null;
   if(drcConsistencyRequired&&drcComparison&&drcComparison.status!=='matched')issues.push(...drcComparison.issues);
   const fullArchive=await verifyRouteArchiveCheckpoint(this,p,expected);if(fullArchive?.status==='mismatch')issues.push({code:'PCB_FULL_ARCHIVE_CHECKPOINT_CHANGED'});
   return {status:'ok',comparison:{status:issues.length?'mismatch':'matched',issues,mismatches:[],identityComparison:identity.comparison},identity,native,document:doc,layout,copperCheckpoint:copper,copper:auditCopper(doc,native),fullArchive,rulesMatched,drc,drcComparison,drcConsistencyRequired,unresolvedActions:unresolved,preservationOnly,designReadbackOnly:true};

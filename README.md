@@ -17,7 +17,7 @@
 
 | 开发源码 | 公开运行包 | 公共接口 | 许可 |
 |:---:|:---:|:---:|:---:|
-| `0.11.0-dev.a28` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 项 MCP 工具** | [MIT](LICENSE) |
+| `0.11.0-dev.a28-r1` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 项 MCP 工具** | [MIT](LICENSE) |
 
 A28 支持在已保存的多页 PCB 副本中按段指定线宽和顶底层，用普通过孔连接换层点。电源走线会按现行规则预检，并逐段核对原生数据和旧铜线。
 
@@ -60,7 +60,7 @@ A28 支持在已保存的多页 PCB 副本中按段指定线宽和顶底层，�
 
 | 你的目的 | 使用入口 | 需要了解 |
 |---|---|---|
-| 查看或开发最新成果 | 当前仓库源码 `0.11.0-dev.a28` | 本地构建，含 A11 后台工作副本 |
+| 查看或开发最新成果 | 当前仓库源码 `0.11.0-dev.a28-r1` | 本地构建，含 A11 后台工作副本 |
 | 使用现有预编译包 | [Alpha.3 预发布](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | 无需 npm 安装；不包含 A6–A10 的新增能力 |
 
 环境要求：**macOS、Node.js ≥20、嘉立创 EDA 桌面专业版、支持本地 stdio MCP 的 Codex 宿主**。4.1.60 是早期基线，4.1.71 与 4.1.105 已完成上述限定路径验证；其他平台、版本及 `.eprj3` 路径另验。原生交互需要宿主桌面能力或操作者配合。[官方 CLI 文档](https://prodocs.lceda.cn/cn/api/guide/cli.html)
@@ -71,14 +71,14 @@ A28 支持在已保存的多页 PCB 副本中按段指定线宽和顶底层，�
 git clone https://github.com/aning0922/codex-jlc-eda.git
 cd codex-jlc-eda
 PROJECT_ROOT="$(pwd -P)"
-node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a28") process.exit(1)'
+node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a28-r1") process.exit(1)'
 npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund
 npm --prefix "$PROJECT_ROOT" test
 npm --prefix "$PROJECT_ROOT" run test:protocol
 npm --prefix "$PROJECT_ROOT" run package
 ```
 
-产物位于 `release/0.11.0-dev.a28/`，包含 source / runtime ZIP、逐文件清单及 `SHA256SUMS`。这是本地开发构建，不代表新版本已发布或已通过实际聊天宿主验收。离线测试和协议检查不会调用真实 EDA。
+产物位于 `release/0.11.0-dev.a28-r1/`，包含 source / runtime ZIP、逐文件清单及 `SHA256SUMS`。这是本地开发构建，不代表新版本已发布或已通过实际聊天宿主验收。离线测试和协议检查不会调用真实 EDA。
 
 <details>
 <summary><strong>使用公开 Alpha.3 运行包</strong></summary>

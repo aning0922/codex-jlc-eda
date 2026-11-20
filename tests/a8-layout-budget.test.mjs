@@ -5,7 +5,7 @@ import {comparePlacementArchives} from '../src/placement-evidence.mjs';
 import {zipSync,strToU8} from 'fflate';
 import {planLayout} from '../src/layout.mjs';
 import {verifyBoard} from '../src/pcb-validation.mjs';
-import {comparePlacedPadDrc} from '../src/drc-comparison.mjs';
+import {comparePlacedPadDrc,compareStoredDrc} from '../src/drc-comparison.mjs';
 import {selectSavedStage} from '../src/saved-stage.mjs';
 test('a closed unrouted layout binds the fresh disk design and rejects extra copper, open actions and missing holes',()=>{
  const part={uniqueId:'R1',id:'r',x:20,y:20,layer:1,rotation:0,fixed:false,group:'RC',primitiveLock:false,pins:[],primitiveBounds:{minX:19,minY:19,maxX:21,maxY:21}};
@@ -49,6 +49,17 @@ test('disconnected markers follow only a verified native rounding of their own c
  from.components[0].rotation=270;to.components[0].rotation=-90.00000000000001;
  assert.equal(comparePlacedPadDrc(a,b,from,to).translated,1);assert.equal(comparePlacedPadDrc(a,errors(1.434559),from,to).status,'mismatch');
  to.components[0].pins[0].net='other';assert.equal(comparePlacedPadDrc(a,b,from,to).status,'mismatch');
+});
+
+test('fresh DRC binds each rounded via marker to the same plated hole and exact persisted coordinate',()=>{
+ const via=x=>({status:'ok',objects:[{kind:'Via',primitiveId:'v1',x,y:10.5,net:'GND',viaType:0,diameter:36,holeDiameter:16,primitiveLock:true}]});
+ const errors=x=>[{name:'Connection Error',list:[{name:'GND',list:[{errorType:'Connection Error',errorObjType:'Via',net:'GND',objs:['v1'],pos:{x,y:1.05},explanation:{errData:{obj1:'v1',obj1Type:'Via',errorType:'No Connection',position:{x,y:1.05}}}}]}]}];
+ const from=via(1838.5826771653544),to=via(1838.5827),left=errors(from.objects[0].x/10),right=errors(to.objects[0].x/10);
+ const check=(a,b,v)=>compareStoredDrc(a,b,null,null,from,v);
+ assert.deepEqual(check(left,right,to).roundedVias,['v1']);
+ for(const modify of [x=>x.net='other',x=>x.primitiveId='other',x=>x.diameter=40,x=>x.x+=.00001]){const copy=structuredClone(to);modify(copy.objects[0]);assert.equal(check(left,right,copy).status,'mismatch');}
+ assert.equal(check(left,errors(to.objects[0].x/10+.00001),to).status,'mismatch');
+ const other=structuredClone(right);other[0].list[0].list[0].explanation.errData.errorType='Clearance';assert.equal(check(left,other,to).status,'mismatch');
 });
 
 test('four-layer placement checks every envelope against rounded corners and screw keepouts',()=>{
