@@ -28,8 +28,61 @@ export function verifyLayoutSnapshot(plan,doc,native,expectedOutline){
  const layout=checkLayout(plan,doc),board=verifyBoard(plan,native,expectedOutline),issues=[...layout.issues,...board.issues];
  return {...layout,status:layout.status==='unknown'||board.status==='unknown'?'unknown':issues.length?'mismatch':'matched',issues,board};
 }
+export function criticalPrimitives(c,points,unit){
+ const objects=[];
+ for(let i=0;i<points.length-1;i++){
+  const section=c.segments?.[i]??c,[startX,startY]=points[i],[endX,endY]=points[i+1];
+  if(i&&c.segments&&section.layer!==c.segments[i-1].layer)
+   objects.push({kind:'Via',primitiveId:'planned_via_'+i,net:c.net,x:startX,y:startY,viaType:0,diameter:toMil(c.via.diameter,unit),holeDiameter:toMil(c.via.holeDiameter,unit),primitiveLock:true});
+  objects.push({kind:'Line',primitiveId:'planned_line_'+i,net:c.net,layer:section.layer,startX,startY,endX,endY,lineWidth:toMil(section.width,unit),primitiveLock:true});
+ }
+ return objects;
+}
+// The editor can replace adjacent new collinear strokes with one reversed LINE.
+export function criticalRuns(objects){
+ const runs=[];
+ for(const [i,line] of objects.entries()){
+  const prev=runs.at(-1)?.object;
+  if(prev?.kind==='Line'&&line.kind==='Line'&&prev.net===line.net&&prev.layer===line.layer&&prev.lineWidth===line.lineWidth&&prev.primitiveLock===line.primitiveLock&&prev.endX===line.startX&&prev.endY===line.startY){
+   const dx=prev.endX-prev.startX,dy=prev.endY-prev.startY,nx=line.endX-line.startX,ny=line.endY-line.startY;
+   if(dx*nx+dy*ny>0&&Math.abs(dx*ny-dy*nx)<=1e-8*Math.hypot(dx,dy)){
+    runs.at(-1).object={...prev,endX:line.endX,endY:line.endY};runs.at(-1).indices.push(i);continue;
+   }
+  }
+  runs.push({object:line,indices:[i]});
+ }
+ return runs;
+}
+function sameCritical(want,x,allowReverse=false){
+ if(!x||x.kind!==want.kind||x.net!==want.net||x.primitiveLock!==true)return false;
+ if(want.kind==='Via')return x.viaType===0&&['x','y','diameter','holeDiameter'].every(k=>near(x[k],want[k]));
+ if(x.layer!==want.layer||!near(x.lineWidth,want.lineWidth))return false;
+ const ends=['startX','startY','endX','endY'],reversed=['endX','endY','startX','startY'];
+ return ends.every(k=>near(x[k],want[k]))||allowReverse&&ends.every((k,i)=>near(x[k],want[reversed[i]]));
+}
+function profiledReadback(action,raw,added){
+ if(!Array.isArray(action.pathPlan.objects)||!Array.isArray(action.beforeNative?.objects))return null;
+ const submitted=action.pathPlan.objects,log=action.nativeResult?.log??[],original=new Set(action.beforeNative.objects.map(x=>x.primitiveId)),written=new Set(log.map(x=>x?.primitiveId));
+ const expected=submitted.length===raw.length?raw:criticalRuns(raw).map(r=>r.object);
+ if(!raw.length||action.nativeResult?.status!=='ok'||submitted.length!==expected.length||log.length!==submitted.length||written.size!==log.length||!log.every((x,i)=>x?.primitiveId&&!original.has(x.primitiveId)&&sameCritical(expected[i],submitted[i])&&sameCritical(submitted[i],x)))return null;
+ const available=new Map(added.map(x=>[x.primitiveId,x])),groups=[];
+ if(available.size!==added.length||added.some(x=>!x.primitiveId||original.has(x.primitiveId)))return null;
+ for(const {object,indices} of criticalRuns(submitted)){
+  const provisional=indices.map(i=>log[i].primitiveId);
+  let actual=provisional;
+  if(!indices.every(i=>sameCritical(submitted[i],available.get(log[i].primitiveId)))){
+   if(indices.length===1)return null;
+   const candidates=[...available.values()].filter(x=>(!written.has(x.primitiveId)||provisional.includes(x.primitiveId))&&sameCritical(object,x,true));
+   if(candidates.length!==1)return null;
+   actual=[candidates[0].primitiveId];
+  }
+  for(const id of actual)available.delete(id);
+  groups.push({provisional,actual});
+ }
+ return available.size?null:{validatedCreates:log.length,groups};
+}
 export function verifyAddedCopper(action,added,unit){
- const issues=[],nets=action.routing?.nets??[action.critical?.net],layers=action.routing?.layers??[action.critical?.layer];
+ const issues=[],nets=action.routing?.nets??[action.critical?.net],layers=action.routing?.layers??action.critical?.segments?.map(s=>s.layer)??[action.critical?.layer];
  for(const x of added){
   if(!nets.includes(x.net)||action.routing?.ignoreNets?.includes(x.net))issues.push({code:'PCB_ROUTE_ADDED_NET_OUTSIDE_SCOPE',id:x.primitiveId,net:x.net});
   if(x.kind==='Line'){
@@ -40,15 +93,19 @@ export function verifyAddedCopper(action,added,unit){
    if(![x.x,x.y,x.diameter,x.holeDiameter].every(Number.isFinite)||x.holeDiameter<=0||x.diameter<=x.holeDiameter)issues.push({code:'PCB_ROUTE_ADDED_VIA_GEOMETRY_INCOMPLETE',id:x.primitiveId});
   }else issues.push({code:'PCB_ROUTE_ADDED_PRIMITIVE_UNSUPPORTED',id:x.primitiveId,kind:x.kind});
  }
+ let criticalReadback;
  if(action.critical){
-  const {critical:c,points}=action,width=toMil(c.width,unit),log=action.nativeResult?.log??[];
-  if(!Array.isArray(points)||points.length<2||added.length!==points.length-1||log.length!==points.length-1)issues.push({code:'PCB_CRITICAL_PATH_COVERAGE_MISMATCH'});
-  else for(let i=0;i<points.length-1;i++){
-   const x=added.find(x=>x.primitiveId===log[i]?.primitiveId),a=points[i],b=points[i+1];
-   if(!x||x.kind!=='Line'||x.net!==c.net||x.layer!==c.layer||x.primitiveLock!==true||!near(x.startX,a[0])||!near(x.startY,a[1])||!near(x.endX,b[0])||!near(x.endY,b[1])||!near(x.lineWidth,width))issues.push({code:'PCB_CRITICAL_PATH_GEOMETRY_MISMATCH',segment:i,id:log[i]?.primitiveId});
+  const {critical:c,points}=action,log=action.nativeResult?.log??[],expected=Array.isArray(points)?criticalPrimitives(c,points,unit):[];
+  if(action.pathPlan){
+   criticalReadback=profiledReadback(action,expected,added);
+   if(!criticalReadback)issues.push({code:'PCB_CRITICAL_PATH_COVERAGE_MISMATCH'});
+  }else if(!expected.length||added.length!==expected.length||log.length!==expected.length||new Set(log.map(x=>x.primitiveId)).size!==expected.length)issues.push({code:'PCB_CRITICAL_PATH_COVERAGE_MISMATCH'});
+  else for(const [i,want]of expected.entries()){
+   const x=added.find(x=>x.primitiveId===log[i]?.primitiveId);
+   if(!sameCritical(want,x))issues.push({code:'PCB_CRITICAL_PATH_GEOMETRY_MISMATCH',segment:i,id:log[i]?.primitiveId});
   }
  }
- return {status:issues.length?'mismatch':'matched',issues};
+ return {status:issues.length?'mismatch':'matched',issues,...(!issues.length&&criticalReadback?{criticalReadback}:{})};
 }
 export function confirmedTerminatedAction(action){
  const t=action?.termination;return !!(action?.state==='terminated'&&t?.executionEnded===true&&t.outcome==='unknown_not_success'&&t.closed?.status==='ok'&&t.closed.sessionNoLongerAlive===true&&t.closed.editorWindowDestroyed===true&&t.preservation?.persistenceVerified===true&&t.preservation.fullDesignArchiveCompared===true&&typeof t.preservation.sourceSha256==='string'&&t.targetSessionId&&t.targetPath&&t.closed.sessionId===t.targetSessionId);

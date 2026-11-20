@@ -2,19 +2,19 @@ import {nativeModelRecords} from './file-model-evidence.mjs';
 import {fingerprint} from './drawing.mjs';
 import {allocatorChanges} from './incremental-allocators.mjs';
 const key=r=>r.type+'/'+r.id,near=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=.0001;
-export function compareRouteArchives(before,after,{documentUuid,added}={}){
+export function compareRouteArchives(before,after,{documentUuid,added,createdCount=added.length}={}){
  const a=nativeModelRecords(before.pcbData),b=nativeModelRecords(after.pcbData),issues=[],old=a.get(documentUuid),now=b.get(documentUuid);
  if(fingerprint(before.schematic)!==fingerprint(after.schematic)||fingerprint(before.schematicPages??null)!==fingerprint(after.schematicPages??null))issues.push({code:'ROUTE_SCHEMATIC_CHANGED'});
  if(!old||!now)return {status:'mismatch',issues:[...issues,{code:'ROUTE_ARCHIVE_TARGET_MISSING'}]};
  const asRows=doc=>doc.rows.map(r=>({header:{type:r.type,id:r.id},body:r.body}));
- const allocator=allocatorChanges(asRows(old),asRows(now),added.length),allocatorIds=new Set(allocator.matched?allocator.accepted.map(r=>r.id):[]);
+ const allocator=allocatorChanges(asRows(old),asRows(now),createdCount),allocatorIds=new Set(allocator.matched?allocator.accepted.map(r=>r.id):[]);
  // The installed official EPcbDataType schema defines these as conversion-only
  // placeholders, explicitly skipped by the 3.0 reader, not geometry counters.
  // Keep prior records exact; bound only new sequential scalar LINE placeholders
- // by the independently validated new-copper count. Never relax older gates.
+ // by the independently verified native creates, including collinear coalescing.
  const conversionPlaceholders=now.rows.filter(r=>r.type==='ELE_PLACEHOLDER'&&!old.rows.some(o=>key(o)===key(r))).sort((a,b)=>Number(a.id.slice(11))-Number(b.id.slice(11)));
  let maxPlaceholder=Math.max(0,...old.rows.filter(r=>r.type==='ELE_PLACEHOLDER').map(r=>Number(String(r.id).replace(/^placeholder/,''))));
- const validConversion=conversionPlaceholders.every(r=>r.id==='placeholder'+(++maxPlaceholder)&&Object.keys(r.body).length===2&&r.body.dataType==='LINE'&&Number.isInteger(r.body.max)&&r.body.max>0)&&conversionPlaceholders.reduce((sum,r)=>sum+r.body.max,0)<=added.length;
+ const validConversion=conversionPlaceholders.every(r=>r.id==='placeholder'+(++maxPlaceholder)&&Object.keys(r.body).length===2&&r.body.dataType==='LINE'&&Number.isInteger(r.body.max)&&r.body.max>0)&&conversionPlaceholders.reduce((sum,r)=>sum+r.body.max,0)<=createdCount;
  const conversionIds=new Set(validConversion?conversionPlaceholders.map(r=>r.id):[]);
  for(const [uuid,d] of a){const n=b.get(uuid);if(!n){issues.push({code:'ROUTE_SOURCE_DOCUMENT_MISSING',uuid});continue;}
   if(uuid!==documentUuid){if(fingerprint(d)!==fingerprint(n))issues.push({code:'ROUTE_MODEL_CHANGED',uuid});continue;}

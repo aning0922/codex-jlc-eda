@@ -1,5 +1,10 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a28 · 2026-11-20
+
+- Route pad-to-pad connections with individually specified segment widths and outer layers. Verify each width change and plated layer transition against current clearance rules, stored geometry and fresh disk readback.
+- Preserve original copper IDs at junctions. Reconcile collinear strokes merged by the editor against the original write receipt without replaying the operation.
+
 ## 0.11.0-dev.a27 · 2026-11-20
 
 - Continue a closed multi-page board in a fresh copy, add a power sheet, and verify every existing page and routed pad through PCB synchronization and disk reopen.

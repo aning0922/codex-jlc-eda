@@ -3991,14 +3991,56 @@
             "width": {
               "type": "number",
               "exclusiveMinimum": 0
+            },
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "layer": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "layer",
+                  "width"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 31
+            },
+            "via": {
+              "type": "object",
+              "properties": {
+                "diameter": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "holeDiameter": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "diameter",
+                "holeDiameter"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
             "net",
             "from",
-            "to",
-            "layer",
-            "width"
+            "to"
           ],
           "additionalProperties": false
         },

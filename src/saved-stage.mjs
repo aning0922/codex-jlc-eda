@@ -40,7 +40,8 @@ function closedLayoutStage(source,origin){
   if(!exact(prior,f.design.schematicPages)||!exact(prior,accepted?.archives?.schematicPages))fail('CONTINUATION_CLOSED_SHEETS_UNVERIFIED');
  }
  if(accepted){
-  if(!routing.length||routing.some(x=>x.kind!=='Line'||![1,2].includes(x.layer)||!x.net)||
+  const supported=x=>x.net&&(x.kind==='Line'&&[1,2].includes(x.layer)||x.kind==='Via'&&x.viaType===0&&[x.x,x.y,x.diameter,x.holeDiameter].every(Number.isFinite)&&x.diameter>x.holeDiameter&&x.holeDiameter>0);
+  if(!routing.length||routing.some(x=>!supported(x))||
      d.copperCheckpoint?.status!=='matched'||d.fullArchive?.status!=='matched'||
      !exact(accepted.archives?.pcb,d.design.pcb)||!exact(accepted.archives?.schematic,d.design.schematic)||
      compareRoutingCheckpoint(accepted.native,d.native).status!=='matched')fail('CONTINUATION_CLOSED_COPPER_UNVERIFIED');
