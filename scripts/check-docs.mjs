@@ -19,13 +19,23 @@ for(const name of allow.source.filter(p=>p.endsWith('.md'))){
  }
 }
 const zh=await readFile(path.join(root,'README.md'),'utf8'),en=await readFile(path.join(root,'README.en.md'),'utf8');
+const catalog = JSON.parse(await readFile(path.join(root, 'tests/fixtures/public-tools.json'), 'utf8'));
+const expectedTools = catalog.map(tool => tool.name).sort();
 for(const [name,text,other]of [['README.md',zh,'README.en.md'],['README.en.md',en,'README.md']]){
+ const listedTools = [...text.matchAll(/^- `(jlc_eda_[a-z0-9_]+)`/gm)].map(match => match[1]).sort();
+ if (JSON.stringify(listedTools) !== JSON.stringify(expectedTools)) {
+  issues.push({path: name, kind: 'tool-directory-mismatch', listed: listedTools.length,
+   missing: expectedTools.filter(tool => !listedTools.includes(tool)),
+   unexpected: listedTools.filter((tool, index) => !expectedTools.includes(tool) || tool === listedTools[index - 1])});
+ }
  if(!text.includes(pkg.version)||!text.includes('35')||!text.includes('4.1.60')||!text.includes('fflate'))issues.push({path:name,kind:'missing-shared-facts'});
  if(!text.includes(']('+other+')'))issues.push({path:name,kind:'language-switch-missing'});
  if(/shields\.io|badge\.svg|actions\/workflows\/.*badge/.test(text))issues.push({path:name,kind:'unverified-badge'});
 }
 const blocks=s=>[...s.matchAll(/```sh\n([\s\S]*?)```/g)].map(m=>m[1]);
 if(JSON.stringify(blocks(zh))!==JSON.stringify(blocks(en)))issues.push({kind:'bilingual-shell-commands-differ'});
+const calls = s => [...s.matchAll(/^```json\n([\s\S]*?)^```/gm)].map(match => JSON.parse(match[1]));
+if (JSON.stringify(calls(zh)) !== JSON.stringify(calls(en))) issues.push({kind: 'bilingual-mcp-examples-differ'});
 const svg=await readFile(path.join(root,'docs/assets/workflow.svg'),'utf8');if(/<script|<foreignObject|href="https?:/i.test(svg)||!svg.includes('<title')||!svg.includes('<desc'))issues.push({kind:'svg-accessibility-or-external-content'});
 console.log(JSON.stringify({status:issues.length?'failed':'passed',version:pkg.version,markdownFiles:allow.source.filter(x=>x.endsWith('.md')).length,bilingualCommandBlocks:blocks(zh).length,issues},null,2));
 if(issues.length)process.exitCode=1;

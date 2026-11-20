@@ -4,7 +4,7 @@
 
 ## 检查和来源
 
-doctor分别报告官方CLI、客户端版本、编辑器连接和能力。needs_ui只表示当前编辑器状态，closed文件复用无需新启动。open_project使用新读取副本，inspect_project返回当前工程/Board/图页；read_document给实例/脚/几何，read_connectivity给逻辑和pin→pad比较，read_pcb_routing给真实铜与规则。
+doctor 分别报告官方 CLI、客户端版本、编辑器连接和能力。此处的 needs_ui 提示检查编辑器状态，closed 文件复用无需新启动。open_project 打开隔离读取副本，inspect_project 返回工程、板和图页。read_document 读取实例、脚和几何，read_connectivity 比对原理图引脚与同板 PCB 焊盘的网络。read_pcb_routing 用于已绑定的任务工作副本，需要 workDirectory 和对应的板级文档身份。
 
 模型读取不等于器件电气适用，型号数据表链接存在不等于内容已核对，价格/库存不能由EDA旧元数据推断。来源已有工作应由相应derive/resume入口建立正式新副本，不能将只读检查升级成可写。
 
@@ -20,7 +20,7 @@ save_work_project只请求保存；finish_work_project承担完整新磁盘/现�
 
 incremental_pcb支持普通孔移动/尺寸、同网线端更新、短线增删替换、普通孔线新增、可见位号，以及受限EP首组钢网分窗。plan之后源和参数冻结，未知不重放。工程独立钢网用prepare_model → 精确原生“仅选中实例”复制 → adopt_model → apply；共享/全局封装不写。导出完整原生档案不能用可能遗漏微线的API文档替代。
 
-schematic_eco默认single_point为已验收测试点流程；两脚R/C新增、兼容换料与有创建来源的改接使用passives模式，读取passives.md。任意器件删除、更换不同几何封装、底层镜像、多页ECO及复杂用户支路自动重构尚未支持。
+schematic_eco 默认的 single_point 用于已验收的单脚测试点流程。单页顶面两脚 R/C 的新增、兼容换料与有创建来源的改接使用 passives 模式，详见[阻容修改](passives.md)。在已验收的带铜板上增页使用 add_page 模式，可按条件将新增器件放到底面。任意删件、不同几何封装的替换和复杂支路自动重构仍超出这些流程的范围。
 
 ## 制造与常见停点
 

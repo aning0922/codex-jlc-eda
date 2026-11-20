@@ -9,7 +9,7 @@ description: 使用嘉立创EDA专业版读取工程、核实器件和引脚、�
 
 ## 先选择工作流程
 
-- 环境/已有工程检查：doctor → open_project（隔离只读副本）→ inspect_project → read_document/read_connectivity/read_pcb_routing。未知工程身份先发现，随后按真实绑定核对；结束回收自有读取上下文。
+- 检查已有工程时，先用 doctor 和 open_project 打开隔离读取副本。按 inspect_project 返回的板与图页调用 read_document 或 read_connectivity，结束后用 close_session 回收自有读取会话。read_pcb_routing 需要已绑定的任务工作目录和 PCB 身份。
 - 新小型原理图/首次PCB同步：create_work_project 或 derive_work_project → draw_schematic → verify/preview → sync_pcb → 原生复核 → verify → 布局/规则/局部或受限路由 → finish_work_project。已同步板可显式读取官方布局候选并在同一板框下采用约束位置；具体边界见 [日常使用与状态处理](references/usage.md)。
 - 已有实心铜面的副本可在 route_pcb 的 batch 阶段提交多条真实焊盘连线和电源扇出。每个扇出指定铜面名、过孔与路径，重铺后按填充图形核对孔环接触。每批最多 32 条连接。
 - 已完成PCB局部孔/线/位号/EP钢网：incremental_pcb，从closed成品派生，plan → apply/verify → finish。工程内独立钢网封装仍有“仅所选实例”原生步骤，不写共享/全局库。
