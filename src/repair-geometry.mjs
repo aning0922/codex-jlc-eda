@@ -2,6 +2,7 @@ import {fingerprint} from './drawing.mjs';
 import {toMil} from './layout.mjs';
 import {segmentsIntersect} from './board-geometry.mjs';
 import {provenPlanes,surfaceParts,surfaceDistance,surfaceSegmentDistance} from './copper-surface.mjs';
+import {nativeModelRecords} from './file-model-evidence.mjs';
 const dist=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],t=(dx*dx+dy*dy)?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy))):0;return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);};
 const sd=(a,b,c,d)=>segmentsIntersect(a,b,c,d)?0:Math.min(dist(a,c,d),dist(b,c,d),dist(c,a,b),dist(d,a,b));
 function padObstacle(p,bounds){
@@ -22,6 +23,25 @@ function separation(a,b){
  if(b.surfaces)return Math.min(...b.surfaces.map(s=>surfaceSegmentDistance(s,a.a,a.b)))-a.radius-b.inflate;
  if(b.poly){const angle=(p,q,r)=>(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);if([a.a,a.b].some(p=>b.poly.every((q,i)=>angle(q,b.poly[(i+1)%4],p)>=0)))return -a.radius;return Math.min(...b.poly.map((q,i)=>sd(a.a,a.b,q,b.poly[(i+1)%4])))-a.radius;}
  return sd(a.a,a.b,b.a,b.b)-a.radius-b.radius;
+}
+export function footprintSlots(docs,document){
+ const board=docs.get(document.documentUuid),slots=[];
+ for(const c of document.components){
+  const model=docs.get(c.footprint?.uuid);
+  const cuts=model?.rows.filter(r=>r.type==='FILL'&&r.body.layerId===12)??[];
+  if(!cuts.length)continue;
+  const instance=board?.rows.find(r=>r.type==='COMPONENT'&&r.id===c.id)?.body;
+  const canvas=model.rows.find(r=>r.type==='CANVAS')?.body;
+  if(!instance||!canvas||canvas.originX!==0||canvas.originY!==0||c.layer!==1||![instance.x,instance.y,instance.angle].every(Number.isFinite))throw Error('ROUTE_FOOTPRINT_SLOT_TRANSFORM_UNVERIFIED');
+  const angle=instance.angle*Math.PI/180,cos=Math.cos(angle),sin=Math.sin(angle);
+  const project=ring=>({...ring,points:ring.points.map(({x,y})=>({x:instance.x+x*cos-y*sin,y:instance.y+x*sin+y*cos}))});
+  for(const r of cuts){
+   if(r.body.fillStyle!=='SOLID'||r.body.netName)throw Error('ROUTE_FOOTPRINT_SLOT_FORMAT_UNVERIFIED');
+   const surfaces=surfaceParts(r.body.path).map(s=>({outer:project(s.outer),holes:s.holes.map(project)}));
+   slots.push({surfaces,inflate:.005,net:null,layers:[1,2],ruleKind:'Slot Region',id:c.id+r.id});
+  }
+ }
+ return slots;
 }
 // The editor splits or replaces existing tracks when same-net centre lines overlap or meet inside a segment.
 function wouldSplitTrace(a,b){
@@ -61,6 +81,8 @@ export function checkPlannedCopper(objects,document,native,record,{preserveExist
  const clearance=(ak,bk)=>{const i=spacing.row.indexOf(ak),j=spacing.column.indexOf(bk),v=spacing.tables['1'].content[Math.max(i,j)]?.[Math.min(i,j)];if(i<0||j<0||!Number.isFinite(v))throw Error('REPAIR_SPACING_VALUE_UNAVAILABLE');return toMil(v,'mm');};
  const item=x=>x.kind==='Line'?{a:[x.startX,x.startY],b:[x.endX,x.endY],radius:x.lineWidth/2,net:x.net,layers:[x.layer],ruleKind:'Track',id:x.primitiveId}:{a:[x.x,x.y],b:[x.x,x.y],radius:x.diameter/2,holeDiameter:x.holeDiameter,net:x.net,layers:[1,2],ruleKind:'Via',id:x.primitiveId};
  const obstacles=native.objects.filter(x=>x.kind==='Via'||x.kind==='Line'&&[1,2].includes(x.layer)).map(item);
+ const archive=record.pcbCopperBaseline?.archives?.pcbData;
+ if(preserveExistingRoutes&&archive)obstacles.push(...footprintSlots(nativeModelRecords(archive),document));
  for(const c of document.components)for(const p of c.pins)obstacles.push({...padObstacle(p,preserveExistingRoutes?c.primitiveBounds:undefined),net:p.net,layers:p.layer===12?[1,2]:[p.layer],ruleKind:p.layer===12?'TH Pad':'SMD Pad',id:p.id});
  let minimumMargin=Infinity;
  for(const x of objects){const q=item(x),edge=clearance(q.ruleKind,'Board Outline');for(const pt of [q.a,q.b])if(pt[0]-q.radius<board.x+edge||pt[0]+q.radius>board.x+board.width-edge||pt[1]+q.radius>board.y-edge||pt[1]-q.radius<board.y-board.height+edge)issues.push({code:'REPAIR_COPPER_BOARD_CLEARANCE',id:q.id});
@@ -75,6 +97,10 @@ export function checkPlannedCopper(objects,document,native,record,{preserveExist
   if(x.kind==='Line'&&(x.lineWidth<toMil(track.minValue,'mm')||x.lineWidth>toMil(track.maxValue,'mm')))issues.push({code:'REPAIR_LINE_WIDTH_OUTSIDE_RULES',id:q.id});
   if(x.kind==='Via'&&(!viaRules||x.holeDiameter>=x.diameter||x.holeDiameter<toMil(viaRules.viaInnerdiameterMin,'mm')||x.holeDiameter>toMil(viaRules.viaInnerdiameterMax,'mm')||x.diameter<toMil(viaRules.viaOuterdiameterMin,'mm')||x.diameter>toMil(viaRules.viaOuterdiameterMax,'mm')))issues.push({code:'REPAIR_VIA_DIMENSIONS_INVALID',id:q.id});
   for(const o of obstacles)if(o.net!==q.net&&o.layers.some(l=>q.layers.includes(l))){const margin=separation(q,o)-clearance(q.ruleKind,o.ruleKind);minimumMargin=Math.min(minimumMargin,margin);if(margin<0)issues.push({code:'REPAIR_OBSTACLE_CLEARANCE',id:q.id,obstacle:o.id,net:o.net,marginMil:margin});}
+  if(q.ruleKind==='Via')for(const slot of obstacles.filter(o=>o.ruleKind==='Slot Region')){
+   const margin=separation({...q,radius:q.holeDiameter/2},slot)-clearance('Hole','Slot Region');
+   minimumMargin=Math.min(minimumMargin,margin);if(margin<0)issues.push({code:'REPAIR_HOLE_SLOT_CLEARANCE',id:q.id,obstacle:slot.id,marginMil:margin});
+  }
   if(preserveExistingRoutes){
    for(const o of obstacles)if(o.net===q.net&&['Track','Via'].includes(o.ruleKind)&&o.layers.some(l=>q.layers.includes(l))){
     if(q.ruleKind==='Via'&&o.ruleKind==='Via'&&Math.hypot(q.a[0]-o.a[0],q.a[1]-o.a[1])<(x.holeDiameter+o.holeDiameter)/2)

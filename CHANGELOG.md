@@ -1,5 +1,20 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a31-r1 · 2026-11-20
+
+- Read large multi-sheet PNG exports in bounded slices from one official export. Verify its SHA-256, release it from editor memory and return the selected page as a PNG.
+- Return the measured component and pad geometry after a bottom-side flip when the requested layout fails. Report whether that call already changed the mounting side.
+
+## 0.11.0-dev.a31 · 2026-11-20
+
+- Connect deferred pins on earlier sheets and move existing network labels using their saved wire identities and coordinates.
+- Place new surface-mount parts or components with round plated leads on either side. Verify original copper groups, refill boundaries and strict DRC after reopening the project.
+- Combined board checks now support twelve sheets, 500 components and 256 named nets. Bounded native batches preserve individual component and wire identities.
+
+## 0.11.0-dev.a30 · 2026-11-20
+
+- Route multiple declared pad-to-pad paths and verify each plated via connection to its named copper plane after refill.
+
 ## 0.11.0-dev.a29 · 2026-11-20
 
 - Create and rebuild solid copper on a project copy. Verify conductive islands, thermal spokes, clearance holes and native board-coordinate polygon pads.

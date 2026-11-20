@@ -1,8 +1,10 @@
 # Development status / 开发进展
 
-2026-11-20 · Local source / 本地源码 `0.11.0-dev.a30`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
+2026-11-20 · Local source / 本地源码 `0.11.0-dev.a31-r1`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
 
 The RC qualification used EDA 4.1.71 for A6–A9 and 4.1.105 on macOS for the A10 closeout and A11 background lifecycle. Project files and native evidence are retained locally.
+
+A31 extends a saved board through twelve sheets. It can use previously deferred pins from an earlier sheet and place new SMD parts or components with round plated leads on either side. Native readback checks the cross-sheet assignments, refill geometry and earlier conductor groups on the saved copy.
 
 ## Version map / 版本对应
 
@@ -45,9 +47,9 @@ A10 两处文案和三条位置已完成磁盘回读。A11 在隔离的 Codex �
 
 ## Remaining qualification / 仍需验证
 
-1. Resolve window focus and connection recovery, then finish the existing notes-editing workflow with complete preservation and fresh disk readback.
+1. Verify background operation and reconnect handling again on additional editor versions. The 4.1.105 notes-editing closeout is recorded above.
 2. Qualify a selected final build in the actual chat host. Independent MCP processes, protocol simulation and installed-file matching are different evidence layers.
 3. Verify assembly orientation, 3D/mechanical fit and physical performance before any production conclusion. Native DRC 0 and generated files alone are insufficient.
 4. Qualify other platforms, editor versions, complex footprints and `.eprj3` separately.
 
-先解决窗口/连接体验，再闭合说明更正与交付一致性；随后补齐实际宿主验收。制造、机械、装配及实物资格独立判断。本次 GitHub 同步没有发布新的预编译版本。
+后续编辑器版本应重新验证窗口焦点、连接恢复和实际宿主加载版本。制造、机械、装配及实物资格独立判断。本次 GitHub 同步没有发布新的预编译版本。

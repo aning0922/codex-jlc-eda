@@ -17,11 +17,14 @@ Real component models · Isolated work copies · Native placement and routing ·
 
 | Development source | Published runtime | Public interface | License |
 |:---:|:---:|:---:|:---:|
-| `0.11.0-dev.a30` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
+| `0.11.0-dev.a31-r1` | [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | **35 MCP tools** | [MIT](LICENSE) |
 
 A29 adds solid copper pours, island and thermal-spoke connectivity on inner and outer layers, and supports individual trace widths and plated top-to-bottom transitions on a saved multi-page board. The routing workflow checks current rules, existing copper and the native geometry of every added segment and via.
 
 A30 routes several pad-to-pad paths together and connects surface-mount pads to a named power or ground plane. After refilling, it checks actual copper on each via annulus, the new paths, existing traces and every schematic sheet.
+
+A31 connects explicitly deferred pins on earlier sheets to a newly added sheet. New surface-mount parts and parts with fully plated round through-holes can be placed on the bottom side. The saved copy is reopened to verify every sheet, pad assignment, existing track and copper group.
+
 
 > **Current progress · synced on 2026-10-18**
 > The RC board completed schematic generation, PCB synchronization, placement, routing and compatible component replacement on EDA Pro 4.1.71. Version 4.1.105 was used for notes editing, background recovery across Codex hosts and fresh disk verification. The published download is Alpha.3. This is a community developer preview.
@@ -62,7 +65,7 @@ Scope: **one schematic page, one low-voltage two-layer board**. Passive changes 
 
 | Your goal | Entry point | What to expect |
 |---|---|---|
-| Inspect or develop the latest work | Current source, `0.11.0-dev.a30` | Local build with A11 background working copies |
+| Inspect or develop the latest work | Current source, `0.11.0-dev.a31-r1` | Local build with A11 background working copies |
 | Use the existing precompiled package | [Alpha.3 pre-release](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3) | No npm installation; excludes the A6–A10 additions |
 
 Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host supporting local stdio MCP**. Version 4.1.60 is the earlier baseline; 4.1.71 and 4.1.105 have the bounded qualifications above. Other platforms, versions and `.eprj3` paths need separate checks. Native interaction requires host desktop capabilities or operator assistance. [Official CLI documentation](https://prodocs.lceda.cn/cn/api/guide/cli.html)
@@ -73,14 +76,14 @@ Requirements: **macOS, Node.js ≥20, JLCEDA desktop Pro, and a Codex host suppo
 git clone https://github.com/aning0922/codex-jlc-eda.git
 cd codex-jlc-eda
 PROJECT_ROOT="$(pwd -P)"
-node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a30") process.exit(1)'
+node -e 'const p=require("./package.json"); if(p.name!=="codex-jlc-eda" || p.version!=="0.11.0-dev.a31-r1") process.exit(1)'
 npm --prefix "$PROJECT_ROOT" ci --ignore-scripts --no-audit --no-fund
 npm --prefix "$PROJECT_ROOT" test
 npm --prefix "$PROJECT_ROOT" run test:protocol
 npm --prefix "$PROJECT_ROOT" run package
 ```
 
-Outputs are written to `release/0.11.0-dev.a30/`: source / runtime ZIPs, file manifests and `SHA256SUMS`. This creates a local development build; it does not establish a new public release or actual chat-host qualification. Offline tests and protocol checks do not call the real editor.
+Outputs are written to `release/0.11.0-dev.a31-r1/`: source / runtime ZIPs, file manifests and `SHA256SUMS`. This creates a local development build; it does not establish a new public release or actual chat-host qualification. Offline tests and protocol checks do not call the real editor.
 
 <details>
 <summary><strong>Use the published Alpha.3 runtime</strong></summary>

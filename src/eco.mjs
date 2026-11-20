@@ -1,3 +1,4 @@
+import {readSelectedSchematicPng} from './drawing.mjs';
 import {noteChangesSchema,notesPhases} from './schematic-notes-input.mjs';
 import {pageAdditionSchema,pageWiresSchema,addPageWorkflow} from './page-addition.mjs';
 import {passiveInput} from './passive-input.mjs';
@@ -54,7 +55,7 @@ export const ecoWorkflow={async jlc_eda_schematic_eco(p){
  const ctx=await boundEco(a,p);if(ctx.error)return ctx.error;if(ctx.closed)return ctx.result;
  const state=ctx.r.eco;
  if(p.phase==='preview'){
-  const files={};for(const kind of ['schematic','pcb']){await a.invoke(ctx.p.sessionId,scripts.focus({...ctx.p,documentUuid:kind==='pcb'?ctx.p.pcbDocumentUuid:ctx.p.schematicPageUuid,kind}));const r=await a.invoke(ctx.p.sessionId,kind==='pcb'?pcbScript({...ctx.p,operation:'preview'}):drawingScript({...ctx.p,operation:'preview',format:'png'}));if(r.status!=='ok')return r;const file=path.join(ctx.dir,'eco-'+kind+'.png');await writeFile(file,Buffer.from(r.data,'base64'));files[kind]=file;}return {status:'ok',files,nativeDesignMutationRequested:false};
+  const files={};for(const kind of ['schematic','pcb']){await a.invoke(ctx.p.sessionId,scripts.focus({...ctx.p,documentUuid:kind==='pcb'?ctx.p.pcbDocumentUuid:ctx.p.schematicPageUuid,kind}));const file=path.join(ctx.dir,'eco-'+kind+'.png');if(kind==='schematic')await writeFile(file,await readSelectedSchematicPng(a,ctx.p));else{const image=await a.invoke(ctx.p.sessionId,pcbScript({...ctx.p,operation:'preview'}));if(image.status!=='ok')return image;await writeFile(file,Buffer.from(image.data,'base64'));}files[kind]=file;}return {status:'ok',files,nativeDesignMutationRequested:false};
  }
  if(p.phase==='sync'){
   if(state.sync)return {status:state.sync.nativeImport?.nativeResult===true?'needs_ui':'unknown',code:'ECO_RECORDED_IMPORT_READBACK_REQUIRED',recordedImport:state.sync,importReplayed:false,target:ctx.p};

@@ -51,7 +51,7 @@ export const finishWorkflow={async jlc_eda_finish_work_project(p){
  if(initial.addedSheet){
   const accepted=initial.addedSheet.accepted,current=await archive(this,p);
   const prior=initial.continuation?.selectedStage?.design?.schematicPages??{[initial.schematicPageUuid]:accepted.oldSchematic};
-  if(fingerprint(current.schematicPages)!==fingerprint({...prior,[initial.addedSheet.uuid]:accepted.newSchematic})||fingerprint(current.pcb)!==fingerprint(accepted.pcb))
+  if(fingerprint(current.schematicPages)!==fingerprint({...prior,...initial.addedSheet.sourcePinPages,[initial.addedSheet.uuid]:accepted.newSchematic})||fingerprint(current.pcb)!==fingerprint(accepted.pcb))
    return {status:'unknown',code:'SHEET_ACCEPTED_ARCHIVES_CHANGED'};
  }
  const saved=await this.jlc_eda_save_work_project(p);

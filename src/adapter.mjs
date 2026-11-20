@@ -27,9 +27,9 @@ import {fileRoutingSchemas,fileRoutingWorkflow} from './file-routing.mjs';
 import {repairSchemas,repairWorkflow} from './local-repair.mjs';
 import { scripts } from './native-scripts.mjs';
 import { factsScript } from './native-facts.mjs';
-import { normalizeDevice, parseNetlist, matchesSchematicScope, compareAssignments, summarizeModel, summarizeSourceModel } from './facts.mjs';
+import {MAX_BOARD_COMPONENTS, normalizeDevice, parseNetlist, matchesSchematicScope, compareAssignments, summarizeModel, summarizeSourceModel } from './facts.mjs';
 
-export const VERSION = '0.11.0-dev.a30';
+export const VERSION = '0.11.0-dev.a31-r1';
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const session = { sessionId: id };
 const target = { ...session, expectedProjectUuid: id };
@@ -56,7 +56,7 @@ export const schemas = {
   jlc_eda_inspect_project: z.object({ ...session, expectedProjectUuid: id.optional() }).strict(),
   jlc_eda_read_document: z.object({ ...target, documentUuid: id,
     kind: z.enum(['schematic', 'pcb']), includePins: z.boolean().default(false),
-    includeGeometry: z.boolean().default(false), limit: z.number().int().min(1).max(200).default(50) }).strict(),
+    includeGeometry: z.boolean().default(false), limit: z.number().int().min(1).max(MAX_BOARD_COMPONENTS).default(50) }).strict(),
   jlc_eda_search_devices: z.object({ ...target, query: z.string().trim().min(3).max(160).optional(),
     properties: searchProperties.optional(), libraryUuid: id.optional(),
     limit: z.number().int().min(1).max(25).default(10), page: z.number().int().min(1).max(100).default(1)
@@ -215,17 +215,17 @@ export class JlcEdaAdapter {
     return job;
   }
 
-  async call(args, timeoutMs = 12000) {
+  async call(args, timeoutMs = 12000, maxBytes) {
     const executable = this.executable || await discoverExecutable(this.env, this.platform);
     this.callMetrics.cliProcessStarts++;this.callMetrics.commands[args[0]]=(this.callMetrics.commands[args[0]]??0)+1;
-    return this.runner(executable, args, { env: this.env, timeoutMs });
+    return this.runner(executable, args, { env: this.env, timeoutMs, ...(maxBytes===undefined?{}:{maxBytes}) });
   }
 
-  async invoke(sessionId, code, timeoutMs=15000) {
+  async invoke(sessionId, code, timeoutMs=15000, maxBytes) {
     if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>180000)throw new AdapterError('INVOKE_BUDGET_OUT_OF_RANGE','Native invoke budget must be an integer in [1, 180000] ms.');
     const nativeTimeoutMs=timeoutMs;
     const result = await this.call(['invoke', '--session', sessionId, '--ext-uuid', 'eda',
-      '--timeout', String(nativeTimeoutMs), '--code', 'return await ' + code + ';'], nativeTimeoutMs+3000);
+      '--timeout', String(nativeTimeoutMs), '--code', 'return await ' + code + ';'], nativeTimeoutMs+3000, maxBytes);
     if (!result.value || typeof result.value.status !== 'string')
       throw new AdapterError('NATIVE_SCHEMA_UNSUPPORTED', 'The native read returned an unexpected result.', 'unknown');
     return result.value;
@@ -235,7 +235,7 @@ export class JlcEdaAdapter {
 
   async invokeLossless(sessionId,code,timeoutMs=15000){
     const wrapped='(async()=>{const v=await '+code+';const text=JSON.stringify(v);if(typeof text!=="string")return {status:"unknown",code:"NATIVE_JSON_UNAVAILABLE"};return {status:"ok",nativeJsonAscii:text.replace(/[\\u007f-\\uffff]/g,c=>"\\\\u"+c.charCodeAt(0).toString(16).padStart(4,"0"))};})()';
-    const r=await this.invoke(sessionId,wrapped,timeoutMs);
+    const r=await this.invoke(sessionId,wrapped,timeoutMs,24*1024*1024);
     if(r.status!=='ok'||typeof r.nativeJsonAscii!=='string')throw new AdapterError('NATIVE_ASCII_ENVELOPE_UNCONFIRMED','Lossless native envelope unavailable.','unknown');
     const value=JSON.parse(r.nativeJsonAscii);if(!value||typeof value.status!=='string')throw new AdapterError('NATIVE_SCHEMA_UNSUPPORTED','Native JSON result schema unavailable.','unknown');return value;
   }

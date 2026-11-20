@@ -4,7 +4,7 @@ import {fingerprint} from './drawing.mjs';
 import {provenPlanes,surfaceParts,surfaceDistance,surfaceSegmentDistance,surfaceTolerance} from './copper-surface.mjs';
 const finite=Number.isFinite;
 const distance=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],d=dx*dx+dy*dy,t=d?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/d)):0;return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);};
-export function auditCopper(doc,native){
+export function auditCopper(doc,native,{viaMembership=false}={}){
  const issues=[],nodes=[];
  if(doc.status!=='ok'||doc.truncated!==false||doc.components.length!==doc.counts?.components||native.status!=='ok')return {status:'unknown',issues:[{code:'COPPER_OBSERVATION_INCOMPLETE'}],fullyConnected:false};
  const through=native.layers===4?[1,2,15,16]:[1,2];
@@ -39,11 +39,12 @@ export function auditCopper(doc,native){
   return gap<b.radius-surfaceTolerance;
  }
  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j];if(a.net===b.net&&a.layers.some(x=>b.layers.includes(x))&&touches(a,b))parent[root(j)]=root(i);}
- const nets=[];
+ const nets=[],viaMembers={};
  for(const net of [...new Set(nodes.filter(x=>x.kind==='Pad').map(x=>x.net))].sort()){
   const pads=nodes.map((x,i)=>({...x,index:i})).filter(x=>x.kind==='Pad'&&x.net===net),groups=new Map();for(const p of pads){const key=root(p.index);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({id:p.id,component:p.component,number:p.number});}
+  if(viaMembership)for(const [i,v]of nodes.entries())if(v.net===net&&v.kind==='Via')viaMembers[v.id]=groups.get(root(i))?.[0]?.id??null;
   nets.push({net,pads:pads.length,connectedGroups:[...groups.values()],remainingConnections:Math.max(0,groups.size-1),copperObjects:nodes.filter(x=>x.net===net&&x.kind!=='Pad').length});
  }
  const remainingConnections=nets.reduce((s,x)=>s+x.remainingConnections,0);
- return {status:issues.length?'unknown':remainingConnections?'unconnected':'connected',fullyConnected:!issues.length&&remainingConnections===0,nets,remainingConnections,issues,method:'Native traces, through vias and filled copper surfaces. Net connectivity uses conservative inscribed pad circles and excludes plane voids.',sourceFingerprint:fingerprint({doc,native})};
+ return {...(viaMembership?{viaMembers}:{}),status:issues.length?'unknown':remainingConnections?'unconnected':'connected',fullyConnected:!issues.length&&remainingConnections===0,nets,remainingConnections,issues,method:'Native traces, through vias and filled copper surfaces. Net connectivity uses conservative inscribed pad circles and excludes plane voids.',sourceFingerprint:fingerprint({doc,native})};
 }

@@ -7,7 +7,7 @@ import {constants} from 'node:fs';
 import path from 'node:path';
 import {unzipSync,strFromU8} from 'fflate';
 import {workRenderMode,circuitSchema,fingerprint,enrichModelSources,mergeConnectivityComparison,drawingScript} from './drawing.mjs';
-import {compareAssignments,digest,parseNetlist} from './facts.mjs';
+import {MAX_SCHEMATIC_PAGES, MAX_BOARD_COMPONENTS,compareAssignments,digest,parseNetlist} from './facts.mjs';
 import {scripts} from './native-scripts.mjs';
 import {factsScript} from './native-facts.mjs';
 import {bound,load,persist,closedWorkResult} from './workflow.mjs';
@@ -20,7 +20,7 @@ const workTarget={...readTarget,workDirectory:z.string().min(1).max(4096)};
 export const pcbSchemas={
  jlc_eda_derive_work_project:z.object({renderMode:workRenderMode,sourcePath:z.string().min(1).max(4096),outputDirectory:z.string().min(1).max(4096),requestId:id,circuit:circuitSchema,sourcePcbState:z.enum(['empty','synchronized_unrouted']).default('empty'),sourceCheckpointPath:z.string().min(1).max(4096).optional(),phase:z.enum(['open','recover']).default('open')}).strict(),
  jlc_eda_sync_pcb:z.object({...workTarget,requestId:id,circuit:circuitSchema,phase:z.enum(['apply','verify','retry_unapplied_review']).default('apply'),importMode:z.enum(['review','force_initial_empty']).default('review')}).strict(),
- jlc_eda_verify_pcb:z.object({...readTarget,schematicPageUuids:z.array(id).min(1).max(8).optional(),circuit:circuitSchema}).strict(),
+ jlc_eda_verify_pcb:z.object({...readTarget,schematicPageUuids:z.array(id).min(1).max(MAX_SCHEMATIC_PAGES).optional(),circuit:circuitSchema}).strict(),
  jlc_eda_reopen_pcb:z.object({...workTarget,circuit:circuitSchema}).strict(),
  jlc_eda_preview_pcb:z.object(workTarget).strict()
 };
@@ -230,7 +230,7 @@ async function preflight(a,p){
 async function captureForceBefore(a,p){
  const pre=await preflight(a,p);if(pre.status!=='ok')fail('PCB_FORCE_SCHEMATIC_PREFLIGHT_FAILED');
  const schematic=await a.invoke(p.sessionId,drawingScript({...p,operation:'archive'}));
- const inv=await inventory(a,p),doc=await a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
+ const inv=await inventory(a,p),doc=await a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});
  const pcb=await a.invoke(p.sessionId,pcbScript({...p,operation:'archive'}));
  if(schematic.status!=='ok'||pcb.status!=='ok')fail('PCB_FORCE_ARCHIVE_UNAVAILABLE');
  return {pre,doc,evidence:forcePreflight({pcbData:pcb.data,schematicData:schematic.data,pcbDocumentUuid:p.pcbDocumentUuid,verification:pre.verification,inventory:inv,pcbDocument:doc})};
@@ -314,7 +314,7 @@ export const pcbWorkflow={
   const target={sessionId:r.sessionId,expectedProjectUuid:r.projectUuid,schematicPageUuid:r.schematicPageUuid,pcbDocumentUuid:r.pcbDocumentUuid,schematicUuid:r.schematicUuid,circuit:p.circuit};
   const link=association(project,target);if(link.status!=='ok')fail(link.code);
   const verification=await preflight(this,target);r.derivationVerification=verification;await persist(dir,r);if(verification.status!=='ok')return {...verification,target:r};
-  const inv=await inventory(this,target),doc=await this.jlc_eda_read_document({...target,documentUuid:r.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
+  const inv=await inventory(this,target),doc=await this.jlc_eda_read_document({...target,documentUuid:r.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});
   if(p.sourcePcbState==='empty'){
    if(!emptyInventory(inv)||doc.status!=='ok'||doc.truncated!==false||doc.counts.components!==0)fail('DERIVE_PCB_NOT_EMPTY','Only empty task PCB targets are accepted unless synchronized_unrouted and its source checkpoint are explicit.','unsupported');
   }else{
@@ -378,12 +378,12 @@ export const pcbWorkflow={
   const incomplete=r=>({...r,comparison:mergeConnectivityComparison({status:'unknown',issues:[{code:r.code??'PCB_VERIFICATION_INCOMPLETE'}],mismatches:[],matched:[],matchedPinAssignments:0},sch.comparison),schematicVerification:sch});
   if(sch.status!=='ok'||!sch.document||!sch.netlist)return incomplete(sch);
   try{
-  const pcb=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});if(pcb.status!=='ok')return incomplete(pcb);
+  const pcb=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});if(pcb.status!=='ok')return incomplete(pcb);
   const archive=await this.invoke(p.sessionId,pcbScript({...p,operation:'archive'}));if(archive.status!=='ok')return incomplete(archive);
   let models;try{enrichModelSources(pcb,archive.data);models=footprintModels(archive.data);}catch(e){return incomplete({status:'unknown',code:'PCB_MODEL_SOURCE_UNCERTAIN',message:e.message});}
   const comparison=comparePcb(sch.netlist,sch.document,pcb,models,sch.comparison);
   const inv=await inventory(this,p);if(inv.status!=='ok')return incomplete(inv);
-  const lastPcb=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});if(lastPcb.status!=='ok')return incomplete(lastPcb);
+  const lastPcb=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});if(lastPcb.status!=='ok')return incomplete(lastPcb);
   const focus=await this.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.schematicPageUuid,kind:'schematic'}));if(focus.status!=='ok')return incomplete(focus);
   const raw=await this.invokeLossless(p.sessionId,factsScript({...p,documentUuid:p.schematicPageUuid,operation:'netlist'}));if(raw.status!=='ok')return incomplete(raw);
   const finalNetlist=parseNetlist(raw.source,p.expectedProjectUuid),lastProject=await this.jlc_eda_inspect_project(p),lastLink=association(lastProject,p);
@@ -408,7 +408,7 @@ export const pcbWorkflow={
    // Explicit, bounded recovery only for a returned review dialog with a proven
    // zero-effect first import. Never replay a timed-out or partially applied write.
    if(!old||old.state!=='unknown'||old.nativeImport?.nativeResult!==true||old.before.components.length||old.reviewRetryCount)fail('PCB_REVIEW_RETRY_NOT_SAFE',undefined,'unknown');
-   const pre=await preflight(this,p),inv=await inventory(this,p),doc=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
+   const pre=await preflight(this,p),inv=await inventory(this,p),doc=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});
    if(pre.status!=='ok'||pre.inputFingerprint!==old.inputFingerprint||!emptyInventory(inv)||doc.status!=='ok'||fingerprint(pcbSnapshot(doc))!==fingerprint(old.before))fail('PCB_REVIEW_ZERO_EFFECT_NOT_PROVEN',undefined,'unknown');
    old.reviewRetryCount=1;old.reviewRecovery={at:new Date().toISOString(),method:'explicit retry after full zero-effect readback',preflight:pre,inventory:inv,pcbReadback:doc,previousImport:old.nativeImport,previousResult:old.result??null};old.state='pending';await persist(dir,r);
    try{const focus=await focused(this,p);if(focus.status!=='ok')fail(focus.code,undefined,focus.status);
@@ -429,7 +429,7 @@ export const pcbWorkflow={
   const pre=await preflight(this,p);if(pre.status!=='ok')return pre;
   if(r.pcbSyncBaseline&&r.pcbSyncBaseline.inputFingerprint!==pre.inputFingerprint)fail('PCB_INCREMENTAL_CHANGE_UNSUPPORTED',undefined,'unsupported');
   const inv=await inventory(this,p);if(!emptyInventory(inv))return {status:inv.status==='ok'?'unsupported':inv.status,code:inv.status==='ok'?'PCB_EXISTING_CONTENT_UNSUPPORTED':inv.code,inventory:inv};
-  const doc=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});if(doc.status!=='ok')return doc;
+  const doc=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});if(doc.status!=='ok')return doc;
   if(!r.pcbSyncBaseline&&doc.counts.components)fail('PCB_FIRST_IMPORT_TARGET_NOT_EMPTY',undefined,'unsupported');
   if(r.pcbSyncBaseline&&positionDiff(r.pcbSyncBaseline.after,pcbSnapshot(doc)).length)fail('PCB_REPEAT_POSITION_OR_INSTANCE_CHANGED');
   if(r.pcbSyncBaseline){const checked=await this.jlc_eda_verify_pcb(p);if(checked.status!=='ok'||checked.comparison?.status!=='matched')return {status:'unknown',code:'PCB_REPEAT_BASELINE_MISMATCH',verification:checked};}
@@ -441,7 +441,7 @@ export const pcbWorkflow={
    action.nativeImport=await this.invoke(p.sessionId,pcbScript({...p,operation:'import'}));action.state='unknown';await persist(dir,r);
    // importChanges may return true after opening the native review dialog. Keep
    // that exact PCB active; navigating into schematic verification can hide it.
-   const readback=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
+   const readback=await this.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});
    if(action.nativeImport.nativeResult===true&&readback.status==='ok'&&readback.counts.components===action.before.counts.components){
     const result={status:'needs_ui',code:'PCB_IMPORT_REVIEW_REQUIRED',nativeImport:action.nativeImport,pcbReadback:readback,target:{workDirectory:dir,path:r.path,sessionId:p.sessionId,projectUuid:p.expectedProjectUuid,schematicUuid:p.schematicUuid,pcbDocumentUuid:p.pcbDocumentUuid,boardName:ctx.link.boardName},nextAction:'In this exact task PCB review/apply the native changes (or confirm no changes), then call sync_pcb phase=verify using the same request. Do not call import again.'};
     action.result=result;await persist(dir,r);return result;

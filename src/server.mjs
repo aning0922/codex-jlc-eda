@@ -1,3 +1,4 @@
+import {MAX_BOARD_COMPONENTS} from './facts.mjs';
 import {ecoSchemas} from './eco.mjs';
 import {incrementalSchemas} from './incremental.mjs';
 import {manufacturingSchemas} from './manufacturing.mjs';
@@ -28,7 +29,7 @@ const definitions = [
   ['jlc_eda_read_document', '读取指定原理图页或 PCB 的实例、子部件、镜像、位置和可选引脚/焊盘几何。可能激活标签页；逻辑网表另用 read_connectivity。图元边界不是已核验的机械尺寸。', {
     ...targetProperties, documentUuid: identifier, kind: { type: 'string', enum: ['schematic','pcb'] },
     includePins: { type: 'boolean', default: false }, includeGeometry: { type: 'boolean', default: false },
-    limit: { type: 'integer', minimum: 1, maximum: 200, default: 50 }
+    limit: { type: 'integer', minimum: 1, maximum: MAX_BOARD_COMPONENTS, default: 50 }
   }, ['sessionId','expectedProjectUuid','documentUuid','kind'], false],
   ['jlc_eda_search_devices', '通过当前工程的官方器件库搜索候选。query 关键词和 properties 属性条件二选一；返回真实库身份及参数来源，不验证实时库存、价格或电气适用性。', {
     ...targetProperties, query: { type: 'string', minLength: 3, maxLength: 160 }, libraryUuid: identifier,
@@ -43,7 +44,7 @@ const definitions = [
   ['jlc_eda_read_library_model', '按 view=geometry 直接读取官方符号引脚或封装焊盘几何。默认 source 保留原生档案、原点和源指纹。图形边界不代表机械尺寸。', {
     ...targetProperties, modelUuid: identifier, libraryUuid: identifier, kind: { type: 'string', enum: ['symbol','footprint'] }, view:{type:'string',enum:['source','geometry']}
   }, ['sessionId','expectedProjectUuid','modelUuid','libraryUuid','kind'], false],
-  ['jlc_eda_read_connectivity', '读取官方原理图逻辑网表及符号引脚；可与同板 PCB 焊盘的网络归属核对，按唯一 ID 合并多单元符号。comparison.status 才是核对结论；匹配不代表已布通、DRC 或功能通过。只支持单个原理图树，最多 8 页，每页 200 个实例。', {
+  ['jlc_eda_read_connectivity', '读取官方原理图逻辑网表及符号引脚；可与同板 PCB 焊盘的网络归属核对，按唯一 ID 合并多单元符号。comparison.status 才是核对结论；匹配不代表已布通、DRC 或功能通过。只支持单个原理图树，最多 12 页，每张原理图页 200 个实例，整板最多 500 个器件。', {
     ...targetProperties, schematicPageUuid: identifier, pcbDocumentUuid: identifier
   }, ['sessionId','expectedProjectUuid','schematicPageUuid'], false],
   ['jlc_eda_close_session', '默认真实销毁本服务创建的临时读取上下文及窗口，保留文件；destroy=false 仅 detach（隐藏上下文原生仍销毁）。可写工作窗口必须用 finish_work_project 保存、独立重读并比较完整原生设计后关闭。', { sessionId: identifier,destroy:{type:'boolean',default:true} }, ['sessionId'], false]

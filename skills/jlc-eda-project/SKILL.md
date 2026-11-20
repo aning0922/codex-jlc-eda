@@ -14,7 +14,7 @@ description: 使用嘉立创EDA专业版读取工程、核实器件和引脚、�
 - 已有实心铜面的副本可在 route_pcb 的 batch 阶段提交多条真实焊盘连线和电源扇出。每个扇出指定铜面名、过孔与路径，重铺后按填充图形核对孔环接触。每批最多 32 条连接。
 - 已完成PCB局部孔/线/位号/EP钢网：incremental_pcb，从closed成品派生，plan → apply/verify → finish。工程内独立钢网封装仍有“仅所选实例”原生步骤，不写共享/全局库。
 - 单脚测试点：schematic_eco，默认 single_point 模式，沿已验收P4-D流程。
-- 已验收的布局可用 schematic_eco 的 add_page 模式继续增页。在独立副本上核实每张既有图页、跨页网表、新器件和原有铜线，并从磁盘重开复核。步骤见[日常使用](references/usage.md)。
+- 已验收的布局可用 schematic_eco 的 add_page 模式继续增页。可将旧图页已登记的待接引脚接到新增页，并为新增贴片件指定底面。在独立副本上核实每张既有图页、跨页网表、新器件和原有铜线，并从磁盘重开复核。步骤见[日常使用](references/usage.md)。
 - 常规两脚R/C新增或兼容换料/改接：schematic_eco，mode=passives；详见 [阻容增量操作](references/passives.md)。
 - 制造交付：从最终成品 export_manufacturing，一次新导出；未知导出仅复核已捕获文件，不重新导出充数。
 

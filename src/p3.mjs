@@ -1,3 +1,4 @@
+import {MAX_BOARD_COMPONENTS} from './facts.mjs';
 import {z} from 'zod';
 import {connectionsSchema,connectionPrimitives,fanoutContacts} from './pcb-connections.mjs';
 import {planeSchema,routePlane,checkFilledClearance,sameStoredFills} from './copper-plane.mjs';
@@ -160,7 +161,7 @@ async function nativeRouting(p){
 }
 export const routingScript=p=>'('+nativeRouting.toString()+')('+JSON.stringify(p)+')';
 const beforeNativeRules=old=>old.beforeNative.ruleConfiguration;
-const readDoc=(a,p)=>a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
+const readDoc=(a,p)=>a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});
 const rawRead=async(a,p)=>{const focus=await a.invoke(p.sessionId,scripts.focus({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb'}));if(focus.status!=='ok')return focus;return proveFootprintVias(await a.invokeLossless(p.sessionId,routingScript({...p,operation:'read'})));};
 export const readOwnedRouting=rawRead;
 export const p3Workflow={

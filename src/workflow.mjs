@@ -1,3 +1,4 @@
+import {readSelectedSchematicPng} from './drawing.mjs';
 import {mkdir,readFile,writeFile,realpath,copyFile,stat,rename,rm} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import path from 'node:path';
@@ -7,7 +8,7 @@ import {planJunctions} from './schematic-junction.mjs';
 import {drawingScript,compareCircuit,fingerprint,enrichModelSources,mergeConnectivityComparison} from './drawing.mjs';
 import {scripts} from './native-scripts.mjs';
 import {factsScript} from './native-facts.mjs';
-import {parseNetlist,digest} from './facts.mjs';
+import {parseNetlist,digest,MAX_BOARD_COMPONENTS} from './facts.mjs';
 import {withFreshRead} from './resources.mjs';
 import {importLocalProject} from './project-import.mjs';
 const fail=(code,message,status='failed')=>{throw Object.assign(new Error(message??code),{code,status});};
@@ -79,7 +80,7 @@ export const workflow={
   if(pages.length!==1)fail('BLANK_TEMPLATE_PAGE_SCOPE_UNSUPPORTED');r.schematicPageUuid=pages[0].uuid;await persist(dir,r);
   const target={sessionId:r.sessionId,expectedProjectUuid:r.projectUuid};
   for(const doc of project.documents.filter(x=>['Schematic Page','PCB'].includes(x.itemType))){
-   const read=await this.jlc_eda_read_document({...target,documentUuid:doc.uuid,kind:doc.itemType==='PCB'?'pcb':'schematic',includePins:true,includeGeometry:true,limit:200});
+   const read=await this.jlc_eda_read_document({...target,documentUuid:doc.uuid,kind:doc.itemType==='PCB'?'pcb':'schematic',includePins:true,includeGeometry:true,limit:doc.itemType==='PCB'?MAX_BOARD_COMPONENTS:200});
    if(read.status!=='ok'||read.counts.components||read.counts.wires||read.counts.lines||read.counts.viaObjects||read.counts.polylines||(read.counts.nonPartComponents??0)>1)fail('TEMPLATE_NOT_EMPTY','No writable binding was granted.');
   }
   r.kind='task_work_project';r.bindingStatus='verified';r.blankVerified=true;r.createdAt=new Date().toISOString();r.documents=project.documents;
@@ -180,8 +181,15 @@ export const workflow={
   if(fresh.sourceSha256!==digest(await readFile(ctx.r.path))){result.status='unknown';result.code='SOURCE_CHANGED_DURING_VERIFICATION';result.persistenceVerified=false;}
   ctx.r.reopen=result;await persist(ctx.dir,ctx.r);return result;});
  },
- async jlc_eda_preview_schematic(p){const ctx=await bound(this,p);const r=await this.invoke(p.sessionId,drawingScript({...p,operation:'preview'}));
-  if(r.status!=='ok')return r;const file=path.join(ctx.dir,'schematic.'+p.format);await writeFile(file,p.format==='png'?Buffer.from(r.data,'base64'):r.source);return {status:'ok',path:file};}
+ async jlc_eda_preview_schematic(p){
+  const ctx=await bound(this,p),file=path.join(ctx.dir,'schematic.'+p.format);
+  if(p.format==='png'){
+   await writeFile(file,await readSelectedSchematicPng(this,p));
+  }else{
+   const r=await this.invoke(p.sessionId,drawingScript({...p,operation:'preview'}));if(r.status!=='ok')return r;await writeFile(file,r.source);
+  }
+  return {status:'ok',path:file};
+ }
 };
 
 for(const name of ['jlc_eda_create_work_project','jlc_eda_draw_schematic']){

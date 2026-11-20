@@ -1,3 +1,4 @@
+import {MAX_BOARD_COMPONENTS} from './facts.mjs';
 import {z} from 'zod';
 import {readFile,writeFile,mkdir,readdir,realpath,stat} from 'node:fs/promises';
 import path from 'node:path';
@@ -63,7 +64,7 @@ export const manufacturingWorkflow={async jlc_eda_export_manufacturing(p){
  const board=boards[0],target={sessionId:fresh.sessionId,expectedProjectUuid:fresh.project.uuid,pcbDocumentUuid:board.pcbDocumentUuid,schematicUuid:board.schematicUuid,schematicPageUuid:board.schematicPageUuids[0]};
  if(association(fresh,target).status!=='ok')fail('MANUFACTURE_BOARD_ASSOCIATION_UNPROVEN');j.target=target;j.boardName=board.name;j.inspectionPath=fresh.path;
  const focus=await a.invoke(target.sessionId,scripts.focus({...target,documentUuid:target.pcbDocumentUuid,kind:'pcb'}));if(focus.status!=='ok')fail(focus.code??'MANUFACTURE_FOCUS_FAILED');
- const document=await a.jlc_eda_read_document({...target,documentUuid:target.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
+ const document=await a.jlc_eda_read_document({...target,documentUuid:target.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});
  if(document.status!=='ok'||document.truncated!==false||document.components.length!==document.counts.components)fail('MANUFACTURE_DOCUMENT_INCOMPLETE');
  await json(path.join(root,'pcb-document.json'),document);
  const connectivity=await a.jlc_eda_read_connectivity(target);await json(path.join(root,'connectivity.json'),connectivity);

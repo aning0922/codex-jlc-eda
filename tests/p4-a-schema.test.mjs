@@ -4,7 +4,7 @@ import {zodToJsonSchema} from 'zod-to-json-schema';
 import {p3Schemas} from '../src/p3.mjs';
 import {rulesSchema} from '../src/rules.mjs';
 import {criticalPrimitives,criticalRuns,verifyAddedCopper} from '../src/pcb-validation.mjs';
-import {checkPlannedCopper} from '../src/repair-geometry.mjs';
+import {checkPlannedCopper,footprintSlots} from '../src/repair-geometry.mjs';
 import {auditCopper} from '../src/copper.mjs';
 import {surfaceParts,surfaceDistance} from '../src/copper-surface.mjs';
 import {connectionPrimitives,fanoutContacts} from '../src/pcb-connections.mjs';
@@ -124,4 +124,11 @@ test('inner-plane islands and thermal spokes conduct only through their actual c
 test('polygon-pad copper uses board coordinates and the signed native arc sweep',()=>{
  const source=[0,5,'L',5,5,'ARC',-90,10,0,'L',10,-2,'ARC',-90,5,-7,'L',0,-7,0,5],parts=surfaceParts(source);
  assert.equal(parts.length,1);assert(surfaceDistance(parts[0],{x:5,y:0})<-4.9);assert(surfaceDistance(parts[0],{x:9.99,y:4.99})>1.9);
+});
+test('footprint cutouts rotate with their front-layer component and occupy both copper faces',()=>{
+ const docs=new Map([['pcb',{rows:[{type:'COMPONENT',id:'c',body:{x:100,y:80,angle:180}}]}],['fp',{rows:[
+  {type:'CANVAS',body:{originX:0,originY:0}},{type:'FILL',id:'hole',body:{layerId:12,fillStyle:'SOLID',netName:'',path:['CIRCLE',15,10,4]}}]}]]);
+ const document={documentUuid:'pcb',components:[{id:'c',layer:1,footprint:{uuid:'fp'}}]},slot=footprintSlots(docs,document)[0];
+ assert.equal(slot.id,'chole');assert.deepEqual(slot.layers,[1,2]);
+ assert(surfaceDistance(slot.surfaces[0],{x:85,y:70}) < -3.9);assert(surfaceDistance(slot.surfaces[0],{x:115,y:90}) > 30);
 });

@@ -1,7 +1,8 @@
+import {randomUUID} from 'node:crypto';
 import{parseNativeSource}from'./native-records.mjs';
 import { z } from 'zod';
 import { unzipSync,strFromU8 } from 'fflate';
-import { digest, compareAssignments } from './facts.mjs';
+import { digest, compareAssignments, MAX_SCHEMATIC_PAGES, MAX_BOARD_COMPONENTS } from './facts.mjs';
 const id=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
 const label=z.string().trim().min(1).max(120);
 const pose=z.object({x:z.number().finite(),y:z.number().finite(),rotation:z.union([z.literal(0),z.literal(90),z.literal(180),z.literal(270)]).default(0),mirror:z.boolean().default(false)}).strict();
@@ -10,10 +11,10 @@ const pendingPin=z.object({ref:id,pin:label}).strict();
 const endpoint=z.object({ref:id,pin:label,stubLength:z.number().min(10).max(80).default(25)}).strict();
 export const componentSchema=z.object({ref:id,designator:label,deviceUuid:id,libraryUuid:id,subPartName:label.optional(),pose,
   properties:z.record(z.string().max(400)).default({}),supplierId:label,manufacturerPart:label,footprintUuid:id}).strict();
-const circuitWithLimit=maxComponents=>z.object({components:z.array(componentSchema).min(1).max(maxComponents),
-  nets:z.array(z.object({name:label,junction:junction.optional(),endpoints:z.array(endpoint).min(1).max(100)}).strict()).min(1).max(100),
+const circuitWithLimit=(maxComponents,combined=false)=>z.object({components:z.array(componentSchema).min(1).max(maxComponents),
+  nets:z.array(z.object({name:label,junction:junction.optional(),endpoints:z.array(combined?endpoint.extend({stubLength:z.number().min(1).max(80).default(25)}):endpoint).min(1).max(combined?MAX_BOARD_COMPONENTS:100)}).strict()).min(1).max(combined?256:100),
   openPins:z.array(pendingPin).min(1).max(500).optional(),
-  nc:z.array(endpoint).default([]),notes:z.array(z.object({x:z.number().finite(),y:z.number().finite(),text:z.string().min(1).max(1000)}).strict()).max(10).default([])
+  nc:z.array(endpoint).default([]),notes:z.array(z.object({x:z.number().finite(),y:z.number().finite(),text:z.string().min(1).max(1000)}).strict()).max(combined?MAX_SCHEMATIC_PAGES*10:10).default([])
 }).strict().superRefine((v,c)=>{
   for(const key of ['ref','designator'])if(new Set(v.components.map(x=>x[key])).size!==v.components.length)c.addIssue({code:'custom',message:'Duplicate '+key});
   if(new Set(v.nets.map(x=>x.name)).size!==v.nets.length)c.addIssue({code:'custom',message:'Duplicate net name'});
@@ -22,7 +23,8 @@ const circuitWithLimit=maxComponents=>z.object({components:z.array(componentSche
     if(!refs.has(e.ref)||used.has(k))c.addIssue({code:'custom',message:'Unknown ref or duplicate endpoint '+k});used.add(k);}
 });
 // Incremental work can grow a verified page to the native read limit. Keep a new bulk drawing bounded.
-export const circuitSchema=circuitWithLimit(200);
+export const pageCircuitSchema=circuitWithLimit(200);
+export const circuitSchema=circuitWithLimit(MAX_BOARD_COMPONENTS,true);
 const target={sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,workDirectory:z.string().min(1).max(4096)};
 export const workRenderMode=z.enum(['headless','visible']).describe('New working copies default to headless. Choose visible at creation for native picker or import review. Omit on resume to keep the recorded mode.').optional();
 export const drawingSchemas={
@@ -30,7 +32,7 @@ export const drawingSchemas={
     projectImport:z.object({sourcePath:z.string().min(1).max(4096),sessionId:id,expectedProjectUuid:id}).strict().optional()
   }).strict().refine(p=>!!p.blankTemplatePath!==!!p.projectImport,'Choose a blank template or an isolated local project import.').refine(p=>!p.projectImport||!p.renderMode,'Project import uses its existing isolated session.'),
   jlc_eda_draw_schematic:z.object({...target,requestId:id,phase:z.enum(['place','complete','tidy']).default('complete'),showTitleBlock:z.boolean().default(false),circuit:circuitWithLimit(30)}).strict(),
-  jlc_eda_verify_schematic:z.object({sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,schematicPageUuids:z.array(id).min(1).max(8).optional(),circuit:circuitSchema}).strict(),
+  jlc_eda_verify_schematic:z.object({sessionId:id,expectedProjectUuid:id,schematicPageUuid:id,schematicPageUuids:z.array(id).min(1).max(MAX_SCHEMATIC_PAGES).optional(),circuit:circuitSchema}).strict(),
   jlc_eda_save_work_project:z.object({...target,requestId:id,pcbDocumentUuid:id.optional(),schematicUuid:id.optional()}).strict().refine(p=>!!p.pcbDocumentUuid===!!p.schematicUuid,'PCB save requires both pcbDocumentUuid and schematicUuid.'),
   jlc_eda_reopen_work_project:z.object({...target,circuit:circuitSchema}).strict(),
   jlc_eda_preview_schematic:z.object({...target,format:z.enum(['svg','png']).default('svg')}).strict()
@@ -89,6 +91,35 @@ export function mergeConnectivityComparison(comparison,upstream){
 }
 // Serialized function; each call performs one bounded action and rechecks the exact native target.
 async function nativeDraw(p){
+  if(p.operation==='sheet_label_batch'){
+    const written=[];
+    for(const label of p.labels){
+      const result=await nativeDraw({...p,operation:'junction_label',net:label.net,wireId:label.wireId,labelAt:label.to});
+      if(result.status!=='ok')return {status:'unknown',code:'SHEET_LABEL_BATCH_UNVERIFIED',written,result};
+      written.push(result);
+    }
+    return {status:'ok',written};
+  }
+  if(p.operation==='sheet_place_batch'){
+    const written=[];
+    for(const component of p.components){
+      const result=await nativeDraw({...p,operation:'place',component});
+      if(result.status!=='ok'||!result.primitiveId)return {status:'unknown',code:'SHEET_BATCH_PLACEMENT_UNVERIFIED',written,result};
+      written.push({ref:component.ref,primitiveId:result.primitiveId});
+    }
+    return {status:'ok',written};
+  }
+  if(p.operation==='sheet_wire_batch'){
+    const written=[];
+    for(const g of p.groups){
+      const wire=await nativeDraw({...p,operation:'junction',net:g.net,anchors:g.anchors,lines:g.lines});
+      if(wire.status!=='ok')return {status:'unknown',code:'SHEET_BATCH_WIRE_UNVERIFIED',written,wire};
+      const label=g.labelAt?await nativeDraw({...p,operation:'junction_label',net:g.net,wireId:wire.wireId,labelAt:g.labelAt}):null;
+      written.push({net:g.net,wire,label});
+      if(label&&label.status!=='ok')return {status:'unknown',code:'SHEET_BATCH_LABEL_UNVERIFIED',written};
+    }
+    return {status:'ok',written};
+  }
   const project=await eda.dmt_Project.getCurrentProjectInfo(),doc=await eda.dmt_SelectControl.getCurrentDocumentInfo();
   const sameTarget=async()=>{const a=await eda.dmt_Project.getCurrentProjectInfo(),b=await eda.dmt_SelectControl.getCurrentDocumentInfo();return a?.uuid===p.expectedProjectUuid&&b?.uuid===p.schematicPageUuid&&b?.parentProjectUuid===p.expectedProjectUuid&&b.documentType===1;};
   const changed=()=>({status:'unknown',code:'TARGET_CHANGED_DURING_ACTION'});
@@ -251,4 +282,70 @@ export function enrichModelSources(doc,data){
  for(const c of doc.components){const deviceUuid=typeof c.device?.uuid==='string'?c.device.uuid:c.device?.uuid?.uuid;
   c.deviceSource=models.get(deviceUuid)??null;c.footprintSource=models.get(c.footprint?.uuid)??null;c.symbolSource=models.get(c.symbol?.uuid)??null;}
  return doc;
+}
+
+const requirePng=(ok,code)=>{if(!ok)throw Object.assign(new Error(code),{code,status:'unknown'});};
+export function pagePreviewPng(data,pageName,pages){
+ const png=Buffer.from([137,80,78,71,13,10,26,10]);
+ if(Buffer.from(data).subarray(0,8).equals(png)){
+  requirePng(pages.length===1&&pages[0].name===pageName,'SHEET_PREVIEW_MEMBERSHIP');return {name:pageName+'.png',bytes:Buffer.from(data)};
+ }
+ const entries=Object.entries(unzipSync(data)).filter(([name])=>name.toLowerCase().endsWith('.png'));
+ const members=entries.map(([name,bytes])=>({name,stem:name.replace(/_\d{4}-\d{2}-\d{2}\.png$/i,''),bytes:Buffer.from(bytes)}));
+ requirePng(new Set(pages.map(p=>p.name)).size===pages.length&&members.length===pages.length,'SHEET_PREVIEW_MEMBERSHIP');
+ const matches=pages.map(p=>members.filter(m=>m.stem.endsWith('-'+p.name)&&/_\d+$/.test(m.stem.slice(0,-p.name.length-1))));
+ requirePng(matches.every(m=>m.length===1&&m[0].bytes.subarray(0,8).equals(png))&&new Set(matches.map(m=>m[0].name)).size===pages.length,'SHEET_PREVIEW_MEMBER_AMBIGUOUS');
+ const index=pages.findIndex(p=>p.name===pageName);requirePng(index>=0,'SHEET_PREVIEW_PAGE_MISSING');return matches[index][0];
+}
+
+// The native IPC reply has an 8 MiB ceiling. Keep one official export in the editor until its hash-checked slices arrive.
+async function nativePngTransfer(p){
+ const key=Symbol.for('codex-jlc-eda:png-transfers'),entries=globalThis[key]??=new Map();
+ if(p.phase==='close'){
+  const entry=entries.get(p.id);if(entry){clearTimeout(entry.timer);entries.delete(p.id);}
+  return {status:'ok',released:true};
+ }
+ const same=async()=>{const project=await eda.dmt_Project.getCurrentProjectInfo(),doc=await eda.dmt_SelectControl.getCurrentDocumentInfo();return project?.uuid===p.project&&doc?.parentProjectUuid===p.project&&doc?.uuid===p.page&&doc.documentType===1;};
+ if(!await same())return {status:'unknown',code:'SHEET_PNG_TARGET_CHANGED'};
+ if(p.phase==='start'){
+  const file=await eda.sch_ManufactureData.getPngFile('schematic',{width:2000});
+  if(!file?.size||file.size>64*1024*1024||!await same())return {status:'unknown',code:'SHEET_PNG_EXPORT_UNVERIFIED'};
+  const sha=Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',await file.arrayBuffer())),n=>n.toString(16).padStart(2,'0')).join('');
+  const timer=setTimeout(()=>entries.delete(p.id),120000);timer?.unref?.();
+  entries.set(p.id,{file,project:p.project,page:p.page,timer});return {status:'ok',size:file.size,sha};
+ }
+ const entry=entries.get(p.id);
+ if(!entry||entry.project!==p.project||entry.page!==p.page||!Number.isSafeInteger(p.offset)||p.offset<0||p.offset>=entry.file.size)return {status:'unknown',code:'SHEET_PNG_TRANSFER_UNAVAILABLE'};
+ const data=new Uint8Array(await entry.file.slice(p.offset,p.offset+768*1024).arrayBuffer());let binary='';
+ for(const byte of data)binary+=String.fromCharCode(byte);
+ return await same()?{status:'ok',offset:p.offset,bytes:data.length,data:btoa(binary)}:{status:'unknown',code:'SHEET_PNG_TARGET_CHANGED'};
+}
+export async function readSchematicPng(a,t){
+ const id=randomUUID(),run=async(phase,offset)=>{
+  const p={id,phase,offset,project:t.expectedProjectUuid,page:t.schematicPageUuid};
+  const r=await a.invoke(t.sessionId,'('+nativePngTransfer.toString()+')('+JSON.stringify(p)+')',60000,2*1024*1024);
+  requirePng(r.status==='ok',r.code??'SHEET_PNG_TRANSFER_FAILED');return r;
+ };
+ let data,failure;
+ try{
+  const {size,sha}=await run('start'),chunks=[];let offset=0;
+  requirePng(Number.isSafeInteger(size)&&size>0&&size<=64*1024*1024&&/^[a-f0-9]{64}$/.test(sha),'SHEET_PNG_METADATA');
+  while(offset<size){
+   const chunk=await run('read',offset),bytes=Buffer.from(chunk.data,'base64');
+   requirePng(chunk.offset===offset&&chunk.bytes===bytes.length&&bytes.length===Math.min(768*1024,size-offset),'SHEET_PNG_CHUNK_MISMATCH');
+   chunks.push(bytes);offset+=bytes.length;
+  }
+  data=Buffer.concat(chunks);requirePng(digest(data)===sha,'SHEET_PNG_CHECKSUM');
+ }catch(error){failure=error;}
+ try{await run('close');}catch(error){if(!failure)throw error;failure.cleanupCode=error.code;}
+ if(failure)throw failure;return data;
+}
+
+export async function readSelectedSchematicPng(a,t){
+ const project=await a.jlc_eda_inspect_project({sessionId:t.sessionId,expectedProjectUuid:t.expectedProjectUuid,waitForReady:true});
+ const boards=project.boards?.filter(b=>b.schematicPageUuids?.includes(t.schematicPageUuid));
+ requirePng(project.status==='ok'&&project.project?.uuid===t.expectedProjectUuid&&boards?.length===1,'SHEET_PREVIEW_BOARD_UNVERIFIED');
+ const ids=boards[0].schematicPageUuids,pages=project.documents.filter(d=>ids.includes(d.uuid)&&d.itemType==='Schematic Page');
+ const page=pages.find(d=>d.uuid===t.schematicPageUuid);requirePng(page&&pages.length===ids.length,'SHEET_PREVIEW_MEMBERSHIP');
+ return pagePreviewPng(await readSchematicPng(a,t),page.name,pages).bytes;
 }

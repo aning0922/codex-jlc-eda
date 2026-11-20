@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { parseNativeSource } from './native-records.mjs';
 
+export const MAX_BOARD_COMPONENTS = 500;
+export const MAX_SCHEMATIC_PAGES = 12;
 export const digest = text => createHash('sha256').update(text).digest('hex');
 const error = (code, message) => Object.assign(new Error(message), { code, status: 'unknown' });
 const obj = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -38,7 +40,7 @@ export function parseNetlist(source, expectedProjectUuid) {
     throw error('NETLIST_SCHEMA_UNSUPPORTED', 'Only the observed native JLCEDA 2.0.0 netlist schema is supported.');
   if (data.projectId !== expectedProjectUuid) throw error('NETLIST_TARGET_MISMATCH', 'Netlist project does not match the selected project.');
   const entries = Object.entries(data.components);
-  if (entries.length > 500) throw error('NETLIST_COMPONENT_LIMIT', 'This snapshot exceeds the 500-component read bound.');
+  if (entries.length > MAX_BOARD_COMPONENTS) throw error('NETLIST_COMPONENT_LIMIT', 'This snapshot exceeds the 500-component read bound.');
   const components = [], issues = [], nets = new Set();
   let pinCount = 0;
   for (const [key, c] of entries) {

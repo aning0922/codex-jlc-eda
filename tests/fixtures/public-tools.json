@@ -116,7 +116,7 @@
         "limit": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 200,
+          "maximum": 500,
           "default": 50
         }
       },
@@ -324,7 +324,7 @@
   },
   {
     "name": "jlc_eda_read_connectivity",
-    "description": "读取官方原理图逻辑网表及符号引脚；可与同板 PCB 焊盘的网络归属核对，按唯一 ID 合并多单元符号。comparison.status 才是核对结论；匹配不代表已布通、DRC 或功能通过。只支持单个原理图树，最多 8 页，每页 200 个实例。",
+    "description": "读取官方原理图逻辑网表及符号引脚；可与同板 PCB 焊盘的网络归属核对，按唯一 ID 合并多单元符号。comparison.status 才是核对结论；匹配不代表已布通、DRC 或功能通过。只支持单个原理图树，最多 12 页，每张原理图页 200 个实例，整板最多 500 个器件。",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -780,7 +780,7 @@
             "pattern": "^[a-zA-Z0-9_-]{1,128}$"
           },
           "minItems": 1,
-          "maxItems": 8
+          "maxItems": 12
         },
         "circuit": {
           "type": "object",
@@ -878,7 +878,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -916,7 +916,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -928,7 +928,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -938,7 +938,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -1017,7 +1017,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -1214,7 +1214,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -1252,7 +1252,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -1264,7 +1264,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -1274,7 +1274,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -1353,7 +1353,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -1560,7 +1560,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -1598,7 +1598,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -1610,7 +1610,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -1620,7 +1620,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -1699,7 +1699,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -1898,7 +1898,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -1936,7 +1936,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -1948,7 +1948,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -1958,7 +1958,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -2037,7 +2037,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -2215,7 +2215,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -2253,7 +2253,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -2265,7 +2265,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -2275,7 +2275,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -2354,7 +2354,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -2434,7 +2434,7 @@
             "pattern": "^[a-zA-Z0-9_-]{1,128}$"
           },
           "minItems": 1,
-          "maxItems": 8
+          "maxItems": 12
         },
         "circuit": {
           "type": "object",
@@ -2532,7 +2532,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -2570,7 +2570,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -2582,7 +2582,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -2592,7 +2592,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -2671,7 +2671,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -2826,7 +2826,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -2864,7 +2864,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -2876,7 +2876,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -2886,7 +2886,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -2965,7 +2965,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -3166,7 +3166,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -3204,7 +3204,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -3216,7 +3216,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -3226,7 +3226,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -3305,7 +3305,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -3582,7 +3582,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "distanceConstraints": {
               "type": "array",
@@ -4536,7 +4536,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -4574,7 +4574,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -4586,7 +4586,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -4596,7 +4596,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -4675,7 +4675,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -4848,7 +4848,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -4886,7 +4886,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -4898,7 +4898,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -4908,7 +4908,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -4987,7 +4987,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },
@@ -5858,6 +5858,102 @@
               ],
               "additionalProperties": false
             },
+            "sourcePins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "pageUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "net": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "stubLength": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 80,
+                    "default": 25
+                  },
+                  "labelAt": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "required": [
+                  "pageUuid",
+                  "ref",
+                  "pin",
+                  "net"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 64
+            },
+            "sourceLabels": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "pageUuid": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "wireId": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                  },
+                  "net": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "required": [
+                  "pageUuid",
+                  "wireId",
+                  "net",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 480
+            },
             "placements": {
               "type": "array",
               "items": {
@@ -5872,6 +5968,13 @@
                   },
                   "yMm": {
                     "type": "number"
+                  },
+                  "layer": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2
+                    ]
                   },
                   "rotation": {
                     "type": "number",
@@ -5940,7 +6043,7 @@
             "additionalProperties": false
           },
           "minItems": 1,
-          "maxItems": 100
+          "maxItems": 480
         },
         "unroutedCircuit": {
           "type": "object",
@@ -6038,7 +6141,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 200
+              "maxItems": 500
             },
             "nets": {
               "type": "array",
@@ -6076,7 +6179,7 @@
                         },
                         "stubLength": {
                           "type": "number",
-                          "minimum": 10,
+                          "minimum": 1,
                           "maximum": 80,
                           "default": 25
                         }
@@ -6088,7 +6191,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 100
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -6098,7 +6201,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 100
+              "maxItems": 256
             },
             "openPins": {
               "type": "array",
@@ -6177,7 +6280,7 @@
                 ],
                 "additionalProperties": false
               },
-              "maxItems": 10,
+              "maxItems": 120,
               "default": []
             }
           },

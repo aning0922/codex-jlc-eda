@@ -1,3 +1,4 @@
+import {MAX_BOARD_COMPONENTS} from './facts.mjs';
 import {fingerprint} from './drawing.mjs';
 import {pcbSnapshot} from './pcb.mjs';
 import {routingScript,readOwnedRouting} from './p3.mjs';
@@ -8,7 +9,7 @@ import {capturePlacementArchives,comparePlacementArchives} from './placement-evi
 const same=(a,b)=>fingerprint(a)===fingerprint(b);
 const sameArchives=(a,b)=>same(a.pcb,b.pcb)&&same(a.schematic,b.schematic);
 const onlyMechanics=(native,board)=>board.status==='matched'&&native.objects.every(x=>x.layer===11||board.mountingHoles?.some(h=>h.primitiveId===x.primitiveId));
-const document=(a,p)=>a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:200});
+const document=(a,p)=>a.jlc_eda_read_document({...p,documentUuid:p.pcbDocumentUuid,kind:'pcb',includePins:true,includeGeometry:true,limit:MAX_BOARD_COMPONENTS});
 export async function controlledLayout(a,p,ctx){
  const {r,dir}=ctx;r.pcbActions??={};const key='layout/'+p.requestId,hash=fingerprint({layout:p.layout,strategy:p.strategy}),old=r.pcbActions[key];
  if(old&&old.hash!==hash)return {status:'failed',code:'REQUEST_CONFLICT'};

@@ -1,3 +1,4 @@
+import {MAX_SCHEMATIC_PAGES, MAX_BOARD_COMPONENTS} from './facts.mjs';
 import {scripts} from './native-scripts.mjs';
 import {factsScript} from './native-facts.mjs';
 // Same native readers and target guards, composed into one official invoke.
@@ -13,14 +14,14 @@ export function connectivityScript(p,{inspection=false}={}){return `(async()=>{
    return {status:'unsupported',code:'MULTI_SCHEMATIC_EXPORT_SCOPE_UNVERIFIED'};
  }
  const pages=project.documents.filter(d=>d.itemType==='Schematic Page'&&d.parentSchematicUuid===page.parentSchematicUuid);
- if(pages.length>8)return {status:'unsupported',code:'SCHEMATIC_PAGE_LIMIT'};
+ if(pages.length>${MAX_SCHEMATIC_PAGES})return {status:'unsupported',code:'SCHEMATIC_PAGE_LIMIT'};
  const pcbDoc=p.pcbDocumentUuid?project.documents.find(d=>d.uuid===p.pcbDocumentUuid&&d.itemType==='PCB'):null;
  if(p.pcbDocumentUuid&&(!pcbDoc||!page.boardName||pcbDoc.boardName!==page.boardName))return {status:'failed',code:'PCB_NOT_ASSOCIATED_WITH_SCHEMATIC'};
  const focusPage=()=>${scripts.focus({...p,documentUuid:p.schematicPageUuid,kind:'schematic'})};
  const focus=await focusPage();if(focus.status!=='ok')return focus;
  const raw=await ${factsScript({...p,documentUuid:p.schematicPageUuid,operation:'netlist'})};if(raw.status!=='ok')return raw;
  const schematic=[];
- const read=async(doc,kind)=>{const params={sessionId:p.sessionId,expectedProjectUuid:p.expectedProjectUuid,documentUuid:doc.uuid,kind,includePins:true,includeGeometry:false,limit:200};
+ const read=async(doc,kind)=>{const params={sessionId:p.sessionId,expectedProjectUuid:p.expectedProjectUuid,documentUuid:doc.uuid,kind,includePins:true,includeGeometry:false,limit:kind==='pcb'?${MAX_BOARD_COMPONENTS}:200};
   return await (async()=>{const focusDocument=${getFunction(scripts.focus({}))};const readDocument=${getFunction(scripts.document({}))};const focused=await focusDocument(params);if(focused.status!=='ok')return focused;for(let attempt=0;attempt<4;attempt++){const r=await readDocument(params);if(r.code!=='DOCUMENT_NOT_READY_OR_CHANGED')return {...r,focusAction:focused.focusAction};if(attempt<3)await new Promise(x=>setTimeout(x,250));}return {status:'unknown',code:'DOCUMENT_NOT_READY_OR_CHANGED'};})();};
  for(const doc of pages){const r=await read(doc,'schematic');if(r.status!=='ok')return r;schematic.push(r);}
  let pcb=null;if(pcbDoc){pcb=await read(pcbDoc,'pcb');if(pcb.status!=='ok')return pcb;}

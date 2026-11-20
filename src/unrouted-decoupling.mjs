@@ -48,11 +48,11 @@ const projectModels=c=>[c.device?.uuid,c.symbol?.uuid,c.footprint?.uuid].filter(
 const addedParts=d=>d.parts??d.caps??[d.cap];
 const pairedRoutes=d=>d.bulkDecoupling?bulkDecouplingRoutes:d.usbData?usbDataRoutes:d.swdConnector?swdRoutes:d.bootReset?bootResetRoutes:d.lse?lseRoutes:d.usbBackupSupply?usbBackupRoutes:d.analogSupply?analogPowerRoutes:digitalPowerRoutes;
 const assignments=d=>d.assignments??[{...d.pin,name:'VDD',net:d.supply.name}];
-function oldSchematicLines(archive,uuid){
+export function oldSchematicLines(archive,uuid){
   return nativeModelRecords(archive).get(uuid).rows.filter(r=>r.type==='LINE')
     .map(({body:b})=>[b.startX,-b.startY,b.endX,-b.endY]);
 }
-function schematicProof(before,after,t,parts,receipts,existingModels){
+export function schematicProof(before,after,t,parts,receipts,existingModels){
   const parents=[],lineSets=new Map(),allowedTombstones=[];
   for(const {input,result} of receipts){
     if(input.operation==='place')parents.push(result.primitiveId);
@@ -83,15 +83,19 @@ function schematicProof(before,after,t,parts,receipts,existingModels){
   }
   return preserveArchive(before,after,{mainUuid:t.schematicPageUuid,newIds:ids,newParents:parents,allowNewModels:existingModels?[]:parts.flatMap(projectModels),allowedTombstones});
 }
+export function deferredPadEdits(old,changes,components){
+  return changes.map(change=>{
+    const owners=components.filter(c=>c.uniqueId===change.ref);
+    const pads=old.rows.filter(r=>r.type==='PAD_NET').filter(r=>{const id=JSON.parse(r.id);return owners.length===1&&id[1]===owners[0].id&&id[2]===change.pin;});
+    requireState(pads.length===1&&pads[0].body.padNet==='','DECOUPLING_PAD_BINDING_UNPROVEN');
+    return {type:'PAD_NET',id:pads[0].id,after:{...pads[0].body,padNet:change.net}};
+  });
+}
 function pcbProof(before,after,t,d,doc,sch,sourceLands){
   const old=nativeModelRecords(before).get(t.pcbDocumentUuid),modelsAfter=nativeModelRecords(after),current=modelsAfter.get(t.pcbDocumentUuid);
   const changes=assignments(d),owner=doc.components.find(x=>x.uniqueId===(d.owner??changes[0].ref));
   requireState(owner,'DECOUPLING_PAD_BINDING_UNPROVEN');
-  const edits=changes.map(change=>{
-    const pads=old.rows.filter(r=>r.type==='PAD_NET').filter(r=>{const id=JSON.parse(r.id);return id[1]===owner.id && id[2]===change.pin;});
-    requireState(pads.length===1 && pads[0].body.padNet==='','DECOUPLING_PAD_BINDING_UNPROVEN');
-    return {type:'PAD_NET',id:pads[0].id,after:{...pads[0].body,padNet:change.net}};
-  });
+  const edits=deferredPadEdits(old,changes.map(c=>({...c,ref:owner.uniqueId})),[owner]);
   const oldOwner=old.rows.find(r=>r.type==='COMPONENT'&&r.id===owner.id);
   const newOwner=current.rows.find(r=>r.type==='COMPONENT'&&r.id===owner.id);
   requireState(oldOwner && newOwner && equal(oldOwner,newOwner),'DECOUPLING_OWNER_FIELDS_CHANGED');

@@ -32,7 +32,7 @@ function closedLayoutStage(source,origin){
  if(source.addedSheet){
   const sheet=source.addedSheet,prior=source.continuation?.selectedStage?.design;
   const oldPages=prior?.schematicPages??{[source.schematicPageUuid]:prior?.schematic};
-  const ids=recordedPageIds(source),expected={...oldPages,[sheet.uuid]:sheet.accepted?.newSchematic};
+  const ids=recordedPageIds(source),expected={...oldPages,...sheet.sourcePinPages,[sheet.uuid]:sheet.accepted?.newSchematic};
   if(!sheet.uuid||!sheet.accepted?.newSchematic?.sha256||!accepted||new Set(ids).size!==ids.length||
      !exact(expected,f.design.schematicPages)||!exact(sheet.accepted.pcb,f.design.pcb)||
      !exact(f.design.schematic,f.design.schematicPages?.[source.schematicPageUuid]))fail('CONTINUATION_CLOSED_SHEETS_UNVERIFIED');
