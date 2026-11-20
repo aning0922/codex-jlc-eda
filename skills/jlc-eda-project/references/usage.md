@@ -87,3 +87,5 @@ STM32H563VI 的 `swdConnector` 增量用 `header` 指定五针直排针，`reset
 `usbData` 用于 STM32H563VI 自供电的 USB 2.0 从设备。指定汉博 MC-121-L119 母座 `jack`、USBLC6-2SC6 `esd`、两颗 5.1 kΩ 下拉 `cc1`、`cc2`、33 kΩ 和 47 kΩ 分压 `senseTop`、`senseBottom` 以及端口电容 `bulk`。PA11、PA12 分别接 D−、D+，PD13 读 VBUS。A8、B8 标为 NC。一个 EH 符号脚对应四个接地镀槽，验收分别计算逻辑引脚与物理焊盘。
 
 `bulkDecoupling` 接受两个新电容位号，在已有的 +3V3 和数字 GND 间并联两颗同型号 4.7 µF、0805、X7R 电容。先核实 H563VI 的五组数字供电和已有局部去耦。新电容 1 脚接 +3V3，2 脚接 GND。只在已同步、未布线副本使用。
+
+`layout_pcb` 的手动首版布局可使用 2 或 4 个铜层，最多 200 个器件。`board.cornerRadius`、`board.mountingHoles` 与其余几何使用同一单位。安装孔为带孔径和螺钉避让直径的独立非镀圆孔，孔心使用 PCB 全局坐标。板框原点是左上角，+Y 向上。验收时读回所有器件的位置、面和角度、板框圆角和孔位，并在新磁盘上下文核对完整设计。未布线阶段保留预期的未连接报告。

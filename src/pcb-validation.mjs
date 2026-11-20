@@ -7,13 +7,22 @@ export function verifyBoard(plan,native,expectedOutline){
  const b=plan?.board;if(!b)return {status:'unknown',issues:[{code:'PCB_BOARD_EXPECTATION_MISSING'}]};
  if(native.layers!==b.layers)issues.push({code:'PCB_BOARD_LAYER_COUNT_MISMATCH',expected:b.layers,actual:native.layers});
  const outline=native.objects.filter(x=>x.layer===11),pts=[[b.x,b.y],[b.x+b.width,b.y],[b.x+b.width,b.y-b.height],[b.x,b.y-b.height],[b.x,b.y]];
- const lineRectangle=outline.length===4&&new Set(outline.map(x=>x.primitiveId)).size===4&&pts.slice(0,-1).every((pt,i)=>outline.some(x=>x.kind==='Line'&&(x.net===''||x.net===null)&&x.primitiveLock===true&&near(x.startX,pt[0])&&near(x.startY,pt[1])&&near(x.endX,pts[i+1][0])&&near(x.endY,pts[i+1][1])&&near(x.lineWidth,b.outlineWidth)));
+ const lineRectangle=!b.cornerRadius&&outline.length===4&&new Set(outline.map(x=>x.primitiveId)).size===4&&pts.slice(0,-1).every((pt,i)=>outline.some(x=>x.kind==='Line'&&(x.net===''||x.net===null)&&x.primitiveLock===true&&near(x.startX,pt[0])&&near(x.startY,pt[1])&&near(x.endX,pts[i+1][0])&&near(x.endY,pts[i+1][1])&&near(x.lineWidth,b.outlineWidth)));
  const poly=outline.length===1?outline[0]:null,v=poly?.polygon;
- const polygonRectangle=poly?.kind==='Polyline'&&(poly.net===''||poly.net===null)&&poly.primitiveLock===true&&near(poly.lineWidth,b.outlineWidth)&&Array.isArray(v)&&v.length===7&&v[0]==='R'&&near(v[1],b.x)&&near(v[2],b.y)&&near(v[3],b.width)&&near(v[4],b.height)&&v[5]===0&&v[6]===0;
+ const polygonRectangle=poly?.kind==='Polyline'&&(poly.net===''||poly.net===null)&&poly.primitiveLock===true&&near(poly.lineWidth,b.outlineWidth)&&Array.isArray(v)&&v.length===7&&v[0]==='R'&&near(v[1],b.x)&&near(v[2],b.y)&&near(v[3],b.width)&&near(v[4],b.height)&&v[5]===0&&near(v[6],b.cornerRadius??0);
  if(!lineRectangle&&!polygonRectangle)issues.push({code:'PCB_BOARD_OUTLINE_MISSING_OR_CHANGED',expectedSegments:4,actualPrimitives:outline.length});
  if(expectedOutline&&![1,4].includes(expectedOutline.length))issues.push({code:'PCB_BOARD_OUTLINE_CHECKPOINT_INCOMPLETE'});
  if(expectedOutline?.some(x=>!outline.some(y=>y.primitiveId===x.primitiveId)))issues.push({code:'PCB_BOARD_OUTLINE_ID_MISMATCH'});
- return {status:issues.length?'mismatch':'matched',issues,outline,layers:native.layers};
+ const holes=native.objects.filter(o=>o.kind==='Fill'&&o.layer===12);
+ if(b.mountingHoles){
+  const claimed=new Set();
+  for(const h of b.mountingHoles){
+   const found=holes.filter(o=>{const v=o.complexPolygon;return o.primitiveLock===true&&!o.net&&o.fillMode===0&&Array.isArray(v)&&v.length===4&&v[0]==='CIRCLE'&&near(v[1],h.x)&&near(v[2],h.y)&&near(v[3],h.diameter/2);});
+   if(found.length===1)claimed.add(found[0].primitiveId);else issues.push({code:'PCB_MOUNTING_HOLE_GEOMETRY',hole:h});
+  }
+  if(claimed.size!==b.mountingHoles.length||holes.length!==claimed.size)issues.push({code:'PCB_MOUNTING_HOLE_POPULATION'});
+ }
+ return {status:issues.length?'mismatch':'matched',issues,outline,layers:native.layers,...(b.mountingHoles?{mountingHoles:holes}:{})};
 }
 export function verifyLayoutSnapshot(plan,doc,native,expectedOutline){
  const layout=checkLayout(plan,doc),board=verifyBoard(plan,native,expectedOutline),issues=[...layout.issues,...board.issues];

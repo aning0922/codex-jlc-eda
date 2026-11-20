@@ -56,9 +56,9 @@ export function isOwnedFootprintVia(object){
   return object.kind==='Via'&&!!o?.componentId&&!!o.uniqueId&&!!o.footprintUuid&&!!o.source&&!!o.sourceViaId&&!!o.modelViaFingerprint&&object.primitiveId===o.componentId+o.sourceViaId;
 }
 
-export function compareMovedFootprintVias(before,beforeComponents,plan,after){
+export function compareMovedFootprintVias(before,beforeComponents,plan,after,mountingIds=[]){
   const issues=[];
-  const unexpected=after.filter(x=>!isOwnedFootprintVia(x)&&x.layer!==11);
+  const unexpected=after.filter(x=>!isOwnedFootprintVia(x)&&x.layer!==11&&!(x.kind==='Fill'&&x.layer===12&&mountingIds.includes(x.primitiveId)));
   if(unexpected.length)issues.push({code:'LAYOUT_UNEXPECTED_ARTWORK',objects:unexpected});
   const owned=before.filter(isOwnedFootprintVia),current=after.filter(isOwnedFootprintVia);
   if(owned.length!==current.length)issues.push({code:'LAYOUT_FOOTPRINT_VIA_COUNT_CHANGED'});

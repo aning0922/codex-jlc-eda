@@ -2,13 +2,24 @@ import {z} from 'zod';
 import {equivalentAngle} from './angles.mjs';
 export const unit=z.enum(['mm','mil']);
 const n=z.number().finite().min(-1e5).max(1e5),positive=z.number().finite().positive().max(1e5);
-export const layoutSchema=z.object({unit,board:z.object({x:n,y:n,width:positive,height:positive,layers:z.literal(2),outlineWidth:positive}).strict(),edgeClearance:z.number().nonnegative().finite(),componentClearance:z.number().nonnegative().finite(),components:z.array(z.object({uniqueId:z.string().min(1),x:n,y:n,rotation:z.number().finite().min(0).max(359.999),layer:z.union([z.literal(1),z.literal(2)]),fixed:z.boolean(),group:z.string().min(1).max(100)}).strict()).min(1).max(30),distanceConstraints:z.array(z.object({from:z.object({uniqueId:z.string(),pin:z.string()}).strict(),to:z.object({uniqueId:z.string(),pin:z.string()}).strict(),maximum:positive,reason:z.string().min(1)}).strict()).default([])}).strict();
+export const layoutSchema=z.object({unit,board:z.object({x:n,y:n,width:positive,height:positive,layers:z.union([z.literal(2),z.literal(4)]),outlineWidth:positive,cornerRadius:z.number().nonnegative().finite().optional(),mountingHoles:z.array(z.object({x:n,y:n,diameter:positive,keepoutDiameter:positive}).strict()).min(1).max(16).optional()}).strict(),edgeClearance:z.number().nonnegative().finite(),componentClearance:z.number().nonnegative().finite(),components:z.array(z.object({uniqueId:z.string().min(1),x:n,y:n,rotation:z.number().finite().min(0).max(359.999),layer:z.union([z.literal(1),z.literal(2)]),fixed:z.boolean(),group:z.string().min(1).max(100)}).strict()).min(1).max(200),distanceConstraints:z.array(z.object({from:z.object({uniqueId:z.string(),pin:z.string()}).strict(),to:z.object({uniqueId:z.string(),pin:z.string()}).strict(),maximum:positive,reason:z.string().min(1)}).strict()).default([])}).strict();
 export const toMil=(value,u)=>u==='mm'?value/0.0254:value;
 // Input y follows native PCB +Y direction. Board y is the top edge; height extends -Y.
 export function planLayout(input,doc){
  const p=layoutSchema.parse(input),issues=[],seen=new Set(),poses=[];
  if(doc.status!=='ok'||doc.truncated!==false||doc.components.length!==doc.counts?.components)issues.push({code:'LAYOUT_GEOMETRY_INCOMPLETE'});
- const b=Object.fromEntries(Object.entries(p.board).map(([k,v])=>[k,['x','y','width','height','outlineWidth'].includes(k)?toMil(v,p.unit):v]));
+ const b=Object.fromEntries(Object.entries(p.board).map(([k,v])=>[k,['x','y','width','height','outlineWidth','cornerRadius'].includes(k)?toMil(v,p.unit):v]));
+ const radius=b.cornerRadius??0,holes=p.board.mountingHoles??[];
+ if(radius>Math.min(b.width,b.height)/2)issues.push({code:'LAYOUT_CORNER_RADIUS'});
+ if(holes.length)b.mountingHoles=holes.map(h=>Object.fromEntries(Object.entries(h).map(([k,v])=>[k,toMil(v,p.unit)])));
+ function inside(x,y,margin){
+  const dx=Math.abs(x-(b.x+b.width/2))-b.width/2+radius,dy=Math.abs(y-(b.y-b.height/2))-b.height/2+radius;
+  return Math.hypot(Math.max(0,dx),Math.max(0,dy))+Math.min(Math.max(dx,dy),0)-radius<=-margin+1e-8;
+ }
+ for(const [i,h] of (b.mountingHoles??[]).entries()){
+  if(h.keepoutDiameter<h.diameter||!inside(h.x,h.y,h.keepoutDiameter/2)||
+     b.mountingHoles.slice(0,i).some(q=>Math.hypot(h.x-q.x,h.y-q.y)<(h.keepoutDiameter+q.keepoutDiameter)/2))issues.push({code:'LAYOUT_MOUNTING_HOLE_CLEARANCE',hole:i});
+ }
  for(const c of p.components){
   if(seen.has(c.uniqueId)){issues.push({code:'LAYOUT_DUPLICATE_ID',uniqueId:c.uniqueId});continue;}seen.add(c.uniqueId);
   const found=doc.components.filter(x=>x.uniqueId===c.uniqueId);if(found.length!==1){issues.push({code:'LAYOUT_ID_AMBIGUOUS',uniqueId:c.uniqueId});continue;}
@@ -19,7 +30,11 @@ export function planLayout(input,doc){
   const transform=(px,py)=>({x:x+(px-old.x)*Math.cos(theta)-(py-old.y)*Math.sin(theta),y:y+(px-old.x)*Math.sin(theta)+(py-old.y)*Math.cos(theta)});
   const corners=[[bounds.minX,bounds.minY],[bounds.minX,bounds.maxY],[bounds.maxX,bounds.minY],[bounds.maxX,bounds.maxY]].map(q=>transform(...q));
   const projectedBounds={minX:Math.min(...corners.map(q=>q.x)),maxX:Math.max(...corners.map(q=>q.x)),minY:Math.min(...corners.map(q=>q.y)),maxY:Math.max(...corners.map(q=>q.y))};
-  const margin=toMil(p.edgeClearance,p.unit);if(projectedBounds.minX<b.x+margin||projectedBounds.maxX>b.x+b.width-margin||projectedBounds.minY<b.y-b.height+margin||projectedBounds.maxY>b.y-margin)issues.push({code:'LAYOUT_OUTSIDE_BOARD_MARGIN',uniqueId:c.uniqueId,projectedBounds});
+  const margin=toMil(p.edgeClearance,p.unit);if(corners.some(q=>!inside(q.x,q.y,margin)))issues.push({code:'LAYOUT_OUTSIDE_BOARD_MARGIN',uniqueId:c.uniqueId,projectedBounds});
+  for(const h of b.mountingHoles??[]){
+   const dx=Math.max(projectedBounds.minX-h.x,0,h.x-projectedBounds.maxX),dy=Math.max(projectedBounds.minY-h.y,0,h.y-projectedBounds.maxY);
+   if(Math.hypot(dx,dy)<h.keepoutDiameter/2)issues.push({code:'LAYOUT_MOUNTING_HOLE_OVERLAP',uniqueId:c.uniqueId});
+  }
   poses.push({...c,x,y,id:old.id,projectedBounds,pins:(old.pins??[]).map(pin=>({...pin,...transform(pin.x,pin.y)}))});
  }
  if(doc.components.some(c=>!seen.has(c.uniqueId)))issues.push({code:'LAYOUT_ALL_COMPONENTS_REQUIRED'});

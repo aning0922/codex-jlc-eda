@@ -3374,7 +3374,7 @@
   },
   {
     "name": "jlc_eda_layout_pcb",
-    "description": "候选布局入口：以明确单位、板框和全实例约束生成计划，官方移动与板框写入后读回；保留同步历史并另建布局检查点。总体验收仍由独立复核决定。",
+    "description": "布局入口：为 2 层或 4 层板按实际封装、圆角板框、可选非镀安装孔及全实例约束生成计划，官方移动与板框写入后读回；保留同步历史并另建布局检查点。总体验收仍由独立复核决定。",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3442,12 +3442,56 @@
                 },
                 "layers": {
                   "type": "number",
-                  "const": 2
+                  "enum": [
+                    2,
+                    4
+                  ]
                 },
                 "outlineWidth": {
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "maximum": 100000
+                },
+                "cornerRadius": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "mountingHoles": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -100000,
+                        "maximum": 100000
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -100000,
+                        "maximum": 100000
+                      },
+                      "diameter": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 100000
+                      },
+                      "keepoutDiameter": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 100000
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "diameter",
+                      "keepoutDiameter"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 16
                 }
               },
               "required": [
@@ -3520,7 +3564,7 @@
                 "additionalProperties": false
               },
               "minItems": 1,
-              "maxItems": 30
+              "maxItems": 200
             },
             "distanceConstraints": {
               "type": "array",

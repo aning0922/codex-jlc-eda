@@ -1,5 +1,9 @@
 # 变更记录 / Changelog
 
+## 0.11.0-dev.a24 · 2026-11-20
+
+- Place synchronized boards with up to 200 components on a two- or four-layer stack. A rounded rectangular outline and mechanical holes are checked against component envelopes and native disk readback.
+
 ## 0.11.0-dev.a23 · 2026-11-20
 
 - Add a pair of 4.7 µF bulk capacitors to the existing H563 digital rails. Verify every original connection and pad, including shared-number shield slots, after PCB synchronization and disk reopen.
