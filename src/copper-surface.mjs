@@ -66,7 +66,7 @@ export function provenPlanes(objects){
   if(!b.net||b.pourFillMethod!=='solid'||b.preserveSilos!==false||f.length!==1||!f[0].pourFills?.length)fail();
   for(const [i,area] of f[0].pourFills.entries()){
    // 4.1.105 stores POURED paths in 10-mil coordinates, unlike the boundary.
-   const base={net:b.net,layer:b.layer},id=b.primitiveId+'/'+i;
+   const base={net:b.net,layer:b.layer,boundaryId:b.primitiveId},id=b.primitiveId+'/'+i;
    if(area.fill===true&&area.lineWidth===0){
     for(const [j,surface] of surfaceParts(area.path,10).entries())regions.push({...base,kind:'Plane',id:id+'/'+j,surface});
    }else if(area.fill===false&&finite(area.lineWidth)&&area.lineWidth>0){

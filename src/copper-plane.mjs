@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {parseBoardPath,pointInBoardPath,segmentsIntersect} from './board-geometry.mjs';
 import {distanceSegment} from './manufacturing-geometry.mjs';
+import {samePolygon} from './stencil-geometry.mjs';
 import {nativeModelRecords} from './file-model-evidence.mjs';
 import {fingerprint} from './drawing.mjs';
 import {toMil} from './layout.mjs';
@@ -46,10 +47,8 @@ export function planPlane(plane,unit,record,doc,native){
 export function matchesFillRecord(row,fill){
  if(row?.type!=='POURED'||fill?.kind!=='Poured'||row.id!==JSON.stringify(['POURED',fill.pourPrimitiveId])||Object.keys(row.body).length!==1)return false;
  const records=row.body.pourFill;
- return Array.isArray(records)&&records.length===fill.pourFills.length&&records.every((r,i)=>{
-  const f=fill.pourFills[i];
-  return Object.keys(r).length===4&&r.id===f.id&&r.fill===f.fill&&r.strokeWidth===f.lineWidth&&same(r.path,f.path);
- });
+ if(!Array.isArray(records)||records.some(r=>Object.keys(r).length!==4))return false;
+ return sameStoredFills(fill.pourFills,records.map(r=>({id:r.id,fill:r.fill,lineWidth:r.strokeWidth,path:r.path})));
 }
 function diffPlaneArchives(before,after,pcb,plane,creating,fills=[],rebuilt=[]){
  const old=nativeModelRecords(before.pcbData),now=nativeModelRecords(after.pcbData),changes=[];
@@ -153,7 +152,7 @@ function matchesPlane(o,p){
 }
 function samePath(a,b){
  const expected=parseBoardPath(a),actual=parseBoardPath(b);
- return expected.state==='accepted'&&actual.state==='accepted'&&expected.vertices.length===actual.vertices.length&&expected.vertices.every(([x,y],i)=>Math.hypot(x-actual.vertices[i][0],y-actual.vertices[i][1])<.0001);
+ return expected.state==='accepted'&&actual.state==='accepted'&&samePolygon(expected.vertices.map(point),actual.vertices.map(point),.0001);
 }
 export function checkFilledClearance(native,added,rules){
  const regions=provenPlanes(native.objects),spacing=rules.config.Spacing['Safe Spacing'].copperThickness1oz,issues=[];

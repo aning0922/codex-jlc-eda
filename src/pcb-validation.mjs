@@ -39,13 +39,18 @@ export function criticalPrimitives(c,points,unit){
  return objects;
 }
 // The editor can replace adjacent new collinear strokes with one reversed LINE.
-export function criticalRuns(objects){
+export function criticalRuns(objects,readbackToleranceMil=0){
  const runs=[];
  for(const [i,line] of objects.entries()){
   const prev=runs.at(-1)?.object;
   if(prev?.kind==='Line'&&line.kind==='Line'&&prev.net===line.net&&prev.layer===line.layer&&prev.lineWidth===line.lineWidth&&prev.primitiveLock===line.primitiveLock&&prev.endX===line.startX&&prev.endY===line.startY){
    const dx=prev.endX-prev.startX,dy=prev.endY-prev.startY,nx=line.endX-line.startX,ny=line.endY-line.startY;
-   if(dx*nx+dy*ny>0&&Math.abs(dx*ny-dy*nx)<=1e-8*Math.hypot(dx,dy)){
+   const ex=line.endX-prev.startX,ey=line.endY-prev.startY,length=Math.hypot(ex,ey);
+   const nearLine=readbackToleranceMil>0&&length>0&&runs.at(-1).indices.every(j=>{
+    const p=objects[j],px=p.endX-prev.startX,py=p.endY-prev.startY;
+    return Math.abs(px*ey-py*ex)<=readbackToleranceMil*length&&px*ex+py*ey>=0&&px*ex+py*ey<=length*length;
+   });
+   if(dx*nx+dy*ny>0&&(Math.abs(dx*ny-dy*nx)<=1e-8*Math.hypot(dx,dy)||nearLine)){
     runs.at(-1).object={...prev,endX:line.endX,endY:line.endY};runs.at(-1).indices.push(i);continue;
    }
   }
@@ -67,7 +72,8 @@ function profiledReadback(action,raw,added){
  if(!raw.length||action.nativeResult?.status!=='ok'||submitted.length!==expected.length||log.length!==submitted.length||written.size!==log.length||!log.every((x,i)=>x?.primitiveId&&!original.has(x.primitiveId)&&sameCritical(expected[i],submitted[i])&&sameCritical(submitted[i],x)))return null;
  const available=new Map(added.map(x=>[x.primitiveId,x])),groups=[];
  if(available.size!==added.length||added.some(x=>!x.primitiveId||original.has(x.primitiveId)))return null;
- for(const {object,indices} of criticalRuns(submitted)){
+ // Reopened native copper can merge a join within 0.127 µm of the chord. The two outer endpoints remain exact.
+ for(const {object,indices} of criticalRuns(submitted,.005)){
   const provisional=indices.map(i=>log[i].primitiveId);
   let actual=provisional;
   if(!indices.every(i=>sameCritical(submitted[i],available.get(log[i].primitiveId)))){
@@ -81,8 +87,8 @@ function profiledReadback(action,raw,added){
  }
  return available.size?null:{validatedCreates:log.length,groups};
 }
-export function verifyAddedCopper(action,added,unit){
- const issues=[],nets=action.routing?.nets??[action.critical?.net],layers=action.routing?.layers??action.critical?.segments?.map(s=>s.layer)??[action.critical?.layer];
+export function verifyAddedCopper(action,added,unit,batchExpected){
+ const issues=[],nets=batchExpected?batchExpected.map(o=>o.net):action.routing?.nets??[action.critical?.net],layers=batchExpected?[...new Set(batchExpected.flatMap(o=>o.kind==='Via'?[1,2]:[o.layer]))]:action.routing?.layers??action.critical?.segments?.map(s=>s.layer)??[action.critical?.layer];
  for(const x of added){
   if(!nets.includes(x.net)||action.routing?.ignoreNets?.includes(x.net))issues.push({code:'PCB_ROUTE_ADDED_NET_OUTSIDE_SCOPE',id:x.primitiveId,net:x.net});
   if(x.kind==='Line'){
@@ -94,8 +100,8 @@ export function verifyAddedCopper(action,added,unit){
   }else issues.push({code:'PCB_ROUTE_ADDED_PRIMITIVE_UNSUPPORTED',id:x.primitiveId,kind:x.kind});
  }
  let criticalReadback;
- if(action.critical){
-  const {critical:c,points}=action,log=action.nativeResult?.log??[],expected=Array.isArray(points)?criticalPrimitives(c,points,unit):[];
+ if(action.critical||action.batch){
+  const {critical:c,points}=action,log=action.nativeResult?.log??[],expected=batchExpected??(Array.isArray(points)?criticalPrimitives(c,points,unit):[]);
   if(action.pathPlan){
    criticalReadback=profiledReadback(action,expected,added);
    if(!criticalReadback)issues.push({code:'PCB_CRITICAL_PATH_COVERAGE_MISMATCH'});

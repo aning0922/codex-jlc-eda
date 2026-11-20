@@ -117,6 +117,7 @@
     "src/passive-plan.mjs",
     "src/passive-verify.mjs",
     "src/passive-workflow.mjs",
+    "src/pcb-connections.mjs",
     "src/pcb-validation.mjs",
     "src/pcb.mjs",
     "src/placement-evidence.mjs",

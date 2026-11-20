@@ -32,6 +32,12 @@ function wouldSplitTrace(a,b){
  if(sharedStart||sharedEnd)return sharedStart&&sharedEnd&&!same(a.a,a.b);
  return segmentsIntersect(a.a,a.b,b.a,b.b);
 }
+function parallelSnap(a,b){
+ const dx=a.b[0]-a.a[0],dy=a.b[1]-a.a[1],ex=b.b[0]-b.a[0],ey=b.b[1]-b.a[1],la=Math.hypot(dx,dy),lb=Math.hypot(ex,ey);
+ if(la<3||lb<3||Math.abs(dx*ey-dy*ex)>.08*la*lb)return false;
+ const t=p=>((p[0]-a.a[0])*dx+(p[1]-a.a[1])*dy)/la,ends=[t(b.a),t(b.b)].sort((x,y)=>x-y);
+ return Math.min(la,ends[1])-Math.max(0,ends[0])>2.75&&sd(a.a,a.b,b.a,b.b)<=3.2;
+}
 export function planRepair(input,document,native,record){
  const objects=[],intent=record.continuation?.selectedStage?.intent,board=record.pcbLayoutBaseline?.plan?.board;
  if(!intent||!board)throw Error('REPAIR_KNOWN_PARTIAL_BASELINE_REQUIRED');
@@ -42,7 +48,7 @@ export function planRepair(input,document,native,record){
  for(const [i,v]of input.vias.entries())objects.push({kind:'Via',primitiveId:'planned_via_'+i,net:input.net,x:mm(v.at[0]),y:mm(v.at[1]),diameter:mm(v.diameter),holeDiameter:mm(v.holeDiameter),viaType:0,primitiveLock:true});
  return {...checkPlannedCopper(objects,document,native,record),objects,from,to,sourceFingerprint:fingerprint({document,native,baseline:record.pcbRepairBaseline}),qualification:'Conservative source-pad envelope and actual tracks/vias with current native clearance matrix. Native strict DRC remains mandatory.'};
 }
-export function checkPlannedCopper(objects,document,native,record,{preserveExistingRoutes=false}={}){
+export function checkPlannedCopper(objects,document,native,record,{preserveExistingRoutes=false,avoidParallelSnap=false}={}){
  const issues=[],board=record.pcbLayoutBaseline.plan.board;
  if(preserveExistingRoutes){
   if(preserveExistingRoutes)provenPlanes(native.objects);
@@ -73,7 +79,7 @@ export function checkPlannedCopper(objects,document,native,record,{preserveExist
    for(const o of obstacles)if(o.net===q.net&&['Track','Via'].includes(o.ruleKind)&&o.layers.some(l=>q.layers.includes(l))){
     if(q.ruleKind==='Via'&&o.ruleKind==='Via'&&Math.hypot(q.a[0]-o.a[0],q.a[1]-o.a[1])<(x.holeDiameter+o.holeDiameter)/2)
      issues.push({code:'CRITICAL_OVERLAPPING_VIA_DRILLS',id:q.id,obstacle:o.id});
-    else if(wouldSplitTrace(q,o))issues.push({code:'CRITICAL_EXISTING_TRACE_JUNCTION',id:q.id,obstacle:o.id});
+    else if(wouldSplitTrace(q,o)||avoidParallelSnap&&q.ruleKind==='Track'&&o.ruleKind==='Track'&&parallelSnap(q,o))issues.push({code:'CRITICAL_EXISTING_TRACE_JUNCTION',id:q.id,obstacle:o.id});
    }
    obstacles.push(q);
   }

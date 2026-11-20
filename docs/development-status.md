@@ -1,6 +1,6 @@
 # Development status / 开发进展
 
-2026-11-20 · Local source / 本地源码 `0.11.0-dev.a29`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
+2026-11-20 · Local source / 本地源码 `0.11.0-dev.a30`. The latest published runtime is [Alpha.3](https://github.com/aning0922/codex-jlc-eda/releases/tag/v0.11.0-alpha.3).
 
 The RC qualification used EDA 4.1.71 for A6–A9 and 4.1.105 on macOS for the A10 closeout and A11 background lifecycle. Project files and native evidence are retained locally.
 
@@ -17,6 +17,8 @@ The RC qualification used EDA 4.1.71 for A6–A9 and 4.1.105 on macOS for the A1
 A12 adds explicit deferred pins and native wire junctions for a partially drawn schematic. / A12 可记录阶段内留空的真实引脚，并按实际引脚位置绘制有分支的导线。
 
 A13 verifies the native default unnamed net retained by EDA 4.1.105 on first import with open pads. / A13 可核实含待接引脚的首次 PCB 同步，空网记录须对应实际留空的焊盘。
+
+A30 verifies pad-to-plane fanouts and batched paths on a reopened four-layer board. Each supplied via is checked against its named pour after refilling. / A30 支持从四层成品副本继续批量局部布线，并按实际填充复核电源过孔的孔环连接。
 
 Tool count remains **35**. Input schemas and descriptions have evolved for model source, import, initial sync, layout, preview refresh and notes editing; the protocol fixture tracks the current contract, not the original Alpha.3 schema.
 

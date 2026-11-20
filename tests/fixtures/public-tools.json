@@ -3865,7 +3865,7 @@
   },
   {
     "name": "jlc_eda_route_pcb",
-    "description": "候选原生路由入口：真实焊盘关键线或受限网络原生引擎；保留已有铜线、限制图层和等待，未知结果不重放。prepare_ui 不运行引擎；verify 核对实际应用。总体验收仍由独立复核决定。",
+    "description": "在绑定副本上按真实焊盘局部布线，支持多条关键线、接入已验收铜面的过孔、实心覆铜和受限网络原生引擎。逐段核对原有和新增铜线。verify 只复核已提交的动作。",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3909,7 +3909,8 @@
             "prepare_restore_undo",
             "plane",
             "rebuild_plane",
-            "verify_plane"
+            "verify_plane",
+            "batch"
           ]
         },
         "plane": {
@@ -3960,6 +3961,232 @@
             "vertices",
             "width"
           ],
+          "additionalProperties": false
+        },
+        "batch": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "net": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "from": {
+                    "type": "object",
+                    "properties": {
+                      "uniqueId": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                      },
+                      "pin": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "uniqueId",
+                      "pin"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "to": {
+                    "type": "object",
+                    "properties": {
+                      "uniqueId": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                      },
+                      "pin": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "uniqueId",
+                      "pin"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "waypoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "maxItems": 30,
+                    "default": []
+                  },
+                  "layer": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "segments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "layer": {
+                          "type": "number",
+                          "enum": [
+                            1,
+                            2
+                          ]
+                        },
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "layer",
+                        "width"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 31
+                  },
+                  "via": {
+                    "type": "object",
+                    "properties": {
+                      "diameter": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "holeDiameter": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "diameter",
+                      "holeDiameter"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "net",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 32,
+              "default": []
+            },
+            "fanouts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "net": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "from": {
+                    "type": "object",
+                    "properties": {
+                      "uniqueId": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+                      },
+                      "pin": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "uniqueId",
+                      "pin"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "layer": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "waypoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "maxItems": 12,
+                    "default": []
+                  },
+                  "at": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "plane": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "via": {
+                    "type": "object",
+                    "properties": {
+                      "diameter": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "holeDiameter": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "diameter",
+                      "holeDiameter"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "net",
+                  "from",
+                  "layer",
+                  "width",
+                  "at",
+                  "plane",
+                  "via"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 32,
+              "default": []
+            }
+          },
           "additionalProperties": false
         },
         "guiParameterPolicy": {

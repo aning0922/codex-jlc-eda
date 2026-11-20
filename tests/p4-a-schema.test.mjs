@@ -7,6 +7,7 @@ import {criticalPrimitives,criticalRuns,verifyAddedCopper} from '../src/pcb-vali
 import {checkPlannedCopper} from '../src/repair-geometry.mjs';
 import {auditCopper} from '../src/copper.mjs';
 import {surfaceParts,surfaceDistance} from '../src/copper-surface.mjs';
+import {connectionPrimitives,fanoutContacts} from '../src/pcb-connections.mjs';
 import {matchesFillRecord,sameFilledGeometry,sameStoredFills} from '../src/copper-plane.mjs';
 
 const target={sessionId:'session',expectedProjectUuid:'project',schematicPageUuid:'page',schematicUuid:'sch',pcbDocumentUuid:'pcb',workDirectory:'/task',requestId:'request'};
@@ -60,6 +61,9 @@ test('native coalescing proves a full same-width run and keeps every other retur
   mutate(action,added);return verifyAddedCopper(action,added,'mil');
  };
  assert.deepEqual(check(raw).criticalReadback.groups[1],{provisional:['native1','native2','native3'],actual:['merged']});assert.equal(check(merged).criticalReadback.validatedCreates,3);
+ const close=[{...raw[1],startX:15,endX:15,startY:0,endY:20},{...raw[2],startX:15,endX:15.006,startY:20,endY:38}];
+ assert.equal(criticalRuns(close).length,2);assert.equal(criticalRuns(close,.005).length,1);
+ assert.equal(criticalRuns([close[0],{...close[1],endX:15.03}],.005).length,2);
  for(const change of [(a,b)=>b[1].endY=1,(a,b)=>b[1].lineWidth=3,(a,b)=>b[1].net='OTHER',(a,b)=>b[1].primitiveId='native4',(a,b)=>b[1].primitiveId='source',(a,b)=>b[0].primitiveId='replacement',(a,b)=>b.push({...b[1],primitiveId:'extra'}),a=>a.nativeResult.log[2].primitiveId='source',a=>a.nativeResult.log[2].endX=12,a=>a.nativeResult.status='unknown'])assert.equal(check(raw,change).status,'mismatch');
 });
 
@@ -75,6 +79,31 @@ test('a second power path can leave a shared pad, but cannot split a recorded sa
  for(const [a,b]of [[[100,100],[102,102]],[[180,180],[210,120]],[[100,200],[200,100]],[[200,200],[100,100]]])
   assert(check(a,b).issues.some(i=>i.code==='CRITICAL_EXISTING_TRACE_JUNCTION'));
  assert(check([60,75],[95,75]).issues.some(i=>i.code==='CRITICAL_MOUNTING_HOLE_KEEPOUT'));
+ const parallel=line([102,100],[201,199],'parallel');
+ assert(checkPlannedCopper([parallel],doc,native,record,{preserveExistingRoutes:true,avoidParallelSnap:true}).issues.some(i=>i.code==='CRITICAL_EXISTING_TRACE_JUNCTION'));
+});
+
+test('a batch binds source pads and requires actual copper on the named plane at each via',()=>{
+ const terminal={uniqueId:'C',pin:'2'},fanout={net:'GND',from:terminal,layer:1,width:5,waypoints:[],at:[60,50],plane:'ground',via:{diameter:16,holeDiameter:8}};
+ const parse=batch=>p3Schemas.jlc_eda_route_pcb.safeParse({...target,phase:'batch',unit:'mil',batch});
+ assert(parse({fanouts:[fanout]}).success);
+ assert(!parse({}).success);
+ assert(!parse({fanouts:Array(33).fill(fanout)}).success);
+ const outline=[0,0,'L',100,0,100,100,0,100,0,0];
+ const border={kind:'Pour',primitiveId:'b',net:'GND',layer:15,pourName:'GROUND',complexPolygon:outline,pourFillMethod:'solid',preserveSilos:false};
+ const filled={kind:'Poured',primitiveId:'b',pourPrimitiveId:'b',layer:15,pourFills:[{id:'f',fill:true,lineWidth:0,path:[[0,0,'L',10,0,10,10,0,10,0,0]]}]};
+ const doc={components:[{uniqueId:'C',pins:[{number:'2',net:'GND',x:20,y:50,layer:1}]}]},batch={paths:[],fanouts:[fanout]},native={objects:[border,filled]};
+ const objects=connectionPrimitives(batch,doc,'mil',native);
+ assert.deepEqual(objects.map(o=>o.kind),['Line','Via']);
+ assert.equal(fanoutContacts(batch,native,'mil')[0].matched,false);
+ native.objects.push(objects[1]);
+ assert.equal(fanoutContacts(batch,native,'mil')[0].ringSamplesInCopper,32);
+ filled.pourFills[0].path.push(['CIRCLE',6,5,1]);
+ assert.equal(fanoutContacts(batch,native,'mil')[0].matched,false);
+ assert.throws(()=>connectionPrimitives(batch,doc,'mil',native),/FANOUT_IN_PLANE_VOID/);
+ for(const change of [{from:{uniqueId:'C',pin:'1'}},{net:'POWER'},{plane:'unknown'},{at:[250,50]},{via:{diameter:8,holeDiameter:8}}]){
+  assert.throws(()=>connectionPrimitives({paths:[],fanouts:[{...fanout,...change}]},doc,'mil',native));
+ }
 });
 
 test('inner-plane islands and thermal spokes conduct only through their actual copper',()=>{
